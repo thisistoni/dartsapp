@@ -82,7 +82,7 @@ const DartsStatisticsDashboard: React.FC = () => {
       setLeaguePosition(null); // Reset league position
 
       // Fetch league position
-      axios.get(`http://localhost:4000/api/league-position/${encodeURIComponent(selectedTeam)}`)
+      axios.get(`http://202.61.193.120:3001/api/league-position/${encodeURIComponent(selectedTeam)}`)
         .then(response => {
           setLeaguePosition(response.data.position);
         })
@@ -91,15 +91,15 @@ const DartsStatisticsDashboard: React.FC = () => {
         });
 
       // Fetch team data and match reports
-      axios.get(`http://localhost:4000/api/team-players-average/${encodeURIComponent(selectedTeam)}`)
+      axios.get(`http://202.61.193.120:3001/api/team-players-average/${encodeURIComponent(selectedTeam)}`)
         .then(response => {
           const data: TeamData = response.data;
           setTeamData(data);
-          return axios.get(`http://localhost:4000/api/dart-ids/${encodeURIComponent(selectedTeam)}`);
+          return axios.get(`http://202.61.193.120:3001/api/dart-ids/${encodeURIComponent(selectedTeam)}`);
         })
         .then(response => {
           const matchIds: string[] = response.data.ids;
-          return Promise.all(matchIds.map((id: string) => axios.get(`http://localhost:4000/api/match-report/${id}/${encodeURIComponent(selectedTeam)}`)));
+          return Promise.all(matchIds.map((id: string) => axios.get(`http://202.61.193.120:3001/api/match-report/${id}/${encodeURIComponent(selectedTeam)}`)));
         })
         .then(matchReportResponses => {
           const reports: MatchReport[] = matchReportResponses.map(res => res.data);
