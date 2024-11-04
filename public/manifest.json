@@ -1,6 +1,6 @@
 {
-    "short_name": "AppName",
-    "name": "Dein App Name",
+    "short_name": "WDV Tool",
+    "name": "WDV Landesliga Tool",
     "icons": [
       {
         "src": "/icons/icon-192x192.png",
