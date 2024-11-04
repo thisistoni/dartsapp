@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Search } from 'lucide-react';
+import { Trophy, Search, Users, User, CalendarFold,Rows4,CheckCheck, MapPin, Martini, Phone, Clock, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
 
@@ -28,6 +28,38 @@ interface MatchReport {
   checkouts: Checkout[];
   // Add other properties if necessary
 }
+
+const VenueCard: React.FC = () => {
+  return (
+    <Card className="mb-6 bg-white overflow-hidden shadow-sm border">
+      <CardContent className="p-6">
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Info Section */}
+          <div className="flex-1 space-y-4">
+            
+              <div className="flex items-center space-x-2">
+                <Martini className="h-6 w-6 text-red-500" />
+                <h3 className="text-xl font-semibold text-slate-900">Vereinslokal Dartclub Sudar</h3>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-slate-700">
+                <MapPin className="h-4 w-4 text-slate-500" />
+                <span>Lienfeldergasse 2, 1160 Wien</span>
+              </div>
+              
+              <div className="flex items-center gap-2 text-slate-700">
+                <Phone className="h-4 w-4 text-slate-500" />
+                <span>06648344258</span>
+              </div>
+              </div>
+
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 const DartsStatisticsDashboard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -114,6 +146,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     }
   }, [selectedTeam]);
 
+
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-7xl mx-auto">
@@ -159,8 +192,10 @@ const DartsStatisticsDashboard: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* Display Selected Team */}
-            <div className="mb-4 bg-white rounded-lg shadow-sm border p-4">
+
+
+         {/* Display Selected Team */}
+         <div className="mb-4 bg-white rounded-lg shadow-sm border p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">{selectedTeam}</h2>
@@ -174,75 +209,111 @@ const DartsStatisticsDashboard: React.FC = () => {
               </div>
             </div>
             
+
+    
+
+            
             {/* Top Players Card */}
             <Card className="mb-8">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Trophy className="h-6 w-6 text-yellow-500" />
-                  Top Performers
+                  <h3 className="text-xl font-semibold text-slate-900">              Top Performers
+                  </h3>
+
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {teamData && teamData.players.slice(0, 3).map((player: Player, index: number) => (
-                    <div key={player.playerName} className="bg-white p-4 rounded-lg shadow-sm border">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl font-bold text-gray-900">#{index + 1}</span>
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{player.playerName}</h3>
-                          <p className="text-sm text-gray-500">{player.adjustedAverage} Avg</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    {teamData && teamData.players.slice(0, 3).map((player: Player, index: number) => {
+      let medalClass = ''; // Variable für die CSS-Klasse der Medaille
 
+      // Bestimmen der Klasse basierend auf dem Rang
+      if (index === 0) {
+        medalClass = 'bg-yellow-400 bg-opacity-75 text-yellow-800'; // Gold, halbtransparent
+      } else if (index === 1) {
+        medalClass = 'bg-gray-300 bg-opacity-75 text-gray-800'; // Silber, halbtransparent
+      } else if (index === 2) {
+        medalClass = 'bg-orange-400 bg-opacity-75 text-orange-800'; // Bronze, halbtransparent
+      }
+
+      return (
+        <div key={player.playerName} className="bg-white p-4 rounded-lg shadow-sm border">
+          <div className="flex items-center gap-2">
+            <span className={`px-4 py-2 rounded-full text-2xl font-extrabold ${medalClass}`}>
+              #{index + 1}
+            </span>
+            <div>
+              <h3 className="font-semibold text-gray-900">{player.playerName}</h3>
+              <p className="text-sm text-gray-500">{player.adjustedAverage} Avg</p>
+            </div>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+</CardContent>
+            </Card>
+<VenueCard></VenueCard>
             {/* Main Content Tabs */}
             <Tabs defaultValue="matches" className="space-y-4">
               <TabsList>
-                <TabsTrigger value="matches">Matches</TabsTrigger>
-                <TabsTrigger value="stats">Player Stats</TabsTrigger>
+              <TabsTrigger value="matches" className="flex items-center">
+  <Users className="h-5 w-5 text-green-500 mr-1" /> {/* Users-Icon für Matches */}
+  Matches
+</TabsTrigger>
+
+      
+
+                <TabsTrigger value="stats" className="flex items-center"><User className="h-5 w-5 text-green-500 mr-1" /> Player Stats</TabsTrigger>
               </TabsList>
 
               <TabsContent value="matches">
-                <div className="space-y-4">
-                  {matchReports.map((matchday: MatchReport, index: number) => (
-                    <Card key={index}>
-                      <CardHeader>
-                        <CardTitle>Matchday {index + 1}</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {/* Lineup */}
-                          <div>
-                            <h3 className="font-semibold mb-2">Lineup</h3>
-                            <ul className="space-y-1">
-                              {matchday.lineup.map((player: string, idx: number) => (
-                                <li key={idx} className="text-sm text-gray-600">
-                                  {idx + 1}. {player}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                          {/* Checkouts */}
-                          <div>
-                            <h3 className="font-semibold mb-2">Checkouts</h3>
-                            <ul className="space-y-1">
-                              {matchday.checkouts.map((checkout: Checkout, idx: number) => (
-                                <li key={idx} className="text-sm text-gray-600">
-                                  {checkout.scores}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </TabsContent>
+  <div className="space-y-4">
+    {matchReports.map((matchday: MatchReport, index: number) => (
+      <Card key={index}>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <CalendarFold className="h-6 w-6 text-blue-500" />
+            <CardTitle>Matchday {index + 1}</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Lineup */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Rows4 className="h-5 w-5 text-blue-500" />
+                <h3 className="font-semibold">Lineup</h3>
+              </div>
+              <ul className="space-y-1">
+                {matchday.lineup.map((player: string, idx: number) => (
+                  <li key={idx} className="text-sm text-gray-600">
+                    {idx + 1}. {player}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {/* Checkouts */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCheck className="h-5 w-5 text-blue-500" />
+                <h3 className="font-semibold">Checkouts</h3>
+              </div>
+              <ul className="space-y-1">
+                {matchday.checkouts.map((checkout: Checkout, idx: number) => (
+                  <li key={idx} className="text-sm text-gray-600">
+                    {checkout.scores}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    ))}
+  </div>
+</TabsContent>
 
               <TabsContent value="stats">
                 <Card>
