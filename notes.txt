@@ -1,0 +1,7 @@
+#checkout menu
+#best checkouts oben hero
+#average bei line up indicator
+#Ai vorschlag aufstellung
+#nächster gegner button
+#gesamte tabelle
+#line up calculator

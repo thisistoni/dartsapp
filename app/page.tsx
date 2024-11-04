@@ -250,29 +250,30 @@ const DartsStatisticsDashboard: React.FC = () => {
                     <CardTitle>Player Statistics</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm bg-white">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Average</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {teamData && teamData.players.map((player: Player, index: number) => (
-                            <tr key={player.playerName} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {player.playerName}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{player.adjustedAverage}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
+  <div className="overflow-x-auto">
+    <table className="w-full text-sm bg-white">
+      <thead>
+        <tr className="border-b">
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Rank</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Average</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-200">
+        {teamData && teamData.players.map((player: Player, index: number) => (
+          <tr key={player.playerName} className="hover:bg-gray-50">
+            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden sm:table-cell">{index + 1}</td>
+            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+              {player.playerName}
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{player.adjustedAverage}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</CardContent>
+
                 </Card>
               </TabsContent>
             </Tabs>
