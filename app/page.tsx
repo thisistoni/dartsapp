@@ -80,26 +80,26 @@ const DartsStatisticsDashboard: React.FC = () => {
     if (selectedTeam) {
       setLoading(true);
       setLeaguePosition(null); // Reset league position
-  
+
       // Fetch league position
-      axios.get(`/api/league-position/${encodeURIComponent(selectedTeam)}`)
+      axios.get(`https://v2202406227836275390.happysrv.de/api/league-position/${encodeURIComponent(selectedTeam)}`)
         .then(response => {
           setLeaguePosition(response.data.position);
         })
         .catch(error => {
           console.error('Error fetching league position:', error);
         });
-  
+
       // Fetch team data and match reports
-      axios.get(`/api/team-players-average/${encodeURIComponent(selectedTeam)}`)
+      axios.get(`https://v2202406227836275390.happysrv.de/api/team-players-average/${encodeURIComponent(selectedTeam)}`)
         .then(response => {
           const data: TeamData = response.data;
           setTeamData(data);
-          return axios.get(`/api/dart-ids/${encodeURIComponent(selectedTeam)}`);
+          return axios.get(`https://v2202406227836275390.happysrv.de/api/dart-ids/${encodeURIComponent(selectedTeam)}`);
         })
         .then(response => {
           const matchIds: string[] = response.data.ids;
-          return Promise.all(matchIds.map((id: string) => axios.get(`/api/match-report/${id}/${encodeURIComponent(selectedTeam)}`)));
+          return Promise.all(matchIds.map((id: string) => axios.get(`https://v2202406227836275390.happysrv.de/api/match-report/${id}/${encodeURIComponent(selectedTeam)}`)));
         })
         .then(matchReportResponses => {
           const reports: MatchReport[] = matchReportResponses.map(res => res.data);
@@ -113,7 +113,6 @@ const DartsStatisticsDashboard: React.FC = () => {
         });
     }
   }, [selectedTeam]);
-  
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
