@@ -5,3 +5,4 @@
 #nächster gegner button
 #gesamte tabelle
 #line up calculator
+s
