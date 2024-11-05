@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Search, Users, User, CalendarFold,Rows4,CheckCheck, MapPin, Martini, Phone, Clock, Loader2 } from 'lucide-react';
+import { Trophy, Search, Users, User, CalendarFold,Rows4,CheckCheck, MapPin, Martini, Phone } from 'lucide-react';
 import axios from 'axios';
 import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
 
