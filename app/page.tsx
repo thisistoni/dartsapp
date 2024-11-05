@@ -254,7 +254,7 @@ const DartsStatisticsDashboard: React.FC = () => {
             
               <div className="flex items-center space-x-2">
                 <Martini className="h-6 w-6 text-red-500" />
-                <h3 className="text-xl font-semibold text-slate-900">{clubVenue?.clubName}</h3>
+                <h3 className="text-xl font-semibold text-slate-900">{clubVenue?.venue}</h3>
             </div>
 
             <div className="space-y-2">
