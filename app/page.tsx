@@ -29,37 +29,18 @@ interface MatchReport {
   // Add other properties if necessary
 }
 
-const VenueCard: React.FC = () => {
-  return (
-    <Card className="mb-6 bg-white overflow-hidden shadow-sm border">
-      <CardContent className="p-6">
-        <div className="flex flex-col md:flex-row gap-6">
-          {/* Info Section */}
-          <div className="flex-1 space-y-4">
-            
-              <div className="flex items-center space-x-2">
-                <Martini className="h-6 w-6 text-red-500" />
-                <h3 className="text-xl font-semibold text-slate-900">Vereinslokal Dartclub Sudar</h3>
-            </div>
+// Define the interface for Club Venue
+interface ClubVenue {
+  rank: string;
+  teamName: string;
+  clubName: string;
+  venue: string;
+  address: string;
+  city: string;
+  phone: string;
+}
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-slate-700">
-                <MapPin className="h-4 w-4 text-slate-500" />
-                <span>Lienfeldergasse 2, 1160 Wien</span>
-              </div>
-              
-              <div className="flex items-center gap-2 text-slate-700">
-                <Phone className="h-4 w-4 text-slate-500" />
-                <span>06648344258</span>
-              </div>
-              </div>
 
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
 
 const DartsStatisticsDashboard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -68,6 +49,7 @@ const DartsStatisticsDashboard: React.FC = () => {
   const [matchReports, setMatchReports] = useState<MatchReport[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [leaguePosition, setLeaguePosition] = useState<number | null>(null); // New state variable for league position
+  const [clubVenue, setClubVenue] = useState<ClubVenue | null>(null);
 
   // Simulated team list
   const teams: string[] = [
@@ -121,6 +103,16 @@ const DartsStatisticsDashboard: React.FC = () => {
         .catch(error => {
           console.error('Error fetching league position:', error);
         });
+
+        // Fetch club venue information
+      axios
+      .get(`https://v2202406227836275390.happysrv.de/api/club-venue/${encodeURIComponent(selectedTeam)}`)
+      .then((response) => {
+        setClubVenue(response.data);
+      })
+      .catch((error) => {
+        console.error('Error fetching club venue:', error);
+      });
 
       // Fetch team data and match reports
       axios.get(`https://v2202406227836275390.happysrv.de/api/team-players-average/${encodeURIComponent(selectedTeam)}`)
@@ -254,8 +246,33 @@ const DartsStatisticsDashboard: React.FC = () => {
   </div>
 </CardContent>
             </Card>
-<VenueCard></VenueCard>
-            {/* Main Content Tabs */}
+            <Card className="mb-6 bg-white overflow-hidden shadow-sm border">
+      <CardContent className="p-6">
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Info Section */}
+          <div className="flex-1 space-y-4">
+            
+              <div className="flex items-center space-x-2">
+                <Martini className="h-6 w-6 text-red-500" />
+                <h3 className="text-xl font-semibold text-slate-900">{clubVenue?.clubName}</h3>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-slate-700">
+                <MapPin className="h-4 w-4 text-slate-500" />
+                <span>{clubVenue?.address+", "+clubVenue?.city}</span>
+              </div>
+              
+              <div className="flex items-center gap-2 text-slate-700">
+                <Phone className="h-4 w-4 text-slate-500" />
+                <span>{clubVenue?.phone}</span>
+              </div>
+              </div>
+
+          </div>
+        </div>
+      </CardContent>
+    </Card>            {/* Main Content Tabs */}
             <Tabs defaultValue="matches" className="space-y-4">
               <TabsList>
               <TabsTrigger value="matches" className="flex items-center">
