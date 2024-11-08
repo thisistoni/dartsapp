@@ -7,5 +7,5 @@
 #score bei line up & tabellen platz bei gegner in ( )
 #Ai vorschlag aufstellung
 #nächster gegner button
-#line up calculator
+#line up calculator menu
 #next game card /adresse+datum+gegnername,position, team avg
