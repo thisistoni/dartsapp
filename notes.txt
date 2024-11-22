@@ -1,8 +1,11 @@
 #checkout menu
+#tabelle menu
+#spielplan menu
+
 #best checkouts oben hero
 #average bei line up indicator
+#score bei line up & tabellen platz bei gegner in ( )
 #Ai vorschlag aufstellung
 #nächster gegner button
-#gesamte tabelle
-#line up calculator
-s
+#line up calculator menu
+#next game card /adresse+datum+gegnername,position, team avg
