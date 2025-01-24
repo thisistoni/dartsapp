@@ -32,3 +32,16 @@ export interface ClubVenue {
     phone: string;
 }
 
+// Add new type
+export interface ComparisonData {
+    opponent: string;
+    firstRound: string | null;
+    secondRound: string | null;
+}
+
+export interface TeamStandings {
+    wins: number;
+    draws: number;
+    losses: number;
+}
+

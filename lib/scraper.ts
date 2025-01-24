@@ -1,6 +1,6 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { ClubVenue, MatchReport, Player } from './types';
+import { ClubVenue, MatchReport, Player, ComparisonData, TeamStandings } from './types';
 
 
 
@@ -228,6 +228,72 @@ export async function fetchClubVenue(teamName: string): Promise<ClubVenue | null
         return clubData;
     } catch (error) {
         console.error('Fehler beim Abrufen der Club-Adresse:', error);
+        return null;
+    }
+}
+
+export async function fetchComparisonData(teamName: string): Promise<ComparisonData[]> {
+    const url = `https://www.wdv-dart.at/_landesliga/_liga/ergmann1.php?div=5&saison=2024/25&id=2015&mannschaft=${encodeURIComponent(teamName)}`;
+    
+    const response = await fetch(url);
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    
+    const matches: ComparisonData[] = [];
+    const processedTeams = new Set();
+
+    $('table.ranking tr.ranking').each((_, row) => {
+        const round = Number($(row).find('td').eq(0).text().trim());
+        const homeTeam = $(row).find('td').eq(2).text().trim();
+        const awayTeam = $(row).find('td').eq(3).text().trim();
+        const homeSets = Number($(row).find('td').eq(7).find('b').text().trim());
+        const awaySets = Number($(row).find('td').eq(9).find('b').text().trim());
+        
+        let opponent = homeTeam === teamName ? awayTeam : homeTeam;
+        let score = homeTeam === teamName ? `${homeSets}-${awaySets}` : `${awaySets}-${homeSets}`;
+        
+        if (!processedTeams.has(opponent)) {
+            matches.push({
+                opponent,
+                firstRound: round <= 13 ? score : null,
+                secondRound: round > 13 ? score : null
+            });
+            processedTeams.add(opponent);
+        } else {
+            const existingMatch = matches.find(m => m.opponent === opponent);
+            if (existingMatch) {
+                existingMatch.secondRound = score;
+            }
+        }
+    });
+
+    return matches;
+}
+
+export async function fetchTeamStandings(teamName: string): Promise<TeamStandings | null> {
+    const url = 'https://www.wdv-dart.at/_landesliga/_liga/tabakt.php?div=5&saison=2024/25';
+    
+    try {
+        const { data } = await axios.get(url);
+        const $ = cheerio.load(data);
+        
+        let standings: TeamStandings | null = null;
+        
+        $('div.ranking table tbody tr.ranking').each((_, element) => {
+            const team = $(element).find('td').eq(1).text().trim();
+            if (team === teamName) {
+                standings = {
+                    wins: parseInt($(element).find('td').eq(3).text().trim()),    // S column
+                    draws: parseInt($(element).find('td').eq(4).text().trim()),   // U column
+                    losses: parseInt($(element).find('td').eq(5).text().trim()),  // N column
+                };
+                return false; // Exit loop once found
+            }
+        });
+        
+        return standings;
+    } catch (error) {
+        console.error('Error fetching team standings:', error);
         return null;
     }
 }

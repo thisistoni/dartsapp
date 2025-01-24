@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchSpielberichteLink, fetchDartIds, fetchTeamPlayersAverage, fetchMatchReport, fetchLeaguePosition, fetchClubVenue } from '@/lib/scraper';
+import { fetchSpielberichteLink, fetchDartIds, fetchTeamPlayersAverage, fetchMatchReport, fetchLeaguePosition, fetchClubVenue, fetchComparisonData, fetchTeamStandings } from '@/lib/scraper';
 
 // API-Endpunkte für verschiedene Funktionen
 export async function GET(request: Request) {
@@ -40,6 +40,16 @@ export async function GET(request: Request) {
                 if (!teamName) throw new Error('Team fehlt.');
                 const clubVenue = await fetchClubVenue(teamName);
                 return NextResponse.json({ venue: clubVenue });
+
+            case 'comparison':
+                if (!teamName) throw new Error('Team fehlt.');
+                const comparisonData = await fetchComparisonData(teamName);
+                return NextResponse.json({ comparison: comparisonData });
+
+            case 'standings':
+                if (!teamName) throw new Error('Team fehlt.');
+                const standings = await fetchTeamStandings(teamName);
+                return NextResponse.json({ standings });
 
             default:
                 throw new Error('Ungültige Aktion.');
