@@ -316,8 +316,8 @@ export async function fetchComparisonData(teamName: string): Promise<ComparisonD
         const homeSets = Number($(row).find('td').eq(7).find('b').text().trim());
         const awaySets = Number($(row).find('td').eq(9).find('b').text().trim());
         
-        let opponent = homeTeam === teamName ? awayTeam : homeTeam;
-        let score = homeTeam === teamName ? `${homeSets}-${awaySets}` : `${awaySets}-${homeSets}`;
+        const opponent = homeTeam === teamName ? awayTeam : homeTeam;
+        const score = homeTeam === teamName ? `${homeSets}-${awaySets}` : `${awaySets}-${homeSets}`;
         
         if (!processedTeams.has(opponent)) {
             matches.push({
