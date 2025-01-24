@@ -2,6 +2,9 @@
 export interface Player {
     playerName: string;
     adjustedAverage: number;
+    singles?: string;    // W-L format
+    doubles?: string;    // W-L format
+    winRate?: number;    // Percentage
     // Add other properties if necessary
 }
 
@@ -78,6 +81,7 @@ export interface MatchAverages {
     matchday: number;
     teamAverage: number;
     playerAverages: PlayerMatchAverage[];
+    opponent: string;
 }
 
 export interface PlayerMatchAverage {

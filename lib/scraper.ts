@@ -73,6 +73,25 @@ export async function fetchTeamPlayersAverage(teamName: string): Promise<Player[
         const $ = cheerio.load(data);
         const players: Player[] = [];
 
+        // Get singles data first
+        const singlesData = new Map<string, { wins: number, losses: number }>();
+        $('h4:contains("Einzel") + div table.ranking tbody tr.ranking').each((_, element) => {
+            const playerName = $(element).find('td:nth-child(2) a').text().trim();
+            const wins = parseInt($(element).find('td:nth-child(4)').text().trim());
+            const losses = parseInt($(element).find('td:nth-child(5)').text().trim());
+            singlesData.set(playerName, { wins, losses });
+        });
+
+        // Get doubles data
+        const doublesData = new Map<string, { wins: number, losses: number }>();
+        $('h4:contains("Doppel") + div table.ranking tbody tr.ranking').each((_, element) => {
+            const playerName = $(element).find('td:nth-child(2) a').text().trim();
+            const wins = parseInt($(element).find('td:nth-child(4)').text().trim());
+            const losses = parseInt($(element).find('td:nth-child(5)').text().trim());
+            doublesData.set(playerName, { wins, losses });
+        });
+
+        // Process player averages and combine with singles/doubles data
         const firstTableRows = $('table.ranking').first().find('tbody tr');
         firstTableRows.each((_, element) => {
             const playerName = $(element).find('td:nth-child(2) a').text().trim();
@@ -80,14 +99,33 @@ export async function fetchTeamPlayersAverage(teamName: string): Promise<Player[
             const average = parseFloat(averageText);
 
             if (playerName && !isNaN(average)) {
-                const adjustedAverage = parseFloat((average * 3).toFixed(2)); // Lösung
-                players.push({ playerName, adjustedAverage });
+                const singlesRecord = singlesData.get(playerName);
+                const doublesRecord = doublesData.get(playerName);
+                
+                const singles = singlesRecord ? `${singlesRecord.wins}-${singlesRecord.losses}` : '0-0';
+                const doubles = doublesRecord ? `${doublesRecord.wins}-${doublesRecord.losses}` : '0-0';
+                
+                // Calculate overall win rate
+                const totalWins = (singlesRecord?.wins || 0) + (doublesRecord?.wins || 0);
+                const totalLosses = (singlesRecord?.losses || 0) + (doublesRecord?.losses || 0);
+                const winRate = totalWins + totalLosses > 0 
+                    ? Number(((totalWins / (totalWins + totalLosses)) * 100).toFixed(1))
+                    : 0;
+
+                const adjustedAverage = parseFloat((average * 3).toFixed(2));
+                players.push({ 
+                    playerName, 
+                    adjustedAverage,
+                    singles,
+                    doubles,
+                    winRate
+                });
             }
         });
 
         return players;
     } catch (error) {
-        console.error('Fehler beim Abrufen der Daten:', error);
+        console.error('Error fetching team average:', error);
         return [];
     }
 }
@@ -366,11 +404,11 @@ export async function fetchTeamStandings(teamName: string): Promise<TeamStanding
 }
 
 // Add these new helper functions
-function calculateAverage(darts: number[], rests: number[]): number {
+function calculateAverage(darts: number[], rests: number[], playerName: string): number {
     // Validate input data
     if (!Array.isArray(darts) || !Array.isArray(rests) || darts.length !== rests.length || 
         darts.length < 3 || darts.length > 5) {
-        console.error('Invalid input data for average calculation');
+        console.error(`Invalid input data for average calculation for player: ${playerName}`);
         return 35;
     }
 
@@ -380,13 +418,13 @@ function calculateAverage(darts: number[], rests: number[]): number {
         rest: rests[index]
     })).filter(pair => 
         pair.darts > 0 && 
-        pair.darts <= 45 && // Maximum reasonable darts per leg
+        pair.darts <= 145 && // Maximum reasonable darts per leg
         pair.rest >= 0 && // Allow 0 rests
         pair.rest <= 501
     );
 
     if (validPairs.length < 3) {
-        console.error('Need at least 3 valid dart/rest pairs');
+        console.error(`Need at least 3 valid dart/rest pairs for player: ${playerName}`);
         return 35;
     }
 
@@ -398,61 +436,12 @@ function calculateAverage(darts: number[], rests: number[]): number {
     const average = ((501 * n - sumRests) / sumDarts) * 3;
 
     // Validate the calculated average
-    if (isNaN(average) || average < 35 || average > 150) {
-        console.error('Invalid average calculated:', average);
+    if (isNaN(average) || average < 5 || average > 150) {
+        console.error(`Invalid average (${average}) calculated for player: ${playerName}`);
         return 35;
     }
 
     return Number(average.toFixed(2));
-}
-
-function extractPlayerData($: cheerio.CheerioAPI, playerRow: cheerio.Element, isHomeTeam: boolean) {
-    const darts: number[] = [];
-    const rests: number[] = [];
-    
-    if (!playerRow) {
-        console.error('Invalid player row');
-        return { darts: [], rests: [] };
-    }
-
-    // Find the darts row and rest row
-    const dartsRow = $(playerRow).find('tr').eq(1);
-    const restsRow = $(playerRow).find('tr').eq(2);
-    
-    if (!dartsRow.length || !restsRow.length) {
-        console.error('Could not find darts or rests rows');
-        return { darts: [], rests: [] };
-    }
-
-    // Process each cell in parallel to ensure matching darts and rests
-    let validPairsFound = 0;
-    dartsRow.find('td.t3').each((index, cell) => {
-        if (validPairsFound >= 5) return; // Stop after 5 valid pairs
-
-        const dartValue = $(cell).text().trim();
-        const restValue = $(restsRow).find('td.t3').eq(index).text().trim();
-        
-        // Include pairs where dart is valid and rest is either valid or 0
-        if (dartValue !== '-') {
-            const dart = parseInt(dartValue);
-            const rest = restValue === '-' ? 0 : parseInt(restValue);
-            
-            if (!isNaN(dart) && !isNaN(rest) && 
-                dart > 0 && dart <= 45 && 
-                rest >= 0 && rest <= 501) {
-                darts.push(dart);
-                rests.push(rest);
-                validPairsFound++;
-            }
-        }
-    });
-
-    // Return data if we have at least 3 valid pairs
-    if (darts.length >= 3 && darts.length === rests.length) {
-        return { darts, rests };
-    }
-
-    return { darts: [], rests: [] };
 }
 
 export async function fetchMatchAverages(url: string, teamName: string): Promise<{
@@ -507,13 +496,18 @@ export async function fetchMatchAverages(url: string, teamName: string): Promise
                     .map(Number);
 
                 if (validDarts.length >= 3) {
-                    const average = calculateAverage(validDarts, validRests);
+                    const average = calculateAverage(validDarts, validRests, playerName);
                     playerAverages.push({ playerName, average });
                     totalTeamAverage += average;
                     playerCount++;
                 }
             }
         });
+
+        // Add this log at the end, just before the return statement
+        if (!playerAverages.some(p => p.average === 35)) {
+            console.log(`All averages calculated successfully for match at: ${url}`);
+        }
 
         return {
             matchday: 0,

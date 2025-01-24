@@ -3,11 +3,20 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Search, Users, User, CalendarFold, Rows4, CheckCheck, MapPin, Martini, Phone, BarChart, ArrowLeftRight } from 'lucide-react';
+import { Trophy, Search, Users, User, CalendarFold, Rows4, CheckCheck, MapPin, Martini, Phone, BarChart, ArrowLeftRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import axios from 'axios';
 import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
 import { Checkout, ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings, MatchAverages } from '@/lib/types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+
+interface DotProps {
+    cx?: number;
+    cy?: number;
+    payload?: {
+        value: number;
+        matchday: number;
+    };
+}
 
 const DartsStatisticsDashboard: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState<string>('');
@@ -23,6 +32,8 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [teamStandings, setTeamStandings] = useState<TeamStandings | null>(null);
     const [selectedPlayer, setSelectedPlayer] = useState<string>("team");
     const [matchAverages, setMatchAverages] = useState<MatchAverages[]>([]);
+    const [sortColumn, setSortColumn] = useState<string>('winRate');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
     // Update the teams array with all teams including DC Patron
     const teams: string[] = [
@@ -81,7 +92,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                     const matchIds = response.data.ids;
                     // Fetch all match reports first
                     return Promise.all(
-                        matchIds.map(id => 
+                        matchIds.map((id: string) => 
                             axios.get(`/api/scraper?action=matchReport&id=${id}&team=${encodeURIComponent(selectedTeam)}`)
                         )
                     );
@@ -191,17 +202,7 @@ const DartsStatisticsDashboard: React.FC = () => {
         return 'bg-orange-100 text-orange-800';
     };
 
-    // First, let's create a function to calculate running averages
-    const calculateRunningAverages = (data: { matchday: number, average: number }[]) => {
-        return data.map((item, index) => {
-            const previousMatches = data.slice(0, index + 1);
-            const runningAvg = previousMatches.reduce((sum, match) => sum + match.average, 0) / (index + 1);
-            return {
-                ...item,
-                runningAverage: Number(runningAvg.toFixed(2))
-            };
-        });
-    };
+ 
 
     // Update the matchData calculation to keep original matchday numbers
     const matchData = matchAverages.map((match) => {
@@ -236,32 +237,59 @@ const DartsStatisticsDashboard: React.FC = () => {
         };
     });
 
-    const sampleMatchAverages = calculateRunningAverages(matchData);
 
-    // Create a separate component for the cross marker
-    const CrossMarker = ({ cx, cy }: { cx: number, cy: number }) => {
-        const size = 6;
+    // Define the dot renderer as a simple function that returns an SVG element
+    const renderDot = (props: DotProps) => {
+        const { cx, cy } = props;
+        if (!cx || !cy) return (
+            <svg width={0} height={0}></svg>
+        );
+
         return (
-            <g>
-                <line
-                    x1={cx - size}
-                    y1={cy - size}
-                    x2={cx + size}
-                    y2={cy + size}
+            <svg key={`dot-${cx}-${cy}`} x={cx - 6} y={cy - 6} width={12} height={12} fill="none">
+                <path
+                    d="M1 1L11 11M1 11L11 1"
                     stroke="#ef4444"
                     strokeWidth={2}
                 />
-                <line
-                    x1={cx - size}
-                    y1={cy + size}
-                    x2={cx + size}
-                    y2={cy - size}
-                    stroke="#ef4444"
-                    strokeWidth={2}
-                />
-            </g>
+            </svg>
         );
     };
+
+    const handleSort = (column: string) => {
+        if (sortColumn === column) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortColumn(column);
+            setSortDirection('asc');
+        }
+    };
+
+    // Sort the players array
+    const sortedPlayers = [...(teamData?.players || [])].sort((a, b) => {
+        const direction = sortDirection === 'asc' ? 1 : -1;
+        
+        switch (sortColumn) {
+            case 'playerName':
+                return direction * a.playerName.localeCompare(b.playerName);
+            case 'average':
+                return direction * (a.adjustedAverage - b.adjustedAverage);
+            case 'singles': {
+                const [aWins = 0] = a.singles?.split('-').map(Number) || [0];
+                const [bWins = 0] = b.singles?.split('-').map(Number) || [0];
+                return direction * (aWins - bWins);
+            }
+            case 'doubles': {
+                const [aWins = 0] = a.doubles?.split('-').map(Number) || [0];
+                const [bWins = 0] = b.doubles?.split('-').map(Number) || [0];
+                return direction * (aWins - bWins);
+            }
+            case 'winRate':
+                return direction * ((a.winRate || 0) - (b.winRate || 0));
+            default:
+                return 0;
+        }
+    });
 
     return (
         <div className="min-h-screen bg-gray-100 p-8">
@@ -379,9 +407,13 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
+                                <div className="space-y-2">
+
                                     <p className="text-2xl font-bold text-gray-900">
                                         {teamAverage !== null ? teamAverage.toFixed(2) : 'Loading...'}
                                     </p>
+                                    <p className="text-sm text-gray-500">Current Team Average</p>
+                                </div>
                                 </CardContent>
                             </Card>
 
@@ -517,22 +549,99 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     </CardHeader>
                                     <CardContent>
                                         <div className="overflow-x-auto">
-                                            <table className="w-full text-sm bg-white">
-                                                <thead>
-                                                    <tr className="border-b">
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Rank</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Average</th>
+                                            <table className="min-w-full divide-y divide-gray-200">
+                                                <thead className="bg-gray-50">
+                                                    <tr>
+                                                        <th 
+                                                            scope="col" 
+                                                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                                            onClick={() => handleSort('playerName')}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                Player
+                                                                {sortColumn === 'playerName' ? (
+                                                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                                                                ) : (
+                                                                    <ArrowUpDown className="h-4 w-4" />
+                                                                )}
+                                                            </div>
+                                                        </th>
+                                                        <th 
+                                                            scope="col" 
+                                                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                                            onClick={() => handleSort('average')}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                Average
+                                                                {sortColumn === 'average' ? (
+                                                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                                                                ) : (
+                                                                    <ArrowUpDown className="h-4 w-4" />
+                                                                )}
+                                                            </div>
+                                                        </th>
+                                                        <th 
+                                                            scope="col" 
+                                                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                                            onClick={() => handleSort('singles')}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                Singles
+                                                                {sortColumn === 'singles' ? (
+                                                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                                                                ) : (
+                                                                    <ArrowUpDown className="h-4 w-4" />
+                                                                )}
+                                                            </div>
+                                                        </th>
+                                                        <th 
+                                                            scope="col" 
+                                                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                                            onClick={() => handleSort('doubles')}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                Doubles
+                                                                {sortColumn === 'doubles' ? (
+                                                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                                                                ) : (
+                                                                    <ArrowUpDown className="h-4 w-4" />
+                                                                )}
+                                                            </div>
+                                                        </th>
+                                                        <th 
+                                                            scope="col" 
+                                                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                                            onClick={() => handleSort('winRate')}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                Win Rate
+                                                                {sortColumn === 'winRate' ? (
+                                                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                                                                ) : (
+                                                                    <ArrowUpDown className="h-4 w-4" />
+                                                                )}
+                                                            </div>
+                                                        </th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="divide-y divide-gray-200">
-                                                    {teamData && teamData.players.map((player: Player, index: number) => (
-                                                        <tr key={player.playerName} className="hover:bg-gray-50">
-                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden sm:table-cell">{index + 1}</td>
+                                                <tbody className="bg-white divide-y divide-gray-200">
+                                                    {sortedPlayers.map((player, index) => (
+                                                        <tr key={player.playerName} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                                                 {player.playerName}
                                                             </td>
-                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{player.adjustedAverage}</td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                {player.adjustedAverage.toFixed(2)}
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                {player.singles || '-'}
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                {player.doubles || '-'}
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                {player.winRate ? `${player.winRate}%` : '-'}
+                                                            </td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -713,6 +822,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                     )}
                                                     {/* Running average line */}
                                                     <Line 
+                                                        key="running-average-line"
                                                         type="monotone" 
                                                         dataKey="runningAverage" 
                                                         stroke="#22c55e" 
@@ -721,10 +831,11 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                     />
                                                     {/* Individual match averages with X markers */}
                                                     <Line
+                                                        key="match-average-line"
                                                         type="monotone"
                                                         dataKey="average"
                                                         stroke="none"
-                                                        dot={<CrossMarker />}
+                                                        dot={renderDot}
                                                         isAnimationActive={false}
                                                     />
                                                 </LineChart>
