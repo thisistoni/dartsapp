@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Search, Users, User, CalendarFold, Rows4, CheckCheck, MapPin, Martini, Phone, TrendingUp, Percent, BarChart, ArrowLeftRight } from 'lucide-react';
+import { Trophy, Search, Users, User, CalendarFold, Rows4, CheckCheck, MapPin, Martini, Phone, BarChart, ArrowLeftRight } from 'lucide-react';
 import axios from 'axios';
 import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
 import { Checkout, ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings } from '@/lib/types';
@@ -21,7 +21,6 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [leaguePosition, setLeaguePosition] = useState<number | null>(null); // New state variable for league position
     const [clubVenue, setClubVenue] = useState<ClubVenue | null>(null);
     const [teamAverage, setTeamAverage] = useState<number | null>(null);
-    const [winRate, setWinRate] = useState<number | null>(null);
     const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
     const [comparisonData, setComparisonData] = useState<ComparisonData[]>([]);
     const [teamStandings, setTeamStandings] = useState<TeamStandings | null>(null);
@@ -101,9 +100,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                 .then(matchReports => {
                     const reports = matchReports.map(res => res.data.report);
                     setMatchReports(reports);
-                    const wins = reports.filter(report => report.lineup.includes(selectedTeam)).length;
-                    const totalMatches = reports.length;
-                    setWinRate(totalMatches > 0 ? (wins / totalMatches) * 100 : 0);
+                  
+                   
                 })
                 .catch(error => console.error('Error fetching data:', error))
                 .finally(() => setLoading(false));
