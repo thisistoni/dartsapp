@@ -6,7 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Trophy, Search, Users, User, CalendarFold, Rows4, CheckCheck, MapPin, Martini, Phone, BarChart, ArrowLeftRight } from 'lucide-react';
 import axios from 'axios';
 import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
-import { Checkout, ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings } from '@/lib/types';
+import { Checkout, ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings, MatchAverages } from '@/lib/types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 const DartsStatisticsDashboard: React.FC = () => {
@@ -22,6 +22,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [comparisonData, setComparisonData] = useState<ComparisonData[]>([]);
     const [teamStandings, setTeamStandings] = useState<TeamStandings | null>(null);
     const [selectedPlayer, setSelectedPlayer] = useState<string>("team");
+    const [matchAverages, setMatchAverages] = useState<MatchAverages[]>([]);
 
     // Update the teams array with all teams including DC Patron
     const teams: string[] = [
@@ -69,6 +70,55 @@ const DartsStatisticsDashboard: React.FC = () => {
         if (selectedTeam) {
             setLoading(true);
 
+            // First get the Spielberichte link
+            axios.get(`/api/scraper?action=spielberichte`)
+                .then(response => {
+                    const url = response.data.link;
+                    if (!url) throw new Error('Spielberichte-Link nicht gefunden.');
+                    return axios.get(`/api/scraper?action=dartIds&url=${encodeURIComponent(url)}&team=${encodeURIComponent(selectedTeam)}`);
+                })
+                .then(response => {
+                    const matchIds = response.data.ids;
+                    // Fetch all match reports first
+                    return Promise.all(
+                        matchIds.map(id => 
+                            axios.get(`/api/scraper?action=matchReport&id=${id}&team=${encodeURIComponent(selectedTeam)}`)
+                        )
+                    );
+                })
+                .then(matchReports => {
+                    const reports = matchReports.map(res => res.data.report);
+                    setMatchReports(reports);
+                    
+                    // Now fetch averages for each match report
+                    return Promise.all(
+                        matchReports.map((res, index) => {
+                            const matchId = res.config.url?.split('id=')[1]?.split('&')[0];
+                            if (!matchId) throw new Error('Match ID not found');
+                            return axios.get(`/api/scraper?action=matchAverages&url=${encodeURIComponent(`https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${matchId}&saison=2024/25`)}&team=${encodeURIComponent(selectedTeam)}`)
+                                .then(avgRes => ({
+                                    ...avgRes.data.averages,
+                                    matchday: index + 1,
+                                    opponent: reports[index].opponent
+                                }));
+                        })
+                    );
+                })
+                .then(averages => {
+                    setMatchAverages(averages);
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                })
+                .finally(() => setLoading(false));
+
+            // Keep the other API calls separate
+            axios.get(`/api/scraper?action=comparison&team=${encodeURIComponent(selectedTeam)}`)
+                .then(response => {
+                    setComparisonData(response.data.comparison);
+                })
+                .catch(error => console.error('Error fetching comparison data:', error));
+
             // League Position
             axios.get(`/api/scraper?action=leaguePosition&team=${encodeURIComponent(selectedTeam)}`)
                 .then(response => setLeaguePosition(response.data.position))
@@ -85,36 +135,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                     const data = response.data.players;
                     setTeamData({ players: data });
                     setTeamAverage(data.reduce((sum: number, player: Player) => sum + player.adjustedAverage, 0) / data.length);
-                    return axios.get(`/api/scraper?action=spielberichte`);
                 })
-                .then(response => {
-                    const url = response.data.link;
-                    if (!url) throw new Error('Spielberichte-Link nicht gefunden.');
-                    return axios.get(`/api/scraper?action=dartIds&url=${encodeURIComponent(url)}&team=${encodeURIComponent(selectedTeam)}`);
-                })
-                .then(response => {
-                    const matchIds: string[] = response.data.ids; // Annahme: ids ist ein Array von Strings
-                    return Promise.all(
-                        matchIds.map((id: string) =>
-                            axios.get(`/api/scraper?action=matchReport&id=${id}&team=${encodeURIComponent(selectedTeam)}`)
-                        )
-                    );
-                })
-                .then(matchReports => {
-                    const reports = matchReports.map(res => res.data.report);
-                    setMatchReports(reports);
-                  
-                   
-                })
-                .catch(error => console.error('Error fetching data:', error))
-                .finally(() => setLoading(false));
-
-            // Add comparison data fetch
-            axios.get(`/api/scraper?action=comparison&team=${encodeURIComponent(selectedTeam)}`)
-                .then(response => {
-                    setComparisonData(response.data.comparison);
-                })
-                .catch(error => console.error('Error fetching comparison data:', error));
+                .catch(error => console.error('Error fetching team average:', error));
 
             // Team Standings
             axios.get(`/api/scraper?action=standings&team=${encodeURIComponent(selectedTeam)}`)
@@ -181,27 +203,37 @@ const DartsStatisticsDashboard: React.FC = () => {
         });
     };
 
-    // Update the matchData calculation to use the selected player
-    const matchData = matchReports.map((report, index) => {
+    // Update the matchData calculation to keep original matchday numbers
+    const matchData = matchAverages.map((match) => {
         if (selectedPlayer === "team") {
             return {
-                matchday: index + 1,
-                average: [
-                    41.2, 38.7, 43.5, 39.8, 42.3, 44.1, 37.9, 45.2, 
-                    41.6, 43.8, 40.5, 46.1, 42.7, 39.4, 44.8, 43.2, 45.6
-                ][index] || 42.0,
-                opponent: report.opponent
+                matchday: match.matchday,
+                average: match.teamAverage,
+                opponent: match.opponent || '',  // Use the opponent directly from matchAverages
+                originalMatchday: match.matchday // Keep track of original matchday
             };
         } else {
-            // Here we would get the individual player's average for each match
-            // For now using placeholder data
-            const playerAvg = teamData?.players.find(p => p.playerName === selectedPlayer)?.adjustedAverage || 40;
-            return {
-                matchday: index + 1,
-                average: playerAvg + (Math.random() * 10 - 5), // Add some variation
-                opponent: report.opponent
-            };
+            const playerAvg = match.playerAverages.find(p => p.playerName === selectedPlayer)?.average;
+            if (playerAvg) {
+                return {
+                    matchday: match.matchday,
+                    average: playerAvg,
+                    opponent: match.opponent || '', // Use the opponent directly from matchAverages
+                    originalMatchday: match.matchday // Keep track of original matchday
+                };
+            }
+            return null;
         }
+    }).filter((data): data is NonNullable<typeof data> => data !== null);
+
+    // Update the running average calculation
+    const runningAverages = matchData.map((_, index) => {
+        const previousMatches = matchData.slice(0, index + 1);
+        const sum = previousMatches.reduce((acc, curr) => acc + curr.average, 0);
+        return {
+            ...matchData[index],
+            runningAverage: Number((sum / previousMatches.length).toFixed(2))
+        };
     });
 
     const sampleMatchAverages = calculateRunningAverages(matchData);
@@ -600,13 +632,13 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 <Card>
                                     <CardHeader>
                                         <div className="flex justify-between items-center">
-                                            <CardTitle>Team Performance Over Time</CardTitle>
+                                            <CardTitle>Average Charts</CardTitle>
                                             <select 
                                                 className="px-3 py-1 border rounded-md text-sm bg-white"
                                                 value={selectedPlayer}
                                                 onChange={(e) => setSelectedPlayer(e.target.value)}
                                             >
-                                                <option value="team">Team Average</option>
+                                                <option value="team">{selectedTeam}</option>
                                                 {teamData?.players.map((player) => (
                                                     <option key={player.playerName} value={player.playerName}>
                                                         {player.playerName}
@@ -633,7 +665,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                         <div className="h-[400px] w-full">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <LineChart
-                                                    data={sampleMatchAverages}
+                                                    data={runningAverages}
                                                     margin={{
                                                         top: 20,
                                                         right: 30,
@@ -662,14 +694,14 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                         formatter={(value: number, name: string) => {
                                                             return [value.toFixed(2), name === 'runningAverage' ? 'Running Average' : 'Match Average'];
                                                         }}
-                                                        labelFormatter={(matchday: number) => {
-                                                            const match = sampleMatchAverages[matchday - 1];
-                                                            return match ? `Matchday ${matchday} vs ${match.opponent}` : `Matchday ${matchday}`;
+                                                        labelFormatter={(_, data) => {
+                                                            const match = data[0]?.payload;
+                                                            return match ? `Matchday ${match.matchday} vs ${match.opponent}` : `Matchday`;
                                                         }}
                                                     />
-                                                    {sampleMatchAverages.length > 0 && (
+                                                    {runningAverages.length > 0 && (
                                                         <ReferenceLine 
-                                                            y={sampleMatchAverages[sampleMatchAverages.length - 1].runningAverage}
+                                                            y={runningAverages[runningAverages.length - 1].runningAverage}
                                                             stroke="#3b82f6" 
                                                             strokeWidth={3}
                                                             strokeDasharray="3 3"

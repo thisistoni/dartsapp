@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
-import { fetchSpielberichteLink, fetchDartIds, fetchTeamPlayersAverage, fetchMatchReport, fetchLeaguePosition, fetchClubVenue, fetchComparisonData, fetchTeamStandings } from '@/lib/scraper';
+import { fetchSpielberichteLink, fetchDartIds, fetchTeamPlayersAverage, fetchMatchReport, fetchLeaguePosition, fetchClubVenue, fetchComparisonData, fetchTeamStandings, fetchMatchAverages } from '@/lib/scraper';
 
 // API-Endpunkte für verschiedene Funktionen
 export async function GET(request: Request) {
     console.log("API-Route wurde aufgerufen. Läuft serverseitig.");
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
-    const teamName = searchParams.get('team');
+    const team = searchParams.get('team');
+    const url = searchParams.get('url');
+    const id = searchParams.get('id');
 
     try {
         switch (action) {
@@ -15,41 +17,46 @@ export async function GET(request: Request) {
                 return NextResponse.json({ link: spielberichteLink });
 
             case 'dartIds':
-                const url = searchParams.get('url');
-                if (!url || !teamName) throw new Error('URL oder Team fehlt.');
-                const dartIds = await fetchDartIds(url, teamName);
+                if (!url || !team) throw new Error('URL oder Team fehlt.');
+                const dartIds = await fetchDartIds(url, team);
                 return NextResponse.json({ ids: dartIds });
 
             case 'teamAverage':
-                if (!teamName) throw new Error('Team fehlt.');
-                const teamPlayers = await fetchTeamPlayersAverage(teamName);
+                if (!team) throw new Error('Team fehlt.');
+                const teamPlayers = await fetchTeamPlayersAverage(team);
                 return NextResponse.json({ players: teamPlayers });
 
             case 'matchReport':
-                const id = searchParams.get('id');
-                if (!id || !teamName) throw new Error('Match-ID oder Team fehlt.');
-                const matchReport = await fetchMatchReport(id, teamName);
+                if (!id || !team) throw new Error('Match-ID oder Team fehlt.');
+                const matchReport = await fetchMatchReport(id, team);
                 return NextResponse.json({ report: matchReport });
 
             case 'leaguePosition':
-                if (!teamName) throw new Error('Team fehlt.');
-                const leaguePosition = await fetchLeaguePosition(teamName);
+                if (!team) throw new Error('Team fehlt.');
+                const leaguePosition = await fetchLeaguePosition(team);
                 return NextResponse.json({ position: leaguePosition });
 
             case 'clubVenue':
-                if (!teamName) throw new Error('Team fehlt.');
-                const clubVenue = await fetchClubVenue(teamName);
+                if (!team) throw new Error('Team fehlt.');
+                const clubVenue = await fetchClubVenue(team);
                 return NextResponse.json({ venue: clubVenue });
 
             case 'comparison':
-                if (!teamName) throw new Error('Team fehlt.');
-                const comparisonData = await fetchComparisonData(teamName);
+                if (!team) throw new Error('Team fehlt.');
+                const comparisonData = await fetchComparisonData(team);
                 return NextResponse.json({ comparison: comparisonData });
 
             case 'standings':
-                if (!teamName) throw new Error('Team fehlt.');
-                const standings = await fetchTeamStandings(teamName);
+                if (!team) throw new Error('Team fehlt.');
+                const standings = await fetchTeamStandings(team);
                 return NextResponse.json({ standings });
+
+            case 'matchAverages':
+                if (url && team) {
+                    const averages = await fetchMatchAverages(url, team);
+                    return NextResponse.json({ averages });
+                }
+                return NextResponse.json({ error: 'Missing parameters' });
 
             default:
                 throw new Error('Ungültige Aktion.');

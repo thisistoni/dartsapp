@@ -73,3 +73,15 @@ export interface TeamStandings {
     losses: number;
 }
 
+// Add these new types
+export interface MatchAverages {
+    matchday: number;
+    teamAverage: number;
+    playerAverages: PlayerMatchAverage[];
+}
+
+export interface PlayerMatchAverage {
+    playerName: string;
+    average: number;
+}
+
