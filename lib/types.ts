@@ -14,11 +14,39 @@ export interface Checkout {
     scores: string;
 }
 
+interface SingleMatch {
+    homePlayer: string;
+    awayPlayer: string;
+    homeScore: number;
+    awayScore: number;
+}
+
+interface DoubleMatch {
+    homePlayers: string[];
+    awayPlayers: string[];
+    homeScore: number;
+    awayScore: number;
+}
+
+export interface DetailedMatchReport {
+    singles: SingleMatch[];    // For matches 1,2,5,6
+    doubles: DoubleMatch[];    // For matches 3,4,7,8
+    totalLegs: {
+        home: number;
+        away: number;
+    };
+    totalSets: {
+        home: number;
+        away: number;
+    };
+}
+
 export interface MatchReport {
     lineup: string[];
     checkouts: Checkout[];
     opponent: string;
-    // Add other properties if necessary
+    score: string;
+    details: DetailedMatchReport;
 }
 
 // Define the interface for Club Venue

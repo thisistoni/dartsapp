@@ -26,22 +26,21 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [comparisonData, setComparisonData] = useState<ComparisonData[]>([]);
     const [teamStandings, setTeamStandings] = useState<TeamStandings | null>(null);
 
-    // Simulated team list
+    // Update the teams array with the correct order
     const teams: string[] = [
-        'Dartclub Twentytwo 1',
-        'Relax One Steel 5',
-        'Babylon Triple 1',
-        'DC Voltadolis Steel',
-        'An Sporran 404 Double Not Found',
-        'Temmel Dart Lions',
-        'LDC Martial Darts 4ward',
-        'Snakes II',
         'Vienna Devils 3',
-        'Bad Boys LUMBERJACKS',
-        'DC Patron',
-        'The Plumbatas',
+        'Babylon Triple 1',
+        'AS The Dart Side of the Moon II',
         'DSV NaNog Zinsfabrik',
-        'AS The Dart Side of the Moon II'
+        'DC Voltadolis Steel',
+        'Snakes II',
+        'Bad Boys LUMBERJACKS',
+        'Dartclub Twentytwo 1',
+        'LDC Martial Darts 4ward',
+        'An Sporran 404 Double Not Found',
+        'The Plumbatas',
+        'Temmel Dart Lions',
+        'Relax One Steel 5'
     ];
 
     const filteredTeams = teams.filter(team =>
@@ -129,15 +128,17 @@ const DartsStatisticsDashboard: React.FC = () => {
         if (!isOpen) return null;
         
         return (
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-                <div className="bg-white p-6 rounded-lg max-w-2xl w-full m-4">
-                    {children}
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-lg w-full h-[80vh] sm:h-auto sm:max-w-4xl m-4 overflow-y-auto sm:overflow-visible relative">
                     <button 
                         onClick={onClose}
-                        className="mt-4 text-sm px-4 py-2 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100"
+                        className="absolute top-4 right-4 text-sm px-4 py-2 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100"
                     >
                         Close
                     </button>
+                    <div className="p-4 sm:p-6">
+                        {children}
+                    </div>
                 </div>
             </div>
         );
@@ -156,6 +157,15 @@ const DartsStatisticsDashboard: React.FC = () => {
             }
             return total;
         }, 0);
+    };
+
+    // Add this helper function
+    const getScoreColor = (score: string) => {
+        if (!score) return '';
+        const [home, away] = score.split('-').map(Number);
+        if (home > away) return 'bg-green-100 text-green-800';
+        if (home < away) return 'bg-red-100 text-red-800';
+        return 'bg-orange-100 text-orange-800';
     };
 
     return (
@@ -312,7 +322,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     <div className="space-y-2">
                                         <p className="text-2xl font-bold text-gray-900">
                                             {teamStandings 
-                                                ? `${teamStandings.wins}W-${teamStandings.draws}D-${teamStandings.losses}L`
+                                                ? `${teamStandings.wins}-${teamStandings.draws}-${teamStandings.losses}`
                                                 : 'Loading...'}
                                         </p>
                                         <p className="text-sm text-gray-500">Current Season Record</p>
@@ -321,7 +331,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                             </Card>
                         </div>
                         <Tabs defaultValue="matches" className="space-y-4">
-                            <TabsList>
+                            <TabsList className="flex flex-wrap gap-2 justify-start mb-12">
                                 <TabsTrigger value="matches" className="flex items-center">
                                     <Users className="h-5 w-5 text-green-500 mr-1" />
                                     Matches
@@ -342,9 +352,15 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     {matchReports.map((matchday: MatchReport, index: number) => (
                                         <Card key={index}>
                                             <CardHeader>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-3">
                                                     <CalendarFold className="h-6 w-6 text-blue-500" />
                                                     <CardTitle>Matchday {index + 1} vs. {matchday.opponent}</CardTitle>
+                                                    <button
+                                                        onClick={() => setSelectedMatchId(index)}
+                                                        className="text-sm px-3 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors duration-200"
+                                                    >
+                                                        Details
+                                                    </button>
                                                 </div>
                                             </CardHeader>
                                             <CardContent>
@@ -381,17 +397,11 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                             <div className="flex items-center gap-2 mb-2">
                                                                 <h3 className="font-semibold">Final Score</h3>
                                                             </div>
-                                                            <div className="inline-block bg-green-100 px-4 py-2 rounded-lg">
-                                                                <span className="text-lg font-semibold text-green-800">5-3</span>
+                                                            <div className={`inline-block px-4 py-2 rounded-lg ${getScoreColor(matchday.score)}`}>
+                                                                <span className="text-lg font-semibold">
+                                                                    {matchday.score || '-'}
+                                                                </span>
                                                             </div>
-                                                        </div>
-                                                        <div className="mt-4 flex justify-end">
-                                                            <button
-                                                                onClick={() => setSelectedMatchId(index)}
-                                                                className="text-sm px-4 py-2 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors duration-200"
-                                                            >
-                                                                Show More Details
-                                                            </button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -455,49 +465,57 @@ const DartsStatisticsDashboard: React.FC = () => {
                                             <table className="w-full text-sm bg-white">
                                                 <thead>
                                                     <tr className="border-b">
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opponent</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">First Round</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Second Round</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Difference</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            <span className="hidden sm:inline">Opponent</span>
+                                                            <span className="sm:hidden">Opponent +/-</span>
+                                                        </th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">First Round</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Second Round</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Difference</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-200">
-                                                    {[
-                                                        'Vienna Devils 3',
-                                                        'Babylon Triple 1',
-                                                        'AS The Dart Side of the Moon II',
-                                                        'DSV NaNog Zinsfabrik',
-                                                        'DC Voltadolis Steel',
-                                                        'Snakes II',
-                                                        'Bad Boys LUMBERJACKS',
-                                                        'Dartclub Twentytwo 1',
-                                                        'LDC Martial Darts 4ward',
-                                                        'An Sporran 404 Double Not Found',
-                                                        'The Plumbatas',
-                                                        'Temmel Dart Lions',
-                                                        'Relax One Steel 5'
-                                                    ].map((team) => {
+                                                    {[...teams].map((team) => {
                                                         const data = comparisonData.find(d => d.opponent === team);
+                                                        const difference = data?.firstRound && data?.secondRound 
+                                                            ? calculateDifference(data.firstRound, data.secondRound)
+                                                            : null;
+                                                        
                                                         return (
                                                             <tr key={team} className="hover:bg-gray-50">
-                                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{team}</td>
-                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                                    <div className="flex items-center justify-between sm:justify-start gap-2">
+                                                                        <span>{team}</span>
+                                                                        {/* Mobile difference indicator */}
+                                                                        {difference !== null && (
+                                                                            <span className={`sm:hidden px-2 py-1 rounded text-sm ${
+                                                                                difference > 0
+                                                                                    ? 'bg-green-100 text-green-800'
+                                                                                    : difference < 0
+                                                                                        ? 'bg-red-100 text-red-800'
+                                                                                        : 'bg-orange-100 text-orange-800'
+                                                                            }`}>
+                                                                                {`${difference >= 0 ? '+' : ''}${difference}`}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">
                                                                     {data?.firstRound || '-'}
                                                                 </td>
-                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">
                                                                     {data?.secondRound || '-'}
                                                                 </td>
-                                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                                                    {data?.firstRound && data?.secondRound ? (
+                                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium hidden sm:table-cell">
+                                                                    {difference !== null ? (
                                                                         <span className={`px-2 py-1 rounded ${
-                                                                            calculateDifference(data.firstRound, data.secondRound) > 0
+                                                                            difference > 0
                                                                                 ? 'bg-green-100 text-green-800'
-                                                                                : calculateDifference(data.firstRound, data.secondRound) < 0
+                                                                                : difference < 0
                                                                                     ? 'bg-red-100 text-red-800'
                                                                                     : 'bg-orange-100 text-orange-800'
                                                                         }`}>
-                                                                            {`${calculateDifference(data.firstRound, data.secondRound) >= 0 
-                                                                                ? '+' : ''}${calculateDifference(data.firstRound, data.secondRound)}`}
+                                                                            {`${difference >= 0 ? '+' : ''}${difference}`}
                                                                         </span>
                                                                     ) : '-'}
                                                                 </td>
@@ -518,7 +536,85 @@ const DartsStatisticsDashboard: React.FC = () => {
                 isOpen={selectedMatchId !== null}
                 onClose={() => setSelectedMatchId(null)}
             >
-                <h2 className="text-lg font-semibold">Hello World!</h2>
+                {selectedMatchId !== null && matchReports[selectedMatchId] && (
+                    <div className="space-y-4">
+                        <h2 className="text-xl font-semibold mb-4">Match Details</h2>
+                        
+                        {/* First Singles (1-2) */}
+                        {matchReports[selectedMatchId].details.singles.slice(0, 2).map((match, idx) => (
+                            <div key={`single1-${idx}`} className="flex items-center py-2 border-b">
+                                <span className="w-[42%] text-right pr-4 text-xs sm:text-base">{match.homePlayer}</span>
+                                <span className="w-[16%] text-center px-3 py-1 rounded bg-gray-100">
+                                    <span className="text-[10px] sm:text-base">
+                                        {match.homeScore} - {match.awayScore}
+                                    </span>
+                                </span>
+                                <span className="w-[42%] pl-4 text-xs sm:text-base">{match.awayPlayer}</span>
+                            </div>
+                        ))}
+                        
+                        {/* First Doubles (3-4) */}
+                        {matchReports[selectedMatchId].details.doubles.slice(0, 2).map((match, idx) => (
+                            <div key={`double1-${idx}`} className="flex items-center py-2 border-b">
+                                <span className="w-[42%] text-right pr-4 text-xs sm:text-base">{match.homePlayers.join(' & ')}</span>
+                                <span className="w-[16%] text-center px-3 py-1 rounded bg-gray-100">
+                                    <span className="text-[10px] sm:text-base">
+                                        {match.homeScore} - {match.awayScore}
+                                    </span>
+                                </span>
+                                <span className="w-[42%] pl-4 text-xs sm:text-base">{match.awayPlayers.join(' & ')}</span>
+                            </div>
+                        ))}
+                        
+                        {/* Second Singles (5-6) */}
+                        {matchReports[selectedMatchId].details.singles.slice(2, 4).map((match, idx) => (
+                            <div key={`single2-${idx}`} className="flex items-center py-2 border-b">
+                                <span className="w-[42%] text-right pr-4 text-xs sm:text-base">{match.homePlayer}</span>
+                                <span className="w-[16%] text-center px-3 py-1 rounded bg-gray-100">
+                                    <span className="text-[10px] sm:text-base">
+                                        {match.homeScore} - {match.awayScore}
+                                    </span>
+                                </span>
+                                <span className="w-[42%] pl-4 text-xs sm:text-base">{match.awayPlayer}</span>
+                            </div>
+                        ))}
+                        
+                        {/* Second Doubles (7-8) */}
+                        {matchReports[selectedMatchId].details.doubles.slice(2, 4).map((match, idx) => (
+                            <div key={`double2-${idx}`} className="flex items-center py-2 border-b">
+                                <span className="w-[42%] text-right pr-4 text-xs sm:text-base">{match.homePlayers.join(' & ')}</span>
+                                <span className="w-[16%] text-center px-3 py-1 rounded bg-gray-100">
+                                    <span className="text-[10px] sm:text-base">
+                                        {match.homeScore} - {match.awayScore}
+                                    </span>
+                                </span>
+                                <span className="w-[42%] pl-4 text-xs sm:text-base">{match.awayPlayers.join(' & ')}</span>
+                            </div>
+                        ))}
+                        
+                        {/* Totals */}
+                        <div className="pt-4 space-y-2">
+                            <div className="flex flex-col sm:flex-row items-center sm:items-start sm:justify-between">
+                                <span className="w-full sm:w-[42%] text-center sm:text-right pr-0 sm:pr-4 text-xs sm:text-base mb-1 sm:mb-0">Total Legs</span>
+                                <span className="w-[25%] sm:w-[16%] text-center px-3 py-1 rounded bg-blue-100">
+                                    <span className="text-[10px] sm:text-base">
+                                        {matchReports[selectedMatchId].details.totalLegs.home} - {matchReports[selectedMatchId].details.totalLegs.away}
+                                    </span>
+                                </span>
+                                <span className="hidden sm:block sm:w-[42%]"></span>
+                            </div>
+                            <div className="flex flex-col sm:flex-row items-center sm:items-start sm:justify-between">
+                                <span className="w-full sm:w-[42%] text-center sm:text-right pr-0 sm:pr-4 text-xs sm:text-base mb-1 sm:mb-0">Total Sets</span>
+                                <span className="w-[25%] sm:w-[16%] text-center px-3 py-1 rounded bg-blue-100">
+                                    <span className="text-[10px] sm:text-base">
+                                        {matchReports[selectedMatchId].details.totalSets.home} - {matchReports[selectedMatchId].details.totalSets.away}
+                                    </span>
+                                </span>
+                                <span className="hidden sm:block sm:w-[42%]"></span>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </Modal>
         </div>
     );

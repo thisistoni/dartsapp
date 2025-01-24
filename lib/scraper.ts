@@ -95,11 +95,22 @@ export async function fetchTeamPlayersAverage(teamName: string): Promise<Player[
 // Fetch Match Report
 export async function fetchMatchReport(id: string, teamName: string): Promise<MatchReport> {
     const url = `https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${id}&saison=2024/25`;
-    console.log("FETCH MATCH REPORT ENTERED");
+    
     try {
         const { data } = await axios.get(url);
         const $ = cheerio.load(data);
-        const matchReport: MatchReport = { lineup: [], checkouts: [], opponent: '' };
+        const matchReport: MatchReport = {
+            lineup: [],
+            checkouts: [],
+            opponent: '',
+            score: '',
+            details: {
+                singles: [],
+                doubles: [],
+                totalLegs: { home: 0, away: 0 },
+                totalSets: { home: 0, away: 0 }
+            }
+        };
 
         const headerRow = $('table.spielbericht thead tr');
         const homeTeam = headerRow.find('th').eq(1).text().trim().replace('Heim: ', '');
@@ -114,64 +125,120 @@ export async function fetchMatchReport(id: string, teamName: string): Promise<Ma
 
         matchReport.opponent = opponentTeam;
 
+        // Process each match row
         $('table.spielbericht tbody tr.spielbericht').each((index, element) => {
-            console.log('Processing row:', index);
+            const setNumber = Number($(element).find('td.t2 div b').text());
+            
+            // Process for match details
+            if ([1,2,5,6].includes(setNumber)) {
+                // Single matches
+                const homePlayer = $(element).find('td:nth-child(2) table.set tr:first-child td.t2:first-child b').text();
+                const homeScore = Number($(element).find('td:nth-child(2) table.set tr:first-child td.t2:last-child b').text());
+                const awayPlayer = $(element).find('td:nth-child(4) table.set tr:first-child td.t2:last-child b').text();
+                const awayScore = Number($(element).find('td:nth-child(4) table.set tr:first-child td.t2:first-child b').text());
+                
+                // Add to details
+                matchReport.details.singles.push({
+                    homePlayer,
+                    awayPlayer,
+                    homeScore,
+                    awayScore
+                });
 
-            const homePlayer = $(element).find('td').find('table.set').eq(0).find('b').first().text().trim();
-            const awayPlayer = $(element).find('td').find('table.set').eq(1).find('b').last().text().trim();
-
-            // Check if it's a duo match or a single match
-            const duoPlayersHome = $(element).find('td').eq(1).find('b');
-            const duoPlayersAway = $(element).find('td').eq(6).find('b');
-
-            if (duoPlayersHome.length === 3 && duoPlayersAway.length === 3) {
-                // Duo-Match gefunden
-                if (isHomeTeam) {
-                    const player1 = duoPlayersHome.eq(0).text().trim();
-                    const player2 = duoPlayersHome.eq(1).text().trim();
-                    matchReport.lineup.push(`${player1}, ${player2}`);
-                }
-                if (isAwayTeam) {
-                    const player1 = duoPlayersAway.eq(1).text().trim();
-                    const player2 = duoPlayersAway.eq(2).text().trim();
-                    matchReport.lineup.push(`${player1}, ${player2}`);
+                // Add to lineup
+                if (isHomeTeam && homePlayer) {
+                    matchReport.lineup.push(homePlayer);
+                } else if (isAwayTeam && awayPlayer) {
+                    matchReport.lineup.push(awayPlayer);
                 }
             } else {
-                const homeDarts = $(element).find('td:nth-child(2) .set tr:nth-child(2) td').map((i, el) => $(el).text().trim()).get().filter(dart => dart !== '-' && dart !== '');
-                const homeRest = $(element).find('td:nth-child(2) .set tr:nth-child(3) td').map((i, el) => $(el).text().trim()).get().filter(rest => rest !== '-' && rest !== '');
+                // Double matches
+                const homePlayers = [
+                    $(element).find('td:nth-child(2) table.set tr td:nth-child(1) b').text(),
+                    $(element).find('td:nth-child(2) table.set tr td:nth-child(2) b').text()
+                ];
+                const awayPlayers = [
+                    $(element).find('td:nth-child(4) table.set tr td:nth-child(2) b').text(),
+                    $(element).find('td:nth-child(4) table.set tr td:nth-child(3) b').text()
+                ];
+                const homeScore = Number($(element).find('td:nth-child(2) table.set tr td:last-child b').text());
+                const awayScore = Number($(element).find('td:nth-child(4) table.set tr td:first-child b').text());
+                
+                // Add to details
+                matchReport.details.doubles.push({
+                    homePlayers,
+                    awayPlayers,
+                    homeScore,
+                    awayScore
+                });
 
-                const awayDarts = $(element).find('td:nth-child(4) .set tr:nth-child(2) td').map((i, el) => $(el).text().trim()).get().filter(dart => dart !== '-' && dart !== '');
-                const awayRest = $(element).find('td:nth-child(4) .set tr:nth-child(3) td').map((i, el) => $(el).text().trim()).get().filter(rest => rest !== '-' && rest !== '');
-
-                const formatPlayerPerformance = (player: string, darts: string[], rests: string[]) => {
-                    const performance = darts.map((dart: string, index: number) => {
-                        return rests[index] === '0' ? dart : '';
-                    }).filter((dart: string) => dart !== '').join(', ');
-
-                    return `${player}: ${performance.length > 0 ? `${performance}` : '-'}`;
-                };
-
-
+                // Add to lineup
                 if (isHomeTeam) {
-                    if (homePlayer) {
-                        matchReport.lineup.push(homePlayer);
-                        const playerPerformance = formatPlayerPerformance(homePlayer, homeDarts, homeRest);
-                        matchReport.checkouts.push({ scores: playerPerformance });
-                    }
+                    matchReport.lineup.push(`${homePlayers[0]}, ${homePlayers[1]}`);
                 } else if (isAwayTeam) {
-                    if (awayPlayer) {
-                        matchReport.lineup.push(awayPlayer);
-                        const playerPerformance = formatPlayerPerformance(awayPlayer, awayDarts, awayRest);
-                        matchReport.checkouts.push({ scores: playerPerformance });
-                    }
+                    matchReport.lineup.push(`${awayPlayers[0]}, ${awayPlayers[1]}`);
                 }
             }
+
+            // Process checkouts (keep existing checkout logic)
+            const homeDarts = $(element).find('td:nth-child(2) .set tr:nth-child(2) td').map((i, el) => $(el).text().trim()).get().filter(dart => dart !== '-' && dart !== '');
+            const homeRest = $(element).find('td:nth-child(2) .set tr:nth-child(3) td').map((i, el) => $(el).text().trim()).get().filter(rest => rest !== '-' && rest !== '');
+            const awayDarts = $(element).find('td:nth-child(4) .set tr:nth-child(2) td').map((i, el) => $(el).text().trim()).get().filter(dart => dart !== '-' && dart !== '');
+            const awayRest = $(element).find('td:nth-child(4) .set tr:nth-child(3) td').map((i, el) => $(el).text().trim()).get().filter(rest => rest !== '-' && rest !== '');
+
+            const formatPlayerPerformance = (player: string, darts: string[], rests: string[]) => {
+                const performance = darts.map((dart: string, index: number) => {
+                    return rests[index] === '0' ? dart : '';
+                }).filter((dart: string) => dart !== '').join(', ');
+                return `${player}: ${performance.length > 0 ? `${performance}` : '-'}`;
+            };
+
+            if (isHomeTeam && homeDarts.length > 0) {
+                const playerName = matchReport.lineup[matchReport.lineup.length - 1];
+                const playerPerformance = formatPlayerPerformance(playerName, homeDarts, homeRest);
+                matchReport.checkouts.push({ scores: playerPerformance });
+            } else if (isAwayTeam && awayDarts.length > 0) {
+                const playerName = matchReport.lineup[matchReport.lineup.length - 1];
+                const playerPerformance = formatPlayerPerformance(playerName, awayDarts, awayRest);
+                matchReport.checkouts.push({ scores: playerPerformance });
+            }
         });
+
+        // Get total legs (from the last row in tbody)
+        const legsRow = $('table.spielbericht tbody tr:last');
+        matchReport.details.totalLegs = {
+            home: Number(legsRow.find('td.t2').eq(1).find('b').text().trim()),
+            away: Number(legsRow.find('td.t2').eq(3).find('b').text().trim())
+        };
+
+        // Get total sets
+        const setsRow = $('table.spielbericht tfoot tr');
+        matchReport.details.totalSets = {
+            home: Number(setsRow.find('td:nth-child(2) h3').text().trim()),
+            away: Number(setsRow.find('td:nth-child(4) h3').text().trim())
+        };
+
+        // Get the final score from tfoot
+        const homeScore = $('table.spielbericht tfoot tr td').eq(1).find('h3').text().trim();
+        const awayScore = $('table.spielbericht tfoot tr td').eq(3).find('h3').text().trim();
+        const score = isHomeTeam ? `${homeScore}-${awayScore}` : `${awayScore}-${homeScore}`;
+        matchReport.score = score;
 
         return matchReport;
     } catch (error) {
         console.error('Fehler beim Abrufen des Spielberichts:', error);
-        return { lineup: [], checkouts: [], opponent: '' };
+        return {
+            lineup: [],
+            checkouts: [],
+            opponent: '',
+            score: '',
+            details: {
+                singles: [],
+                doubles: [],
+                totalLegs: { home: 0, away: 0 },
+                totalSets: { home: 0, away: 0 }
+            }
+        };
     }
 }
 
