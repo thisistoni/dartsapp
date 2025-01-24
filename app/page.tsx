@@ -21,6 +21,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
     const [comparisonData, setComparisonData] = useState<ComparisonData[]>([]);
     const [teamStandings, setTeamStandings] = useState<TeamStandings | null>(null);
+    const [selectedPlayer, setSelectedPlayer] = useState<string>("team");
 
     // Update the teams array with all teams including DC Patron
     const teams: string[] = [
@@ -180,15 +181,28 @@ const DartsStatisticsDashboard: React.FC = () => {
         });
     };
 
-    // Update the matchData with realistic sample averages
-    const matchData = matchReports.map((report, index) => ({
-        matchday: index + 1,
-        average: [
-            41.2, 38.7, 43.5, 39.8, 42.3, 44.1, 37.9, 45.2, 
-            41.6, 43.8, 40.5, 46.1, 42.7, 39.4, 44.8, 43.2, 45.6
-        ][index] || 42.0, // fallback to 42.0 if index out of bounds
-        opponent: report.opponent
-    }));
+    // Update the matchData calculation to use the selected player
+    const matchData = matchReports.map((report, index) => {
+        if (selectedPlayer === "team") {
+            return {
+                matchday: index + 1,
+                average: [
+                    41.2, 38.7, 43.5, 39.8, 42.3, 44.1, 37.9, 45.2, 
+                    41.6, 43.8, 40.5, 46.1, 42.7, 39.4, 44.8, 43.2, 45.6
+                ][index] || 42.0,
+                opponent: report.opponent
+            };
+        } else {
+            // Here we would get the individual player's average for each match
+            // For now using placeholder data
+            const playerAvg = teamData?.players.find(p => p.playerName === selectedPlayer)?.adjustedAverage || 40;
+            return {
+                matchday: index + 1,
+                average: playerAvg + (Math.random() * 10 - 5), // Add some variation
+                opponent: report.opponent
+            };
+        }
+    });
 
     const sampleMatchAverages = calculateRunningAverages(matchData);
 
@@ -585,7 +599,21 @@ const DartsStatisticsDashboard: React.FC = () => {
                             <TabsContent value="charts">
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle>Team Performance Over Time</CardTitle>
+                                        <div className="flex justify-between items-center">
+                                            <CardTitle>Team Performance Over Time</CardTitle>
+                                            <select 
+                                                className="px-3 py-1 border rounded-md text-sm bg-white"
+                                                value={selectedPlayer}
+                                                onChange={(e) => setSelectedPlayer(e.target.value)}
+                                            >
+                                                <option value="team">Team Average</option>
+                                                {teamData?.players.map((player) => (
+                                                    <option key={player.playerName} value={player.playerName}>
+                                                        {player.playerName}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
                                         <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-500">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-4 h-0.5 bg-[#22c55e]"></div>
@@ -636,7 +664,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                         }}
                                                         labelFormatter={(matchday: number) => {
                                                             const match = sampleMatchAverages[matchday - 1];
-                                                            return `Matchday ${matchday} vs ${match.opponent}`;
+                                                            return match ? `Matchday ${matchday} vs ${match.opponent}` : `Matchday ${matchday}`;
                                                         }}
                                                     />
                                                     {sampleMatchAverages.length > 0 && (
