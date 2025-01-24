@@ -7,10 +7,7 @@ import { Trophy, Search, Users, User, CalendarFold, Rows4, CheckCheck, MapPin, M
 import axios from 'axios';
 import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
 import { Checkout, ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings } from '@/lib/types';
-
-
-
-
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 const DartsStatisticsDashboard: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState<string>('');
@@ -25,7 +22,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [comparisonData, setComparisonData] = useState<ComparisonData[]>([]);
     const [teamStandings, setTeamStandings] = useState<TeamStandings | null>(null);
 
-    // Update the teams array with the correct order
+    // Update the teams array with all teams including DC Patron
     const teams: string[] = [
         'Vienna Devils 3',
         'Babylon Triple 1',
@@ -39,12 +36,17 @@ const DartsStatisticsDashboard: React.FC = () => {
         'An Sporran 404 Double Not Found',
         'The Plumbatas',
         'Temmel Dart Lions',
-        'Relax One Steel 5'
+        'Relax One Steel 5',
+        'DC Patron'
     ];
 
+    // Filter teams for search dropdown (include all teams)
     const filteredTeams = teams.filter(team =>
         team.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // Filter teams for comparison table (exclude selected team)
+    const comparisonTeams = teams.filter(team => team !== selectedTeam);
 
     // Helper function for ordinal numbers (1st, 2nd, 3rd, etc.)
     const getOrdinalSuffix = (i: number) => {
@@ -164,6 +166,55 @@ const DartsStatisticsDashboard: React.FC = () => {
         if (home > away) return 'bg-green-100 text-green-800';
         if (home < away) return 'bg-red-100 text-red-800';
         return 'bg-orange-100 text-orange-800';
+    };
+
+    // First, let's create a function to calculate running averages
+    const calculateRunningAverages = (data: { matchday: number, average: number }[]) => {
+        return data.map((item, index) => {
+            const previousMatches = data.slice(0, index + 1);
+            const runningAvg = previousMatches.reduce((sum, match) => sum + match.average, 0) / (index + 1);
+            return {
+                ...item,
+                runningAverage: Number(runningAvg.toFixed(2))
+            };
+        });
+    };
+
+    // Update the matchData with realistic sample averages
+    const matchData = matchReports.map((report, index) => ({
+        matchday: index + 1,
+        average: [
+            41.2, 38.7, 43.5, 39.8, 42.3, 44.1, 37.9, 45.2, 
+            41.6, 43.8, 40.5, 46.1, 42.7, 39.4, 44.8, 43.2, 45.6
+        ][index] || 42.0, // fallback to 42.0 if index out of bounds
+        opponent: report.opponent
+    }));
+
+    const sampleMatchAverages = calculateRunningAverages(matchData);
+
+    // Create a separate component for the cross marker
+    const CrossMarker = ({ cx, cy }: { cx: number, cy: number }) => {
+        const size = 6;
+        return (
+            <g>
+                <line
+                    x1={cx - size}
+                    y1={cy - size}
+                    x2={cx + size}
+                    y2={cy + size}
+                    stroke="#ef4444"
+                    strokeWidth={2}
+                />
+                <line
+                    x1={cx - size}
+                    y1={cy + size}
+                    x2={cx + size}
+                    y2={cy - size}
+                    stroke="#ef4444"
+                    strokeWidth={2}
+                />
+            </g>
+        );
     };
 
     return (
@@ -342,6 +393,10 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     <ArrowLeftRight className="h-5 w-5 text-green-500 mr-1" />
                                     Point Comparison
                                 </TabsTrigger>
+                                <TabsTrigger value="charts" className="flex items-center">
+                                    <BarChart className="h-5 w-5 text-green-500 mr-1" />
+                                    Charts
+                                </TabsTrigger>
                             </TabsList>
 
 
@@ -473,7 +528,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-200">
-                                                    {[...teams].map((team) => {
+                                                    {comparisonTeams.map((team) => {
                                                         const data = comparisonData.find(d => d.opponent === team);
                                                         const difference = data?.firstRound && data?.secondRound 
                                                             ? calculateDifference(data.firstRound, data.secondRound)
@@ -522,6 +577,98 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                     })}
                                                 </tbody>
                                             </table>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+
+                            <TabsContent value="charts">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Team Performance Over Time</CardTitle>
+                                        <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-500">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-4 h-0.5 bg-[#22c55e]"></div>
+                                                <span>Running Average</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-4 h-4 text-[#ef4444]">✕</div>
+                                                <span>Match Average</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-4 h-0.5 bg-[#3b82f6] border-t-2 border-dashed"></div>
+                                                <span>Current Average</span>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="h-[400px] w-full">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <LineChart
+                                                    data={sampleMatchAverages}
+                                                    margin={{
+                                                        top: 20,
+                                                        right: 30,
+                                                        left: 20,
+                                                        bottom: 20,
+                                                    }}
+                                                >
+                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                    <XAxis 
+                                                        dataKey="matchday" 
+                                                        label={{ 
+                                                            value: 'Matchday', 
+                                                            position: 'bottom' 
+                                                        }}
+                                                    />
+                                                    <YAxis 
+                                                        domain={[35, 50]}
+                                                        ticks={[35, 40, 45, 50]}
+                                                        label={{ 
+                                                            value: 'Average', 
+                                                            angle: -90, 
+                                                            position: 'insideLeft' 
+                                                        }}
+                                                    />
+                                                    <Tooltip 
+                                                        formatter={(value: number, name: string) => {
+                                                            return [value.toFixed(2), name === 'runningAverage' ? 'Running Average' : 'Match Average'];
+                                                        }}
+                                                        labelFormatter={(matchday: number) => {
+                                                            const match = sampleMatchAverages[matchday - 1];
+                                                            return `Matchday ${matchday} vs ${match.opponent}`;
+                                                        }}
+                                                    />
+                                                    {sampleMatchAverages.length > 0 && (
+                                                        <ReferenceLine 
+                                                            y={sampleMatchAverages[sampleMatchAverages.length - 1].runningAverage}
+                                                            stroke="#3b82f6" 
+                                                            strokeWidth={3}
+                                                            strokeDasharray="3 3"
+                                                            label={{
+                                                                position: 'right',
+                                                                fill: '#3b82f6'
+                                                            }}
+                                                        />
+                                                    )}
+                                                    {/* Running average line */}
+                                                    <Line 
+                                                        type="monotone" 
+                                                        dataKey="runningAverage" 
+                                                        stroke="#22c55e" 
+                                                        strokeWidth={2}
+                                                        dot={false}
+                                                    />
+                                                    {/* Individual match averages with X markers */}
+                                                    <Line
+                                                        type="monotone"
+                                                        dataKey="average"
+                                                        stroke="none"
+                                                        dot={<CrossMarker />}
+                                                        isAnimationActive={false}
+                                                    />
+                                                </LineChart>
+                                            </ResponsiveContainer>
                                         </div>
                                     </CardContent>
                                 </Card>
