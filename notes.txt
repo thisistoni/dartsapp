@@ -9,3 +9,5 @@
 #nächster gegner button
 #line up calculator menu
 #next game card /adresse+datum+gegnername,position, team avg
+
+-
