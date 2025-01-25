@@ -82,3 +82,4 @@ Die Benutzeroberfläche verwendet Komponenten wie `Card`, `Tabs`, und Icons, um 
 
 - Fehler beim Abrufen von Daten werden in der Konsole protokolliert und die Ladeanzeige bleibt bestehen, bis die Daten erfolgreich geladen sind.
 
+🫡
