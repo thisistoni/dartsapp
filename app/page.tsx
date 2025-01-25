@@ -18,6 +18,27 @@ interface DotProps {
     };
 }
 
+interface ScheduleMatch {
+    round: string;
+    date: string;
+    opponent: string;
+    venue: string;
+    address: string;
+    location: string;
+}
+
+interface TeamPerformance {
+    teamAverage: number;
+    matchday: number;
+    opponent: string;
+}
+
+interface PlayerPerformance {
+    average: number;
+    matchday: number;
+    opponent: string;
+}
+
 const DartsStatisticsDashboard: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [selectedTeam, setSelectedTeam] = useState<string>('DC Patron');
@@ -34,7 +55,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [matchAverages, setMatchAverages] = useState<MatchAverages[]>([]);
     const [sortColumn, setSortColumn] = useState<string>('winRate');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-    const [scheduleData, setScheduleData] = useState<any[]>([]);
+    const [scheduleData, setScheduleData] = useState<ScheduleMatch[]>([]);
     const [isNextMatchExpanded, setIsNextMatchExpanded] = useState(false);
 
     // Update the teams array with all teams including DC Patron
@@ -349,7 +370,7 @@ const DartsStatisticsDashboard: React.FC = () => {
         const teamBestPerformance = matchAverages.reduce((best, current) => 
             current.teamAverage > best.teamAverage ? current : best,
             matchAverages[0] || { teamAverage: 0, matchday: 0, opponent: '-' }
-        );
+        ) as TeamPerformance;
         const teamDifference = teamBestPerformance.teamAverage - (teamAverage || 0);
         const teamEntry = {
             isTeam: true,
@@ -372,7 +393,7 @@ const DartsStatisticsDashboard: React.FC = () => {
             const bestPerformance = playerAverages.reduce((best, current) => 
                 current.average > best.average ? current : best,
                 playerAverages[0] || { average: 0, matchday: 0, opponent: '-' }
-            );
+            ) as PlayerPerformance;
             
             const difference = bestPerformance.average - player.adjustedAverage;
 
@@ -389,6 +410,11 @@ const DartsStatisticsDashboard: React.FC = () => {
         return [...playerEntries, teamEntry]
             .sort((a, b) => b.difference - a.difference);
     };
+
+    // Add type guard function
+    function isTeamPerformance(performance: PlayerPerformance | TeamPerformance): performance is TeamPerformance {
+        return 'teamAverage' in performance;
+    }
 
     return (
         <div className="min-h-screen bg-gray-100 p-8">
@@ -499,7 +525,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                         </Card>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                             
-                        <Card>
+                            <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <BarChart className="h-6 w-6 text-blue-500" />
@@ -525,7 +551,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="space-y-2">
-                                        <p className="text-2xl font-bold text-gray-900">
+                                    <p className="text-2xl font-bold text-gray-900">
                                             {teamStandings 
                                                 ? `${teamStandings.wins}-${teamStandings.draws}-${teamStandings.losses}`
                                                 : 'Loading...'}
@@ -593,7 +619,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                         >
                                             <div className="flex items-center justify-between">
                                                 <CardTitle className="flex items-center gap-2">
-                                                    <Calendar className="h-6 w-6 text-green-500" />
+                                                    <Calendar className="h-6 w-6 text-blue-500" />
                                                     Next Match
                                                 </CardTitle>
                                                 <ChevronDown 
@@ -601,7 +627,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                         isNextMatchExpanded ? 'transform rotate-180' : ''
                                                     }`}
                                                 />
-                                            </div>
+                        </div>
                                         </CardHeader>
                                         <div className={`overflow-hidden transition-all duration-200 ${
                                             isNextMatchExpanded ? 'max-h-96' : 'max-h-0'
@@ -614,12 +640,12 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
 
                                                     return nextMatch ? (
-                                                        <div className="bg-white rounded-lg border border-gray-200">
+                                                        <div className="bg-white rounded-lg border border-gray-200 hover:border-blue-500 transition-colors duration-200">
                                                             <div className="p-4">
                                                                 <div className="flex items-center justify-between mb-4">
                                                                     <div className="flex items-center gap-3">
-                                                                        <div className="h-12 w-12 rounded-full bg-green-50 flex items-center justify-center">
-                                                                            <span className="text-lg font-bold text-green-600">
+                                                                        <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center">
+                                                                            <span className="text-lg font-bold text-blue-600">
                                                                                 {new Date(nextMatch.date).getDate()}
                                                                             </span>
                                                                         </div>
@@ -641,38 +667,38 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                             </div>
                                                                         </div>
                                                                     </div>
-                                                                </div>
-                                                                
+                                        </div>
+
                                                                 <div className="flex items-center gap-2 text-gray-600 mb-3">
                                                                     <MapPin className="h-4 w-4 text-gray-400" />
                                                                     <span className="font-medium">{nextMatch.venue}</span>
-                                                                </div>
-                                                                
+                                            </div>
+
                                                                 <div className="flex items-center justify-between">
                                                                     <div className="text-sm text-gray-500">
                                                                         {nextMatch.address}, {nextMatch.location}
-                                                                    </div>
+                                            </div>
                                                                     <a 
                                                                         href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
                                                                             `${nextMatch.venue} ${nextMatch.address} ${nextMatch.location}`
                                                                         )}`}
                                                                         target="_blank"
                                                                         rel="noopener noreferrer"
-                                                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 focus:outline-none"
+                                                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 focus:outline-none"
                                                                     >
                                                                         <Navigation className="h-4 w-4 mr-1" />
                                                                         Get Directions
                                                                     </a>
-                                                                </div>
-                                                            </div>
-                                                        </div>
+                                        </div>
+                                    </div>
+                                </div>
                                                     ) : (
                                                         <div className="text-gray-500 text-center py-4">
                                                             No upcoming matches
                                                         </div>
                                                     );
                                                 })()}
-                                            </CardContent>
+                            </CardContent>
                                         </div>
                                     </Card>
                                 </div>
@@ -845,7 +871,9 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                 <tbody className="bg-white divide-y divide-gray-200">
                                                     {sortedPlayers.map((player, index) => (
                                                         <tr key={player.playerName} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                                            <td className="sticky left-0 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-white z-10">
+                                                            <td className={`sticky left-0 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 z-10 ${
+                                                                index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                                                            }`}>
                                                                 {player.playerName}
                                                             </td>
                                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -887,12 +915,12 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                         {`${calculateTotalDifference(comparisonData) >= 0 ? '+' : ''}${calculateTotalDifference(comparisonData)}`}
                                                     </span>
                                                 </div>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full text-sm bg-white">
-                                                        <thead>
-                                                            <tr className="border-b">
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm bg-white">
+                                                <thead>
+                                                    <tr className="border-b">
                                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                                     <span className="hidden sm:inline">Opponent</span>
                                                                     <span className="sm:hidden">Opponent +/-</span>
@@ -906,9 +934,9 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                                                                     Difference
                                                                 </th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-gray-200">
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-200">
                                                             {comparisonTeams.map((team) => {
                                                                 const data = comparisonData.find(d => d.opponent === team);
                                                                 const difference = data?.firstRound && data?.secondRound 
@@ -917,9 +945,9 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 
                                                                 return (
                                                                     <tr key={team} className="hover:bg-gray-50">
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                                                             <div className="flex items-center justify-between gap-2">
-                                                                                <div className="font-semibold text-gray-900 break-words pr-2" style={{ wordBreak: 'break-word' }}>
+                                                                                <div className="text-gray-900 break-words pr-2" style={{ wordBreak: 'break-word' }}>
                                                                                     {team}
                                                                                 </div>
                                                                                 <div className="sm:hidden">
@@ -1038,8 +1066,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                         }}
                                                     />
                                                     <YAxis 
-                                                        domain={[35, 50]}
-                                                        ticks={[35, 40, 45, 50]}
+                                                        domain={[30, 50]}
+                                                        ticks={[30, 35, 40, 45, 50]}
                                                         label={{ 
                                                             value: 'Average', 
                                                             angle: -90, 
@@ -1128,14 +1156,18 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                 <tbody className="bg-white divide-y divide-gray-200">
                                                     {getAllPerformances().map((entry) => (
                                                         <tr key={entry.name} className={entry.isTeam ? "border-b" : ""}>
-                                                            <td className="sticky left-0 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-white z-10">
+                                                            <td className={`sticky left-0 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-white z-10 ${
+                                                                entry.isTeam ? 'bg-white' : 'bg-gray-50'
+                                                            }`}>
                                                                 {entry.name} {entry.isTeam && <span className="text-blue-600">(Team)</span>}
                                                             </td>
                                                             <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} text-gray-900`}>
                                                                 {entry.currentAverage.toFixed(2)}
                                                             </td>
                                                             <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} text-gray-900`}>
-                                                                {entry.isTeam ? entry.bestPerformance.teamAverage.toFixed(2) : entry.bestPerformance.average.toFixed(2)}
+                                                                {isTeamPerformance(entry.bestPerformance) 
+                                                                    ? entry.bestPerformance.teamAverage.toFixed(2) 
+                                                                    : entry.bestPerformance.average.toFixed(2)}
                                                             </td>
                                                             <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} ${
                                                                 entry.difference > 0 ? 'text-green-600' : 'text-red-600'
@@ -1265,7 +1297,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                         <>
                                             <CardHeader>
                                                 <CardTitle className="flex items-center gap-2">
-                                                    <Calendar className="h-6 w-6 text-green-500" />
+                                                    <Calendar className="h-6 w-6 text-blue-500" />
                                                     Match Schedule
                                                 </CardTitle>
                                             </CardHeader>
@@ -1295,13 +1327,13 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                     <div className="grid gap-4">
                                                                         {matches.map((match) => (
                                                                             <div key={match.round} 
-                                                                                className="bg-white rounded-lg border border-gray-200 hover:border-green-500 transition-colors duration-200"
+                                                                                className="bg-white rounded-lg border border-gray-200 hover:border-blue-500 transition-colors duration-200"
                                                                             >
                                                                                 <div className="p-4">
                                                                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4">
                                                                                         <div className="flex items-center gap-3">
-                                                                                            <div className="h-12 w-12 rounded-full bg-green-50 flex items-center justify-center">
-                                                                                                <span className="text-lg font-bold text-green-600">
+                                                                                            <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center">
+                                                                                                <span className="text-lg font-bold text-blue-600">
                                                                                                     {new Date(match.date).getDate()}
                                                                                                 </span>
                                                                                             </div>
@@ -1352,7 +1384,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                                             )}`}
                                                                                             target="_blank"
                                                                                             rel="noopener noreferrer"
-                                                                                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 focus:outline-none"
+                                                                                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 focus:outline-none"
                                                                                         >
                                                                                             <Navigation className="h-4 w-4 mr-1" />
                                                                                             Get Directions

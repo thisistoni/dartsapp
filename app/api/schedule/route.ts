@@ -1,6 +1,15 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
+interface ScheduleMatch {
+    round: string;
+    date: string;
+    opponent: string;
+    venue: string;
+    address: string;
+    location: string;
+}
+
 export async function GET() {
     try {
         // Fetch the HTML content
@@ -11,7 +20,7 @@ export async function GET() {
         const $ = cheerio.load(html);
 
         // Parse the schedule table
-        const scheduleData = [];
+        const scheduleData: ScheduleMatch[] = [];
         $('.ranking tbody tr').each((_, row) => {
             const $row = $(row);
             const columns = $row.find('td');
