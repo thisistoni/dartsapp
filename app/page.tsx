@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Search, Users, User, CalendarFold, Rows4, CheckCheck, MapPin, Martini, Phone, BarChart, ArrowLeftRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Trophy, Search, Users, User, CalendarFold, Rows4, CheckCheck, MapPin, Martini, Phone, BarChart, ArrowLeftRight, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Navigation, ChevronDown } from 'lucide-react';
 import axios from 'axios';
 import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
 import { Checkout, ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings, MatchAverages } from '@/lib/types';
@@ -34,6 +34,8 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [matchAverages, setMatchAverages] = useState<MatchAverages[]>([]);
     const [sortColumn, setSortColumn] = useState<string>('winRate');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+    const [scheduleData, setScheduleData] = useState<any[]>([]);
+    const [isNextMatchExpanded, setIsNextMatchExpanded] = useState(false);
 
     // Update the teams array with all teams including DC Patron
     const teams: string[] = [
@@ -100,6 +102,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                 .then(matchReports => {
                     const reports = matchReports.map(res => res.data.report);
                     setMatchReports(reports);
+                    console.log('✓ Match reports loaded successfully');
                     
                     // Now fetch averages for each match report
                     return Promise.all(
@@ -117,6 +120,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                 })
                 .then(averages => {
                     setMatchAverages(averages);
+                    console.log('✓ Player averages synchronized');
                 })
                 .catch(error => {
                     console.error('Error fetching data:', error);
@@ -146,6 +150,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                     const data = response.data.players;
                     setTeamData({ players: data });
                     setTeamAverage(data.reduce((sum: number, player: Player) => sum + player.adjustedAverage, 0) / data.length);
+                    console.log('✓ Team statistics loaded');
                 })
                 .catch(error => console.error('Error fetching team average:', error));
 
@@ -157,6 +162,19 @@ const DartsStatisticsDashboard: React.FC = () => {
                 .catch(error => console.error('Error fetching standings:', error));
         }
     }, [selectedTeam]);
+
+    useEffect(() => {
+        const fetchSchedule = async () => {
+            try {
+                const response = await axios.get('/api/schedule');
+                setScheduleData(response.data);
+            } catch (error) {
+                console.error('Error fetching schedule:', error);
+            }
+        };
+
+        fetchSchedule();
+    }, []);
 
     const Modal = ({ isOpen, onClose, children }: { isOpen: boolean, onClose: () => void, children: React.ReactNode }) => {
         if (!isOpen) return null;
@@ -179,9 +197,14 @@ const DartsStatisticsDashboard: React.FC = () => {
     };
 
     const calculateDifference = (first: string, second: string) => {
-        const firstRoundScore = Number(first.split('-')[0]);
-        const secondRoundScore = Number(second.split('-')[0]);
-        return secondRoundScore - firstRoundScore;
+        if (!first || !second) return 0;
+        
+        // Get only the first number from each score (before the dash)
+        const firstScore = Number(first.split('-')[0]);
+        const secondScore = Number(second.split('-')[0]);
+        
+        // Return the difference between second round and first round scores
+        return secondScore - firstScore;
     };
 
     const calculateTotalDifference = (data: ComparisonData[]) => {
@@ -202,7 +225,23 @@ const DartsStatisticsDashboard: React.FC = () => {
         return 'bg-orange-100 text-orange-800';
     };
 
- 
+    // Update the getBestCheckouts function to return an array instead of a string
+    const getBestCheckouts = (playerName: string, isTeam: boolean = false) => {
+        const allCheckouts = matchReports.flatMap(report => 
+            report.checkouts
+                .filter(c => isTeam ? true : c.scores.startsWith(playerName))
+                .map(c => {
+                    const scores = c.scores.split(': ')[1];
+                    return scores === '-' ? [] : scores.split(', ').map(Number);
+                })
+                .flat()
+        );
+        
+        return allCheckouts
+            .filter(c => !isNaN(c))
+            .sort((a, b) => a - b)
+            .slice(0, 3);
+    };
 
     // Update the matchData calculation to keep original matchday numbers
     const matchData = matchAverages.map((match) => {
@@ -237,6 +276,19 @@ const DartsStatisticsDashboard: React.FC = () => {
         };
     });
 
+    // Add this function at the top level of the component
+    const getLowestThreeCheckouts = () => {
+        const allCheckouts = matchReports.flatMap(report => 
+            report.checkouts
+                .map(c => {
+                    const scores = c.scores.split(': ')[1];
+                    return scores === '-' ? [] : scores.split(', ').map(Number);
+                })
+                .flat()
+        ).filter(c => !isNaN(c));
+
+        return allCheckouts.sort((a, b) => a - b).slice(0, 3);
+    };
 
     // Define the dot renderer as a simple function that returns an SVG element
     const renderDot = (props: DotProps) => {
@@ -290,6 +342,53 @@ const DartsStatisticsDashboard: React.FC = () => {
                 return 0;
         }
     });
+
+    // First, create a sorted array of all entries (team and players)
+    const getAllPerformances = () => {
+        // Get team performance
+        const teamBestPerformance = matchAverages.reduce((best, current) => 
+            current.teamAverage > best.teamAverage ? current : best,
+            matchAverages[0] || { teamAverage: 0, matchday: 0, opponent: '-' }
+        );
+        const teamDifference = teamBestPerformance.teamAverage - (teamAverage || 0);
+        const teamEntry = {
+            isTeam: true,
+            name: selectedTeam,
+            currentAverage: teamAverage || 0,
+            bestPerformance: teamBestPerformance,
+            difference: teamDifference
+        };
+
+        // Get player performances
+        const playerEntries = teamData?.players.map(player => {
+            const playerAverages = matchAverages
+                .flatMap(match => ({
+                    average: match.playerAverages.find(avg => avg.playerName === player.playerName)?.average || 0,
+                    matchday: match.matchday,
+                    opponent: match.opponent
+                }))
+                .filter(data => data.average > 0);
+            
+            const bestPerformance = playerAverages.reduce((best, current) => 
+                current.average > best.average ? current : best,
+                playerAverages[0] || { average: 0, matchday: 0, opponent: '-' }
+            );
+            
+            const difference = bestPerformance.average - player.adjustedAverage;
+
+            return {
+                isTeam: false,
+                name: player.playerName,
+                currentAverage: player.adjustedAverage,
+                bestPerformance,
+                difference
+            };
+        }) || [];
+
+        // Combine and sort by difference
+        return [...playerEntries, teamEntry]
+            .sort((a, b) => b.difference - a.difference);
+    };
 
     return (
         <div className="min-h-screen bg-gray-100 p-8">
@@ -399,7 +498,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                             </CardContent>
                         </Card>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                            <Card>
+                            
+                        <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <BarChart className="h-6 w-6 text-blue-500" />
@@ -416,12 +516,57 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 </div>
                                 </CardContent>
                             </Card>
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Trophy className="h-6 w-6 text-amber-500" />
+                                        Standings
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-2">
+                                        <p className="text-2xl font-bold text-gray-900">
+                                            {teamStandings 
+                                                ? `${teamStandings.wins}-${teamStandings.draws}-${teamStandings.losses}`
+                                                : 'Loading...'}
+                                        </p>
+                                        <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+                                            <div className="h-full flex">
+                                                <div 
+                                                    className="h-full bg-green-200" 
+                                                    style={{ 
+                                                        width: teamStandings 
+                                                            ? `${(teamStandings.wins / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` 
+                                                            : '0%' 
+                                                    }} 
+                                                />
+                                                <div 
+                                                    className="h-full bg-orange-200" 
+                                                    style={{ 
+                                                        width: teamStandings 
+                                                            ? `${(teamStandings.draws / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` 
+                                                            : '0%' 
+                                                    }} 
+                                                />
+                                                <div 
+                                                    className="h-full bg-red-200" 
+                                                    style={{ 
+                                                        width: teamStandings 
+                                                            ? `${(teamStandings.losses / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` 
+                                                            : '0%' 
+                                                    }} 
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
 
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
-                                        <Martini className="h-6 w-6 text-red-500" />
-                                        {clubVenue?.venue || 'Venue'}
+                                        <Martini className="h-6 w-6 text-purple-500" />
+                                        {clubVenue?.venue}
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
@@ -438,27 +583,103 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 </CardContent>
                             </Card>
 
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Trophy className="h-6 w-6 text-amber-500" />
-                                        Standings
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-2">
-                                        <p className="text-2xl font-bold text-gray-900">
-                                            {teamStandings 
-                                                ? `${teamStandings.wins}-${teamStandings.draws}-${teamStandings.losses}`
-                                                : 'Loading...'}
-                                        </p>
-                                        <p className="text-sm text-gray-500">Current Season Record</p>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                            {/* Next Match Card (Mobile Only) */}
+                            {selectedTeam === 'DC Patron' && (
+                                <div className="block md:hidden">
+                                    <Card>
+                                        <CardHeader 
+                                            className="cursor-pointer"
+                                            onClick={() => setIsNextMatchExpanded(!isNextMatchExpanded)}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <CardTitle className="flex items-center gap-2">
+                                                    <Calendar className="h-6 w-6 text-green-500" />
+                                                    Next Match
+                                                </CardTitle>
+                                                <ChevronDown 
+                                                    className={`h-5 w-5 text-gray-500 transition-transform duration-200 ${
+                                                        isNextMatchExpanded ? 'transform rotate-180' : ''
+                                                    }`}
+                                                />
+                                            </div>
+                                        </CardHeader>
+                                        <div className={`overflow-hidden transition-all duration-200 ${
+                                            isNextMatchExpanded ? 'max-h-96' : 'max-h-0'
+                                        }`}>
+                                            <CardContent>
+                                                {(() => {
+                                                    const today = new Date();
+                                                    const nextMatch = scheduleData
+                                                        .filter(match => new Date(match.date) >= today)
+                                                        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+
+                                                    return nextMatch ? (
+                                                        <div className="bg-white rounded-lg border border-gray-200">
+                                                            <div className="p-4">
+                                                                <div className="flex items-center justify-between mb-4">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="h-12 w-12 rounded-full bg-green-50 flex items-center justify-center">
+                                                                            <span className="text-lg font-bold text-green-600">
+                                                                                {new Date(nextMatch.date).getDate()}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="flex-grow">
+                                                                            <div className="flex items-center justify-between text-sm text-gray-500 sm:block">
+                                                                                <span>Round {nextMatch.round}</span>
+                                                                                <div className="flex-shrink-0 sm:hidden">
+                                                                                    {comparisonData.find(d => d.opponent === nextMatch.opponent)?.firstRound && (
+                                                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
+                                                                                            getScoreColor(comparisonData.find(d => d.opponent === nextMatch.opponent)?.firstRound || '')
+                                                                                        }`}>
+                                                                                            {comparisonData.find(d => d.opponent === nextMatch.opponent)?.firstRound}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="font-semibold text-gray-900 break-words pr-2" style={{ wordBreak: 'break-word' }}>
+                                                                                {nextMatch.opponent}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                <div className="flex items-center gap-2 text-gray-600 mb-3">
+                                                                    <MapPin className="h-4 w-4 text-gray-400" />
+                                                                    <span className="font-medium">{nextMatch.venue}</span>
+                                                                </div>
+                                                                
+                                                                <div className="flex items-center justify-between">
+                                                                    <div className="text-sm text-gray-500">
+                                                                        {nextMatch.address}, {nextMatch.location}
+                                                                    </div>
+                                                                    <a 
+                                                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                                                            `${nextMatch.venue} ${nextMatch.address} ${nextMatch.location}`
+                                                                        )}`}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 focus:outline-none"
+                                                                    >
+                                                                        <Navigation className="h-4 w-4 mr-1" />
+                                                                        Get Directions
+                                                                    </a>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-gray-500 text-center py-4">
+                                                            No upcoming matches
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </CardContent>
+                                        </div>
+                                    </Card>
+                                </div>
+                            )}
                         </div>
                         <Tabs defaultValue="matches" className="space-y-4">
-                            <TabsList className="flex flex-wrap gap-2 justify-start mb-12">
+                            <TabsList className="flex flex-wrap gap-2 justify-start mb-32 sm:mb-6">
                                 <TabsTrigger value="matches" className="flex items-center">
                                     <Users className="h-5 w-5 text-green-500 mr-1" />
                                     Matches
@@ -474,6 +695,18 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 <TabsTrigger value="charts" className="flex items-center">
                                     <BarChart className="h-5 w-5 text-green-500 mr-1" />
                                     Charts
+                                </TabsTrigger>
+                                <TabsTrigger value="performances" className="flex items-center">
+                                    <Trophy className="h-5 w-5 text-green-500 mr-1" />
+                                    Best Performances
+                                </TabsTrigger>
+                                <TabsTrigger value="scoreBreakdown" className="flex items-center">
+                                    <Rows4 className="h-5 w-5 text-green-500 mr-1" />
+                                    Distribution
+                                </TabsTrigger>
+                                <TabsTrigger value="schedule" className="flex items-center">
+                                    <Calendar className="h-5 w-5 text-green-500 mr-1" />
+                                    Schedule
                                 </TabsTrigger>
                             </TabsList>
 
@@ -548,17 +781,14 @@ const DartsStatisticsDashboard: React.FC = () => {
                                         <CardTitle>Player Statistics</CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="overflow-x-auto">
+                                        <div className="overflow-x-auto relative">
                                             <table className="min-w-full divide-y divide-gray-200">
                                                 <thead className="bg-gray-50">
                                                     <tr>
-                                                        <th 
-                                                            scope="col" 
-                                                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                                                            onClick={() => handleSort('playerName')}
-                                                        >
+                                                        <th className="sticky left-0 bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 z-10"
+                                                            onClick={() => handleSort('playerName')}>
                                                             <div className="flex items-center gap-2">
-                                                                Player
+                                                                Name
                                                                 {sortColumn === 'playerName' ? (
                                                                     sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
                                                                 ) : (
@@ -566,25 +796,19 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 )}
                                                             </div>
                                                         </th>
-                                                        <th 
-                                                            scope="col" 
-                                                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                                                            onClick={() => handleSort('average')}
-                                                        >
+                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                                            onClick={() => handleSort('winRate')}>
                                                             <div className="flex items-center gap-2">
-                                                                Average
-                                                                {sortColumn === 'average' ? (
+                                                                Win Rate
+                                                                {sortColumn === 'winRate' ? (
                                                                     sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
                                                                 ) : (
                                                                     <ArrowUpDown className="h-4 w-4" />
                                                                 )}
                                                             </div>
                                                         </th>
-                                                        <th 
-                                                            scope="col" 
-                                                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                                                            onClick={() => handleSort('singles')}
-                                                        >
+                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                                            onClick={() => handleSort('singles')}>
                                                             <div className="flex items-center gap-2">
                                                                 Singles
                                                                 {sortColumn === 'singles' ? (
@@ -594,11 +818,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 )}
                                                             </div>
                                                         </th>
-                                                        <th 
-                                                            scope="col" 
-                                                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                                                            onClick={() => handleSort('doubles')}
-                                                        >
+                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                                            onClick={() => handleSort('doubles')}>
                                                             <div className="flex items-center gap-2">
                                                                 Doubles
                                                                 {sortColumn === 'doubles' ? (
@@ -608,14 +829,11 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 )}
                                                             </div>
                                                         </th>
-                                                        <th 
-                                                            scope="col" 
-                                                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                                                            onClick={() => handleSort('winRate')}
-                                                        >
+                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                                            onClick={() => handleSort('average')}>
                                                             <div className="flex items-center gap-2">
-                                                                Win Rate
-                                                                {sortColumn === 'winRate' ? (
+                                                                Average
+                                                                {sortColumn === 'average' ? (
                                                                     sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
                                                                 ) : (
                                                                     <ArrowUpDown className="h-4 w-4" />
@@ -627,11 +845,11 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                 <tbody className="bg-white divide-y divide-gray-200">
                                                     {sortedPlayers.map((player, index) => (
                                                         <tr key={player.playerName} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                            <td className="sticky left-0 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-white z-10">
                                                                 {player.playerName}
                                                             </td>
                                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                {player.adjustedAverage.toFixed(2)}
+                                                                {player.winRate ? `${player.winRate}%` : '-'}
                                                             </td>
                                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                                 {player.singles || '-'}
@@ -640,7 +858,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 {player.doubles || '-'}
                                                             </td>
                                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                {player.winRate ? `${player.winRate}%` : '-'}
+                                                                {player.adjustedAverage.toFixed(2)}
                                                             </td>
                                                         </tr>
                                                     ))}
@@ -654,86 +872,115 @@ const DartsStatisticsDashboard: React.FC = () => {
 
                             <TabsContent value="comparison">
                                 <Card>
-                                    <CardHeader>
-                                        <div className="flex items-center gap-3">
-                                            <CardTitle>Point Comparison</CardTitle>
-                                            <span className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                                                calculateTotalDifference(comparisonData) > 0
-                                                    ? 'bg-green-100 text-green-800'
-                                                    : calculateTotalDifference(comparisonData) < 0
-                                                        ? 'bg-red-100 text-red-800'
-                                                        : 'bg-orange-100 text-orange-800'
-                                            }`}>
-                                                {`${calculateTotalDifference(comparisonData) >= 0 ? '+' : ''}${calculateTotalDifference(comparisonData)}`}
-                                            </span>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-sm bg-white">
-                                                <thead>
-                                                    <tr className="border-b">
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                            <span className="hidden sm:inline">Opponent</span>
-                                                            <span className="sm:hidden">Opponent +/-</span>
-                                                        </th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">First Round</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Second Round</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Difference</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-200">
-                                                    {comparisonTeams.map((team) => {
-                                                        const data = comparisonData.find(d => d.opponent === team);
-                                                        const difference = data?.firstRound && data?.secondRound 
-                                                            ? calculateDifference(data.firstRound, data.secondRound)
-                                                            : null;
-                                                        
-                                                        return (
-                                                            <tr key={team} className="hover:bg-gray-50">
-                                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                                    <div className="flex items-center justify-between sm:justify-start gap-2">
-                                                                        <span>{team}</span>
-                                                                        {/* Mobile difference indicator */}
-                                                                        {difference !== null && (
-                                                                            <span className={`sm:hidden px-2 py-1 rounded text-sm ${
-                                                                                difference > 0
-                                                                                    ? 'bg-green-100 text-green-800'
-                                                                                    : difference < 0
-                                                                                        ? 'bg-red-100 text-red-800'
-                                                                                        : 'bg-orange-100 text-orange-800'
-                                                                            }`}>
-                                                                                {`${difference >= 0 ? '+' : ''}${difference}`}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">
-                                                                    {data?.firstRound || '-'}
-                                                                </td>
-                                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">
-                                                                    {data?.secondRound || '-'}
-                                                                </td>
-                                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium hidden sm:table-cell">
-                                                                    {difference !== null ? (
-                                                                        <span className={`px-2 py-1 rounded ${
-                                                                            difference > 0
-                                                                                ? 'bg-green-100 text-green-800'
-                                                                                : difference < 0
-                                                                                    ? 'bg-red-100 text-red-800'
-                                                                                    : 'bg-orange-100 text-orange-800'
-                                                                        }`}>
-                                                                            {`${difference >= 0 ? '+' : ''}${difference}`}
-                                                                        </span>
-                                                                    ) : '-'}
-                                                                </td>
+                                    {selectedTeam === 'DC Patron' ? (
+                                        <>
+                                            <CardHeader>
+                                                <div className="flex items-center gap-3">
+                                                    <CardTitle>Point Comparison</CardTitle>
+                                                    <span className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                                                        calculateTotalDifference(comparisonData) > 0
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : calculateTotalDifference(comparisonData) < 0
+                                                                ? 'bg-red-100 text-red-800'
+                                                                : 'bg-orange-100 text-orange-800'
+                                                    }`}>
+                                                        {`${calculateTotalDifference(comparisonData) >= 0 ? '+' : ''}${calculateTotalDifference(comparisonData)}`}
+                                                    </span>
+                                                </div>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-sm bg-white">
+                                                        <thead>
+                                                            <tr className="border-b">
+                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                                    <span className="hidden sm:inline">Opponent</span>
+                                                                    <span className="sm:hidden">Opponent +/-</span>
+                                                                </th>
+                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                                                                    First Round
+                                                                </th>
+                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                                                                    Second Round
+                                                                </th>
+                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                                                                    Difference
+                                                                </th>
                                                             </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </CardContent>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-200">
+                                                            {comparisonTeams.map((team) => {
+                                                                const data = comparisonData.find(d => d.opponent === team);
+                                                                const difference = data?.firstRound && data?.secondRound 
+                                                                    ? calculateDifference(data.firstRound, data.secondRound)
+                                                                    : null;
+                                                                
+                                                                return (
+                                                                    <tr key={team} className="hover:bg-gray-50">
+                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                                            <div className="flex items-center justify-between gap-2">
+                                                                                <div className="font-semibold text-gray-900 break-words pr-2" style={{ wordBreak: 'break-word' }}>
+                                                                                    {team}
+                                                                                </div>
+                                                                                <div className="sm:hidden">
+                                                                                    {difference !== null && (
+                                                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
+                                                                                            difference > 0
+                                                                                                ? 'bg-green-100 text-green-800'
+                                                                                                : difference < 0
+                                                                                                    ? 'bg-red-100 text-red-800'
+                                                                                                    : 'bg-orange-100 text-orange-800'
+                                                                                        }`}>
+                                                                                            {difference > 0 ? '+' : ''}{difference}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">
+                                                                            {data?.firstRound ? (
+                                                                                <span className={`px-3 py-1 rounded-lg ${getScoreColor(data.firstRound)}`}>
+                                                                                    {data.firstRound}
+                                                                                </span>
+                                                                            ) : '-'}
+                                                                        </td>
+                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">
+                                                                            {data?.secondRound ? (
+                                                                                <span className={`px-3 py-1 rounded-lg ${getScoreColor(data.secondRound)}`}>
+                                                                                    {data.secondRound}
+                                                                                </span>
+                                                                            ) : '-'}
+                                                                        </td>
+                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">
+                                                                            {difference !== null && (
+                                                                                <span className={`px-3 py-1 rounded-lg ${
+                                                                                    difference > 0
+                                                                                        ? 'bg-green-100 text-green-800'
+                                                                                        : difference < 0
+                                                                                            ? 'bg-red-100 text-red-800'
+                                                                                            : 'bg-orange-100 text-orange-800'
+                                                                                }`}>
+                                                                                    {difference > 0 ? '+' : ''}{difference}
+                                                                                </span>
+                                                                            )}
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </CardContent>
+                                        </>
+                                    ) : (
+                                        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                                            <ArrowLeftRight className="h-12 w-12 text-gray-400 mb-4" />
+                                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Point Comparison Limited</h3>
+                                            <p className="text-gray-500 max-w-md">
+                                                This feature is currently only available for DC Patron. Select DC Patron to view point comparisons.
+                                            </p>
+                                        </CardContent>
+                                    )}
                                 </Card>
                             </TabsContent>
 
@@ -750,7 +997,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                 <option value="team">{selectedTeam}</option>
                                                 {teamData?.players.map((player) => (
                                                     <option key={player.playerName} value={player.playerName}>
-                                                        {player.playerName}
+                                                                {player.playerName}
                                                     </option>
                                                 ))}
                                             </select>
@@ -842,6 +1089,295 @@ const DartsStatisticsDashboard: React.FC = () => {
                                             </ResponsiveContainer>
                                         </div>
                                     </CardContent>
+                                </Card>
+                            </TabsContent>
+
+                            <TabsContent value="performances">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Best Player Performances</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="overflow-x-auto relative">
+                                            <table className="min-w-full divide-y divide-gray-200">
+                                                <thead className="bg-gray-50">
+                                                    <tr>
+                                                        <th className="sticky left-0 bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider z-10">
+                                                            Player
+                                                        </th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            Current Average
+                                                        </th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            Best Average
+                                                        </th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            Difference
+                                                        </th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            Matchday
+                                                        </th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            Opponent
+                                                        </th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            Best 3 Checkouts
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="bg-white divide-y divide-gray-200">
+                                                    {getAllPerformances().map((entry) => (
+                                                        <tr key={entry.name} className={entry.isTeam ? "border-b" : ""}>
+                                                            <td className="sticky left-0 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-white z-10">
+                                                                {entry.name} {entry.isTeam && <span className="text-blue-600">(Team)</span>}
+                                                            </td>
+                                                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} text-gray-900`}>
+                                                                {entry.currentAverage.toFixed(2)}
+                                                            </td>
+                                                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} text-gray-900`}>
+                                                                {entry.isTeam ? entry.bestPerformance.teamAverage.toFixed(2) : entry.bestPerformance.average.toFixed(2)}
+                                                            </td>
+                                                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} ${
+                                                                entry.difference > 0 ? 'text-green-600' : 'text-red-600'
+                                                            }`}>
+                                                                {entry.difference > 0 ? '+' : ''}{entry.difference.toFixed(2)}
+                                                            </td>
+                                                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} text-gray-900`}>
+                                                                {entry.isTeam ? entry.bestPerformance.matchday : entry.bestPerformance.matchday || '-'}
+                                                            </td>
+                                                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} text-gray-900`}>
+                                                                {entry.isTeam ? entry.bestPerformance.opponent : entry.bestPerformance.opponent}
+                                                            </td>
+                                                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} text-gray-900`}>
+                                                                {(() => {
+                                                                    const checkouts = getBestCheckouts(entry.name, entry.isTeam);
+                                                                    const lowestThree = getLowestThreeCheckouts();
+                                                                    if (checkouts.length === 0) return '-';
+                                                                    return (
+                                                                        <div className="flex gap-2">
+                                                                            {checkouts.map((checkout, index) => (
+                                                                                <span key={index} className={`px-3 py-1 rounded-lg ${
+                                                                                    !entry.isTeam && (
+                                                                                        checkout === lowestThree[0] ? 'bg-yellow-50 text-yellow-700 font-bold' :
+                                                                                        checkout === lowestThree[1] ? 'bg-gray-100 text-gray-700 font-bold' :
+                                                                                        checkout === lowestThree[2] ? 'bg-orange-50 text-orange-700 font-bold' :
+                                                                                        ''
+                                                                                    )
+                                                                                }`}>
+                                                                                    {checkout}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+
+                            <TabsContent value="scoreBreakdown">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Score Distribution</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        {(() => {
+                                            // Get all scores and calculate statistics
+                                            const scores = matchReports.map(report => report.score).filter(Boolean);
+                                            const scoreFrequency: { [key: string]: number } = {};
+                                            let totalWins = 0;
+                                            let totalLosses = 0;
+                                            let totalDraws = 0;
+                                            
+                                            // Process scores
+                                            scores.forEach(score => {
+                                                scoreFrequency[score] = (scoreFrequency[score] || 0) + 1;
+                                                const [home, away] = score.split('-').map(Number);
+                                                if (home > away) totalWins++;
+                                                else if (home < away) totalLosses++;
+                                                else totalDraws++;
+                                            });
+
+                                            // Sort scores by frequency
+                                            const sortedScores = Object.entries(scoreFrequency)
+                                                .sort((a, b) => b[1] - a[1]);
+
+                                            return (
+                                                <div className="space-y-8">
+                                                    {/* Summary Stats */}
+                                                    <div className="h-16">
+                                                        {/* Stats numbers */}
+                                                        <div className="grid grid-cols-3 h-16">
+                                                            <div className="text-center flex flex-col justify-center">
+                                                                <div className="text-2xl font-bold text-green-600">{totalWins}</div>
+                                                                <div className="text-sm text-gray-600">Wins</div>
+                                                            </div>
+                                                            <div className="text-center flex flex-col justify-center">
+                                                                <div className="text-2xl font-bold text-orange-400">{totalDraws}</div>
+                                                                <div className="text-sm text-gray-600">Draws</div>
+                                                            </div>
+                                                            <div className="text-center flex flex-col justify-center">
+                                                                <div className="text-2xl font-bold text-red-600">{totalLosses}</div>
+                                                                <div className="text-sm text-gray-600">Losses</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Score Distribution */}
+                                                    <div className="space-y-3">
+                                                        {sortedScores.map(([score, count]) => {
+                                                            const percentage = (count / scores.length) * 100;
+                                                            return (
+                                                                <div key={score} className="relative">
+                                                                    <div className="flex items-center gap-4">
+                                                                        <div className={`w-24 text-lg font-semibold ${getScoreColor(score)} px-3 py-1 rounded-lg text-center`}>
+                                                                            {score}
+                                                                        </div>
+                                                                        <div className="flex-1 h-8 bg-gray-100 rounded-lg overflow-hidden">
+                                                                            <div 
+                                                                                className="h-full bg-blue-100"
+                                                                                style={{ width: `${percentage}%` }}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="w-20 text-sm text-gray-600">
+                                                                            {count} time{count !== 1 ? 's' : ''} ({percentage.toFixed(1)}%)
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+
+                            <TabsContent value="schedule">
+                                <Card>
+                                    {selectedTeam === 'DC Patron' ? (
+                                        <>
+                                            <CardHeader>
+                                                <CardTitle className="flex items-center gap-2">
+                                                    <Calendar className="h-6 w-6 text-green-500" />
+                                                    Match Schedule
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                                {(() => {
+                                                    const today = new Date();
+                                                    const upcomingMatches = scheduleData
+                                                        .filter(match => new Date(match.date) >= today)
+                                                        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+                                                    // Group matches by month
+                                                    const matchesByMonth = upcomingMatches.reduce((acc, match) => {
+                                                        const monthYear = new Date(match.date).toLocaleDateString('de-AT', {
+                                                            month: 'long',
+                                                            year: 'numeric'
+                                                        });
+                                                        if (!acc[monthYear]) acc[monthYear] = [];
+                                                        acc[monthYear].push(match);
+                                                        return acc;
+                                                    }, {} as Record<string, typeof upcomingMatches>);
+
+                                                    return (
+                                                        <div className="space-y-8">
+                                                            {Object.entries(matchesByMonth).map(([monthYear, matches]) => (
+                                                                <div key={monthYear} className="space-y-4">
+                                                                    <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">{monthYear}</h3>
+                                                                    <div className="grid gap-4">
+                                                                        {matches.map((match) => (
+                                                                            <div key={match.round} 
+                                                                                className="bg-white rounded-lg border border-gray-200 hover:border-green-500 transition-colors duration-200"
+                                                                            >
+                                                                                <div className="p-4">
+                                                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4">
+                                                                                        <div className="flex items-center gap-3">
+                                                                                            <div className="h-12 w-12 rounded-full bg-green-50 flex items-center justify-center">
+                                                                                                <span className="text-lg font-bold text-green-600">
+                                                                                                    {new Date(match.date).getDate()}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                            <div className="flex-grow">
+                                                                                                <div className="flex items-center justify-between text-sm text-gray-500 sm:block">
+                                                                                                    <span>Round {match.round}</span>
+                                                                                                    <div className="flex-shrink-0 sm:hidden">
+                                                                                                        {comparisonData.find(d => d.opponent === match.opponent)?.firstRound && (
+                                                                                                            <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
+                                                                                                                getScoreColor(comparisonData.find(d => d.opponent === match.opponent)?.firstRound || '')
+                                                                                                            }`}>
+                                                                                                                {comparisonData.find(d => d.opponent === match.opponent)?.firstRound}
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                                <div className="font-semibold text-gray-900 break-words pr-2" style={{ wordBreak: 'break-word' }}>
+                                                                                                    {match.opponent}
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <div className="hidden sm:block">
+                                                                                            {comparisonData.find(d => d.opponent === match.opponent)?.firstRound && (
+                                                                                                <div className="text-right">
+                                                                                                    <span className={`inline-block px-4 py-2 rounded-lg text-lg font-bold ${
+                                                                                                        getScoreColor(comparisonData.find(d => d.opponent === match.opponent)?.firstRound || '')
+                                                                                                    }`}>
+                                                                                                        {comparisonData.find(d => d.opponent === match.opponent)?.firstRound}
+                                                                                                    </span>
+                                                                                                    <div className="text-xs text-gray-500 mt-1">Previous Match</div>
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    
+                                                                                    <div className="flex items-center gap-2 text-gray-600 mb-3">
+                                                                                        <MapPin className="h-4 w-4 text-gray-400" />
+                                                                                        <span className="font-medium">{match.venue}</span>
+                                                                                    </div>
+                                                                                    
+                                                                                    <div className="flex items-center justify-between">
+                                                                                        <div className="text-sm text-gray-500">
+                                                                                            {match.address}, {match.location}
+                                                                                        </div>
+                                                                                        <a 
+                                                                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                                                                                `${match.venue} ${match.address} ${match.location}`
+                                                                                            )}`}
+                                                                                            target="_blank"
+                                                                                            rel="noopener noreferrer"
+                                                                                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 focus:outline-none"
+                                                                                        >
+                                                                                            <Navigation className="h-4 w-4 mr-1" />
+                                                                                            Get Directions
+                                                                                        </a>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </CardContent>
+                                        </>
+                                    ) : (
+                                        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                                            <Calendar className="h-12 w-12 text-gray-400 mb-4" />
+                                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Schedule Limited</h3>
+                                            <p className="text-gray-500 max-w-md">
+                                                This feature is currently only available for DC Patron. Select DC Patron to view the match schedule.
+                                            </p>
+                                        </CardContent>
+                                    )}
                                 </Card>
                             </TabsContent>
                         </Tabs>

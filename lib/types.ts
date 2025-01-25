@@ -89,3 +89,11 @@ export interface PlayerMatchAverage {
     average: number;
 }
 
+export interface PlayerBestPerformance {
+    playerName: string;
+    currentAverage: number;
+    bestAverage: number;
+    bestMatchday: number;
+    difference: number;
+}
+

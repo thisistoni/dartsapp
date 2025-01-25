@@ -24,7 +24,7 @@ export async function fetchSpielberichteLink(): Promise<string | null> {
         const linkElement = targetLi.next('li').find('a');
         return linkElement.length > 0 ? linkElement.attr('href') || null : null;
     } catch (error) {
-        console.error(`Fehler beim Abrufen der URL: ${error}`);
+        console.error('❌ Critical error fetching data:', error);
         return null;
     }
 }
@@ -59,7 +59,7 @@ export async function fetchDartIds(url: string, teamName: string): Promise<strin
 
         return ids;
     } catch (error) {
-        console.error(`Fehler beim Abrufen der URL: ${error}`);
+        console.error('❌ Critical error fetching data:', error);
         return [];
     }
 }
@@ -125,7 +125,7 @@ export async function fetchTeamPlayersAverage(teamName: string): Promise<Player[
 
         return players;
     } catch (error) {
-        console.error('Error fetching team average:', error);
+        console.error('❌ Critical error fetching data:', error);
         return [];
     }
 }
@@ -264,7 +264,7 @@ export async function fetchMatchReport(id: string, teamName: string): Promise<Ma
 
         return matchReport;
     } catch (error) {
-        console.error('Fehler beim Abrufen des Spielberichts:', error);
+        console.error('❌ Critical error fetching data:', error);
         return {
             lineup: [],
             checkouts: [],
@@ -298,7 +298,7 @@ export async function fetchLeaguePosition(teamName: string): Promise<number> {
 
         return teamPosition;
     } catch (error) {
-        console.error('Fehler beim Abrufen der Tabellenposition:', error);
+        console.error('❌ Critical error fetching data:', error);
         return -1;
     }
 }
@@ -332,7 +332,7 @@ export async function fetchClubVenue(teamName: string): Promise<ClubVenue | null
 
         return clubData;
     } catch (error) {
-        console.error('Fehler beim Abrufen der Club-Adresse:', error);
+        console.error('❌ Critical error fetching data:', error);
         return null;
     }
 }
@@ -398,7 +398,7 @@ export async function fetchTeamStandings(teamName: string): Promise<TeamStanding
         
         return standings;
     } catch (error) {
-        console.error('Error fetching team standings:', error);
+        console.error('❌ Critical error fetching data:', error);
         return null;
     }
 }
@@ -515,7 +515,7 @@ export async function fetchMatchAverages(url: string, teamName: string): Promise
             playerAverages
         };
     } catch (error) {
-        console.error('Error fetching match averages:', error);
+        console.error('❌ Critical error fetching data:', error);
         return {
             matchday: 0,
             teamAverage: 0,
