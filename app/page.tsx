@@ -1066,22 +1066,24 @@ const DartsStatisticsDashboard: React.FC = () => {
                                         <>
                                             <CardHeader>
                                                 <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                        <CardTitle>Point Comparison</CardTitle>
+                                                    <CardTitle className="flex items-center gap-2">
+                                                       
+                                                        Point Comparison
                                                         <span className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                                                            calculateTotalDifference(comparisonData) > 0
-                                                                ? 'bg-green-100 text-green-800'
-                                                                : calculateTotalDifference(comparisonData) < 0
-                                                                    ? 'bg-red-100 text-red-800'
-                                                                    : 'bg-orange-100 text-orange-800'
-                                                        }`}>
-                                                            Total: {`${calculateTotalDifference(comparisonData) >= 0 ? '+' : ''}${calculateTotalDifference(comparisonData)}`}
-                                                        </span>
-                                                    </div>
+                                                        calculateTotalDifference(comparisonData) > 0
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : calculateTotalDifference(comparisonData) < 0
+                                                                ? 'bg-red-100 text-red-800'
+                                                                : 'bg-orange-100 text-orange-800'
+                                                    }`}>
+                                                        Total: {calculateTotalDifference(comparisonData) > 0 ? '+' : ''}{calculateTotalDifference(comparisonData)}
+                                                    </span>
+                                                    </CardTitle>
+                                                  
                                                 </div>
                                             </CardHeader>
                                             <CardContent>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                                     {comparisonTeams.map((team) => {
                                                         const data = comparisonData.find(d => d.opponent === team);
                                                         const difference = data?.firstRound && data?.secondRound 
@@ -1089,22 +1091,21 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                             : null;
                                                         
                                                         return (
-                                                            <div 
-                                                                key={team} 
-                                                                className={`p-4 rounded-lg border ${
+                                                            <div key={team} 
+                                                                className={`bg-white rounded-lg border p-4 ${
                                                                     difference !== null
                                                                         ? difference > 0 
-                                                                            ? 'border-green-200 bg-gray-50'
+                                                                            ? 'border-green-200'
                                                                             : difference < 0
-                                                                                ? 'border-red-200 bg-gray-50'
-                                                                                : 'border-orange-200 bg-gray-50'
-                                                                        : 'border-gray-200 bg-gray-50'
+                                                                                ? 'border-red-200'
+                                                                                : 'border-orange-200'
+                                                                        : 'border-gray-200'
                                                                 }`}
                                                             >
-                                                                <div className="flex items-center justify-between mb-3">
+                                                                <div className="flex items-center justify-between mb-4">
                                                                     <h3 className="font-bold text-gray-900 text-lg">{team}</h3>
                                                                     {difference !== null && (
-                                                                        <span className={`px-3 py-1.5 rounded text-lg font-bold ${
+                                                                        <span className={`px-3 py-1 rounded-lg text-sm font-bold ${
                                                                             difference > 0
                                                                                 ? 'bg-green-100 text-green-800'
                                                                                 : difference < 0
@@ -1115,23 +1116,25 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                         </span>
                                                                     )}
                                                                 </div>
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className="flex-1">
-                                                                        <div className="text-sm text-gray-500 mb-2">First Round</div>
+                                                                
+                                                                <div className="grid grid-cols-2 gap-4">
+                                                                    <div className="bg-gray-50 rounded-lg p-3">
+                                                                        <div className="text-xs text-gray-500 mb-2">First Round</div>
                                                                         {data?.firstRound ? (
-                                                                            <div className={`text-xl font-bold px-4 py-2 rounded-lg inline-block ${getScoreColor(data.firstRound)}`}>
+                                                                            <span className={`inline-block px-3 py-1 rounded-lg text-lg font-bold ${getScoreColor(data.firstRound)}`}>
                                                                                 {data.firstRound}
-                                                                            </div>
+                                                                            </span>
                                                                         ) : (
                                                                             <span className="text-sm text-gray-400">-</span>
                                                                         )}
                                                                     </div>
-                                                                    <div className="flex-1">
-                                                                        <div className="text-sm text-gray-500 mb-2">Second Round</div>
+                                                                    
+                                                                    <div className="bg-gray-50 rounded-lg p-3">
+                                                                        <div className="text-xs text-gray-500 mb-2">Second Round</div>
                                                                         {data?.secondRound ? (
-                                                                            <div className={`text-xl font-bold px-4 py-2 rounded-lg inline-block ${getScoreColor(data.secondRound)}`}>
+                                                                            <span className={`inline-block px-3 py-1 rounded-lg text-lg font-bold ${getScoreColor(data.secondRound)}`}>
                                                                                 {data.secondRound}
-                                                                            </div>
+                                                                            </span>
                                                                         ) : (
                                                                             <span className="text-sm text-gray-400">-</span>
                                                                         )}
