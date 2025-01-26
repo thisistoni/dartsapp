@@ -416,6 +416,34 @@ const DartsStatisticsDashboard: React.FC = () => {
         return 'teamAverage' in performance;
     }
 
+    // Calculate team win rate once
+    const teamWinRate = (() => {
+        const totalSinglesWins = teamData?.players.reduce((total, player) => {
+            const [wins = 0] = player.singles?.split('-').map(Number) || [0];
+            return total + wins;
+        }, 0) || 0;
+        
+        const totalSinglesLosses = teamData?.players.reduce((total, player) => {
+            const [_, losses = 0] = player.singles?.split('-').map(Number) || [0];
+            return total + losses;
+        }, 0) || 0;
+        
+        const totalDoublesWins = Math.round((teamData?.players.reduce((total, player) => {
+            const [wins = 0] = player.doubles?.split('-').map(Number) || [0];
+            return total + wins;
+        }, 0) || 0) / 2);
+        
+        const totalDoublesLosses = Math.round((teamData?.players.reduce((total, player) => {
+            const [_, losses = 0] = player.doubles?.split('-').map(Number) || [0];
+            return total + losses;
+        }, 0) || 0) / 2);
+        
+        const totalWins = totalSinglesWins + totalDoublesWins;
+        const totalGames = totalSinglesWins + totalSinglesLosses + totalDoublesWins + totalDoublesLosses;
+        
+        return totalGames > 0 ? Number(((totalWins / totalGames) * 100).toFixed(1)) : 0;
+    })();
+
     return (
         <div className="min-h-screen bg-gray-100 p-8">
             <div className="max-w-7xl mx-auto">
@@ -804,97 +832,231 @@ const DartsStatisticsDashboard: React.FC = () => {
                             <TabsContent value="stats">
                                 <Card>
                                     <CardHeader>
+                                        <div className="flex items-center justify-between">
                                         <CardTitle>Player Statistics</CardTitle>
+                                          
+                                        </div>
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="overflow-x-auto relative">
-                                            <table className="min-w-full divide-y divide-gray-200">
-                                                <thead className="bg-gray-50">
-                                                    <tr>
-                                                        <th className="sticky left-0 bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 z-10"
-                                                            onClick={() => handleSort('playerName')}>
-                                                            <div className="flex items-center gap-2">
-                                                                Name
-                                                                {sortColumn === 'playerName' ? (
-                                                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
-                                                                ) : (
-                                                                    <ArrowUpDown className="h-4 w-4" />
-                                                                )}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {sortedPlayers.map((player) => (
+                                                <div key={player.playerName} 
+                                                    className="bg-white rounded-lg border hover:border-blue-200 transition-all duration-200 overflow-hidden"
+                                                >
+                                                    <div className="p-4">
+                                                        <div className="flex items-center justify-between mb-4">
+                                                            <h3 className="text-lg font-semibold text-gray-900">{player.playerName}</h3>
+                                                            <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-50 text-blue-700">
+                                                                {player.adjustedAverage.toFixed(2)} Avg
+                                                            </span>
+                                                        </div>
+                                                        
+                                                        <div className="space-y-4">
+                                                            {/* Win Rate Progress */}
+                                                            <div>
+                                                                <div className="flex justify-between text-sm mb-1">
+                                                                    <span className="text-gray-500">Win Rate</span>
+                                                                    <span className="font-medium text-gray-900">{player.winRate}%</span>
+                                                                </div>
+                                                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                                                    <div 
+                                                                        className="h-full bg-green-500 rounded-full"
+                                                                        style={{ width: `${player.winRate}%` }}
+                                                                    />
+                                                                </div>
                                                             </div>
-                                                        </th>
-                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                                                            onClick={() => handleSort('winRate')}>
-                                                            <div className="flex items-center gap-2">
-                                                                Win Rate
-                                                                {sortColumn === 'winRate' ? (
-                                                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
-                                                                ) : (
-                                                                    <ArrowUpDown className="h-4 w-4" />
-                                                                )}
+
+                                                            {/* Match Stats */}
+                                                            <div className="grid grid-cols-2 gap-4">
+                                                                <div className="bg-gray-50 rounded-lg p-3">
+                                                                    <div className="text-xs text-gray-500 mb-1">Singles</div>
+                                                                    <div className="flex items-baseline gap-1">
+                                                                        <span className="text-lg font-semibold text-gray-900">
+                                                                            {player.singles?.split('-')[0] || '0'}
+                                                                        </span>
+                                                                        <span className="text-sm text-gray-500">
+                                                                            /{player.singles?.split('-')[1] || '0'}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="bg-gray-50 rounded-lg p-3">
+                                                                    <div className="text-xs text-gray-500 mb-1">Doubles</div>
+                                                                    <div className="flex items-baseline gap-1">
+                                                                        <span className="text-lg font-semibold text-gray-900">
+                                                                            {player.doubles?.split('-')[0] || '0'}
+                                                                        </span>
+                                                                        <span className="text-sm text-gray-500">
+                                                                            /{player.doubles?.split('-')[1] || '0'}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
                                                             </div>
-                                                        </th>
-                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                                                            onClick={() => handleSort('singles')}>
-                                                            <div className="flex items-center gap-2">
-                                                                Singles
-                                                                {sortColumn === 'singles' ? (
-                                                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
-                                                                ) : (
-                                                                    <ArrowUpDown className="h-4 w-4" />
-                                                                )}
+
+                                                            {/* Performance Indicators */}
+                                                            <div className="flex items-center justify-between text-sm">
+                                                                <div className="flex items-center gap-1">
+                                                                    <ArrowUp className={`h-4 w-4 ${
+                                                                        player.adjustedAverage > (teamAverage || 0)
+                                                                            ? 'text-green-500'
+                                                                            : 'text-gray-300'
+                                                                    }`} />
+                                                                    <span className="text-gray-500">Above Team Avg</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-1">
+                                                                    <Trophy className={`h-4 w-4 ${
+                                                                        player.winRate > teamWinRate
+                                                                            ? 'text-amber-500'
+                                                                            : 'text-gray-300'
+                                                                    }`} />
+                                                                    <span className="text-gray-500">Above Team Winrate</span>
+                                                                </div>
                                                             </div>
-                                                        </th>
-                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                                                            onClick={() => handleSort('doubles')}>
-                                                            <div className="flex items-center gap-2">
-                                                                Doubles
-                                                                {sortColumn === 'doubles' ? (
-                                                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
-                                                                ) : (
-                                                                    <ArrowUpDown className="h-4 w-4" />
-                                                                )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            
+                                            {/* Team Card */}
+                                            <div className="bg-white rounded-lg border hover:border-blue-200 transition-all duration-200 overflow-hidden">
+                                                <div className="p-4">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <h3 className="text-lg font-semibold text-gray-900">{selectedTeam}</h3>
+                                                        <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-50 text-blue-700">
+                                                            {teamAverage?.toFixed(2) || '0.00'} Avg
+                                                        </span>
+                                                    </div>
+                                                    
+                                                    <div className="space-y-4">
+                                                        {/* Win Rate Progress - Updated calculation */}
+                                                        <div>
+                                                            <div className="flex justify-between text-sm mb-1">
+                                                                <span className="text-gray-500">Win Rate</span>
+                                                                <span className="font-medium text-gray-900">
+                                                                    {(() => {
+                                                                        const totalSinglesWins = teamData?.players.reduce((total, player) => {
+                                                                            const [wins = 0] = player.singles?.split('-').map(Number) || [0];
+                                                                            return total + wins;
+                                                                        }, 0) || 0;
+                                                                        
+                                                                        const totalSinglesLosses = teamData?.players.reduce((total, player) => {
+                                                                            const [_, losses = 0] = player.singles?.split('-').map(Number) || [0];
+                                                                            return total + losses;
+                                                                        }, 0) || 0;
+                                                                        
+                                                                        const totalDoublesWins = Math.round((teamData?.players.reduce((total, player) => {
+                                                                            const [wins = 0] = player.doubles?.split('-').map(Number) || [0];
+                                                                            return total + wins;
+                                                                        }, 0) || 0) / 2);
+                                                                        
+                                                                        const totalDoublesLosses = Math.round((teamData?.players.reduce((total, player) => {
+                                                                            const [_, losses = 0] = player.doubles?.split('-').map(Number) || [0];
+                                                                            return total + losses;
+                                                                        }, 0) || 0) / 2);
+                                                                        
+                                                                        const totalWins = totalSinglesWins + totalDoublesWins;
+                                                                        const totalGames = totalSinglesWins + totalSinglesLosses + totalDoublesWins + totalDoublesLosses;
+                                                                        
+                                                                        return totalGames > 0 ? ((totalWins / totalGames) * 100).toFixed(1) : '0.0';
+                                                                    })()}%
+                                                                </span>
                                                             </div>
-                                                        </th>
-                                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                                                            onClick={() => handleSort('average')}>
-                                                            <div className="flex items-center gap-2">
-                                                                Average
-                                                                {sortColumn === 'average' ? (
-                                                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
-                                                                ) : (
-                                                                    <ArrowUpDown className="h-4 w-4" />
-                                                                )}
+                                                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                                                <div 
+                                                                    className="h-full bg-green-500 rounded-full"
+                                                                    style={{ 
+                                                                        width: (() => {
+                                                                            const totalSinglesWins = teamData?.players.reduce((total, player) => {
+                                                                                const [wins = 0] = player.singles?.split('-').map(Number) || [0];
+                                                                                return total + wins;
+                                                                            }, 0) || 0;
+                                                                            
+                                                                            const totalSinglesLosses = teamData?.players.reduce((total, player) => {
+                                                                                const [_, losses = 0] = player.singles?.split('-').map(Number) || [0];
+                                                                                return total + losses;
+                                                                            }, 0) || 0;
+                                                                            
+                                                                            const totalDoublesWins = Math.round((teamData?.players.reduce((total, player) => {
+                                                                                const [wins = 0] = player.doubles?.split('-').map(Number) || [0];
+                                                                                return total + wins;
+                                                                            }, 0) || 0) / 2);
+                                                                            
+                                                                            const totalDoublesLosses = Math.round((teamData?.players.reduce((total, player) => {
+                                                                                const [_, losses = 0] = player.doubles?.split('-').map(Number) || [0];
+                                                                                return total + losses;
+                                                                            }, 0) || 0) / 2);
+                                                                            
+                                                                            const totalWins = totalSinglesWins + totalDoublesWins;
+                                                                            const totalGames = totalSinglesWins + totalSinglesLosses + totalDoublesWins + totalDoublesLosses;
+                                                                            
+                                                                            return totalGames > 0 ? `${(totalWins / totalGames) * 100}%` : '0%';
+                                                                        })()
+                                                                    }}
+                                                                />
                                                             </div>
-                                                        </th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="bg-white divide-y divide-gray-200">
-                                                    {sortedPlayers.map((player, index) => (
-                                                        <tr key={player.playerName} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                                            <td className={`sticky left-0 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 z-10 ${
-                                                                index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                                                            }`}>
-                                                                {player.playerName}
-                                                            </td>
-                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                {player.winRate ? `${player.winRate}%` : '-'}
-                                                            </td>
-                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                {player.singles || '-'}
-                                                            </td>
-                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                {player.doubles || '-'}
-                                                            </td>
-                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                                {player.adjustedAverage.toFixed(2)}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
+                                                        </div>
+
+                                                        {/* Match Stats */}
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div className="bg-gray-50 rounded-lg p-3">
+                                                                <div className="text-xs text-gray-500 mb-1">Total Singles</div>
+                                                                <div className="flex items-baseline gap-1">
+                                                                    <span className="text-lg font-semibold text-gray-900">
+                                                                        {teamData?.players.reduce((total, player) => {
+                                                                            const [wins = 0] = player.singles?.split('-').map(Number) || [0];
+                                                                            return total + wins;
+                                                                        }, 0)}
+                                                                    </span>
+                                                                    <span className="text-sm text-gray-500">
+                                                                        /{teamData?.players.reduce((total, player) => {
+                                                                            const [_, losses = 0] = player.singles?.split('-').map(Number) || [0];
+                                                                            return total + losses;
+                                                                        }, 0)}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-gray-50 rounded-lg p-3">
+                                                                <div className="text-xs text-gray-500 mb-1">Total Doubles</div>
+                                                                <div className="flex items-baseline gap-1">
+                                                                    <span className="text-lg font-semibold text-gray-900">
+                                                                        {Math.round(teamData?.players.reduce((total, player) => {
+                                                                            const [wins = 0] = player.doubles?.split('-').map(Number) || [0];
+                                                                            return total + wins;
+                                                                        }, 0) / 2)}
+                                                                    </span>
+                                                                    <span className="text-sm text-gray-500">
+                                                                        /{Math.round(teamData?.players.reduce((total, player) => {
+                                                                            const [_, losses = 0] = player.doubles?.split('-').map(Number) || [0];
+                                                                            return total + losses;
+                                                                        }, 0) / 2)}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Performance Indicators */}
+                                                        <div className="flex items-center justify-between text-sm">
+                                                            <div className="flex items-center gap-1">
+                                                                <Trophy className={`h-4 w-4 ${
+                                                                    teamStandings && teamStandings.wins > (teamStandings.losses + teamStandings.draws)
+                                                                        ? 'text-amber-500'
+                                                                        : 'text-gray-300'
+                                                                }`} />
+                                                                <span className="text-gray-500">More Wins than Losses</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1">
+                                                                <ArrowUp className={`h-4 w-4 ${
+                                                                    leaguePosition && leaguePosition <= 6
+                                                                        ? 'text-green-500'
+                                                                        : 'text-gray-300'
+                                                                }`} />
+                                                                <span className="text-gray-500">Top 6</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </CardContent>
-
                                 </Card>
                             </TabsContent>
 
@@ -903,100 +1065,81 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     {selectedTeam === 'DC Patron' ? (
                                         <>
                                             <CardHeader>
-                                                <div className="flex items-center gap-3">
-                                                    <CardTitle>Point Comparison</CardTitle>
-                                                    <span className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                                                        calculateTotalDifference(comparisonData) > 0
-                                                            ? 'bg-green-100 text-green-800'
-                                                            : calculateTotalDifference(comparisonData) < 0
-                                                                ? 'bg-red-100 text-red-800'
-                                                                : 'bg-orange-100 text-orange-800'
-                                                    }`}>
-                                                        {`${calculateTotalDifference(comparisonData) >= 0 ? '+' : ''}${calculateTotalDifference(comparisonData)}`}
-                                                    </span>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <CardTitle>Point Comparison</CardTitle>
+                                                        <span className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                                                            calculateTotalDifference(comparisonData) > 0
+                                                                ? 'bg-green-100 text-green-800'
+                                                                : calculateTotalDifference(comparisonData) < 0
+                                                                    ? 'bg-red-100 text-red-800'
+                                                                    : 'bg-orange-100 text-orange-800'
+                                                        }`}>
+                                                            Total: {`${calculateTotalDifference(comparisonData) >= 0 ? '+' : ''}${calculateTotalDifference(comparisonData)}`}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-sm bg-white">
-                                                <thead>
-                                                    <tr className="border-b">
-                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                                    <span className="hidden sm:inline">Opponent</span>
-                                                                    <span className="sm:hidden">Opponent +/-</span>
-                                                                </th>
-                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
-                                                                    First Round
-                                                                </th>
-                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
-                                                                    Second Round
-                                                                </th>
-                                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
-                                                                    Difference
-                                                                </th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-200">
-                                                            {comparisonTeams.map((team) => {
-                                                                const data = comparisonData.find(d => d.opponent === team);
-                                                                const difference = data?.firstRound && data?.secondRound 
-                                                                    ? calculateDifference(data.firstRound, data.secondRound)
-                                                                    : null;
-                                                                
-                                                                return (
-                                                                    <tr key={team} className="hover:bg-gray-50">
-                                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                                            <div className="flex items-center justify-between gap-2">
-                                                                                <div className="text-gray-900 break-words pr-2" style={{ wordBreak: 'break-word' }}>
-                                                                                    {team}
-                                                                                </div>
-                                                                                <div className="sm:hidden">
-                                                                                    {difference !== null && (
-                                                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
-                                                                                            difference > 0
-                                                                                                ? 'bg-green-100 text-green-800'
-                                                                                                : difference < 0
-                                                                                                    ? 'bg-red-100 text-red-800'
-                                                                                                    : 'bg-orange-100 text-orange-800'
-                                                                                        }`}>
-                                                                                            {difference > 0 ? '+' : ''}{difference}
-                                                                                        </span>
-                                                                                    )}
-                                                                                </div>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {comparisonTeams.map((team) => {
+                                                        const data = comparisonData.find(d => d.opponent === team);
+                                                        const difference = data?.firstRound && data?.secondRound 
+                                                            ? calculateDifference(data.firstRound, data.secondRound)
+                                                            : null;
+                                                        
+                                                        return (
+                                                            <div 
+                                                                key={team} 
+                                                                className={`p-4 rounded-lg border ${
+                                                                    difference !== null
+                                                                        ? difference > 0 
+                                                                            ? 'border-green-200 bg-gray-50'
+                                                                            : difference < 0
+                                                                                ? 'border-red-200 bg-gray-50'
+                                                                                : 'border-orange-200 bg-gray-50'
+                                                                        : 'border-gray-200 bg-gray-50'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center justify-between mb-3">
+                                                                    <h3 className="font-bold text-gray-900 text-lg">{team}</h3>
+                                                                    {difference !== null && (
+                                                                        <span className={`px-3 py-1.5 rounded text-lg font-bold ${
+                                                                            difference > 0
+                                                                                ? 'bg-green-100 text-green-800'
+                                                                                : difference < 0
+                                                                                    ? 'bg-red-100 text-red-800'
+                                                                                    : 'bg-orange-100 text-orange-800'
+                                                                        }`}>
+                                                                            {difference > 0 ? '+' : ''}{difference}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className="flex-1">
+                                                                        <div className="text-sm text-gray-500 mb-2">First Round</div>
+                                                                        {data?.firstRound ? (
+                                                                            <div className={`text-xl font-bold px-4 py-2 rounded-lg inline-block ${getScoreColor(data.firstRound)}`}>
+                                                                                {data.firstRound}
                                                                             </div>
-                                                                        </td>
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">
-                                                                            {data?.firstRound ? (
-                                                                                <span className={`px-3 py-1 rounded-lg ${getScoreColor(data.firstRound)}`}>
-                                                                                    {data.firstRound}
-                                                                                </span>
-                                                                            ) : '-'}
-                                                                        </td>
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">
-                                                                            {data?.secondRound ? (
-                                                                                <span className={`px-3 py-1 rounded-lg ${getScoreColor(data.secondRound)}`}>
-                                                                                    {data.secondRound}
-                                                                                </span>
-                                                                            ) : '-'}
-                                                                        </td>
-                                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">
-                                                                            {difference !== null && (
-                                                                                <span className={`px-3 py-1 rounded-lg ${
-                                                                                    difference > 0
-                                                                                        ? 'bg-green-100 text-green-800'
-                                                                                        : difference < 0
-                                                                                            ? 'bg-red-100 text-red-800'
-                                                                                            : 'bg-orange-100 text-orange-800'
-                                                                                }`}>
-                                                                                    {difference > 0 ? '+' : ''}{difference}
-                                                                                </span>
-                                                                            )}
-                                                                        </td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
+                                                                        ) : (
+                                                                            <span className="text-sm text-gray-400">-</span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex-1">
+                                                                        <div className="text-sm text-gray-500 mb-2">Second Round</div>
+                                                                        {data?.secondRound ? (
+                                                                            <div className={`text-xl font-bold px-4 py-2 rounded-lg inline-block ${getScoreColor(data.secondRound)}`}>
+                                                                                {data.secondRound}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span className="text-sm text-gray-400">-</span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </CardContent>
                                         </>
