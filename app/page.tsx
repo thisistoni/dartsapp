@@ -56,7 +56,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [sortColumn, setSortColumn] = useState<string>('winRate');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
     const [scheduleData, setScheduleData] = useState<ScheduleMatch[]>([]);
-    const [isNextMatchExpanded, setIsNextMatchExpanded] = useState(false);
+    const [gamesVisibility, setGamesVisibility] = useState<{[key: string]: boolean}>({});
 
     // Update the teams array with all teams including DC Patron
     const teams: string[] = [
@@ -246,7 +246,7 @@ const DartsStatisticsDashboard: React.FC = () => {
         return 'bg-orange-100 text-orange-800';
     };
 
-    // Update the getBestCheckouts function to return an array instead of a string
+    // Update the getBestCheckouts function to return 5 instead of 3
     const getBestCheckouts = (playerName: string, isTeam: boolean = false) => {
         const allCheckouts = matchReports.flatMap(report => 
             report.checkouts
@@ -261,7 +261,7 @@ const DartsStatisticsDashboard: React.FC = () => {
         return allCheckouts
             .filter(c => !isNaN(c))
             .sort((a, b) => a - b)
-            .slice(0, 3);
+            .slice(0, 5);  // Changed from 3 to 5
     };
 
     // Update the matchData calculation to keep original matchday numbers
@@ -444,6 +444,23 @@ const DartsStatisticsDashboard: React.FC = () => {
         return totalGames > 0 ? Number(((totalWins / totalGames) * 100).toFixed(1)) : 0;
     })();
 
+    // Add this helper function to get all team checkouts
+    const getTeamBestCheckouts = () => {
+        const allCheckouts = matchReports.flatMap(report => 
+            report.checkouts
+                .map(c => {
+                    const scores = c.scores.split(': ')[1];
+                    return scores === '-' ? [] : scores.split(', ').map(Number);
+                })
+                .flat()
+        );
+        
+        return allCheckouts
+            .filter(c => !isNaN(c))
+            .sort((a, b) => a - b)
+            .slice(0, 5);
+    };
+
     return (
         <div className="min-h-screen bg-gray-100 p-8">
             <div className="max-w-7xl mx-auto">
@@ -624,113 +641,18 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="space-y-2">
-                                        <div className="flex items-center gap-2 text-slate-700">
-                                            <MapPin className="h-4 w-4 text-slate-500" />
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2 text-slate-700">
+                                                <MapPin className="h-4 w-4 text-slate-500" />
                                             <span className="text-sm">{clubVenue?.address}, {clubVenue?.city}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-slate-700">
-                                            <Phone className="h-4 w-4 text-slate-500" />
+                                            </div>
+                                            <div className="flex items-center gap-2 text-slate-700">
+                                                <Phone className="h-4 w-4 text-slate-500" />
                                             <span className="text-sm">{clubVenue?.phone}</span>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            {/* Next Match Card (Mobile Only) */}
-                            {selectedTeam === 'DC Patron' && (
-                                <div className="block md:hidden">
-                                    <Card>
-                                        <CardHeader 
-                                            className="cursor-pointer"
-                                            onClick={() => setIsNextMatchExpanded(!isNextMatchExpanded)}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <CardTitle className="flex items-center gap-2">
-                                                    <Calendar className="h-6 w-6 text-blue-500" />
-                                                    Next Match
-                                                </CardTitle>
-                                                <ChevronDown 
-                                                    className={`h-5 w-5 text-gray-500 transition-transform duration-200 ${
-                                                        isNextMatchExpanded ? 'transform rotate-180' : ''
-                                                    }`}
-                                                />
-                        </div>
-                                        </CardHeader>
-                                        <div className={`overflow-hidden transition-all duration-200 ${
-                                            isNextMatchExpanded ? 'max-h-96' : 'max-h-0'
-                                        }`}>
-                                            <CardContent>
-                                                {(() => {
-                                                    const today = new Date();
-                                                    const nextMatch = scheduleData
-                                                        .filter(match => new Date(match.date) >= today)
-                                                        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
-
-                                                    return nextMatch ? (
-                                                        <div className="bg-white rounded-lg border border-gray-200 hover:border-blue-500 transition-colors duration-200">
-                                                            <div className="p-4">
-                                                                <div className="flex items-center justify-between mb-4">
-                                                                    <div className="flex items-center gap-3">
-                                                                        <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center">
-                                                                            <span className="text-lg font-bold text-blue-600">
-                                                                                {new Date(nextMatch.date).getDate()}
-                                                                            </span>
-                                                                        </div>
-                                                                        <div className="flex-grow">
-                                                                            <div className="flex items-center justify-between text-sm text-gray-500 sm:block">
-                                                                                <span>Round {nextMatch.round}</span>
-                                                                                <div className="flex-shrink-0 sm:hidden">
-                                                                                    {comparisonData.find(d => d.opponent === nextMatch.opponent)?.firstRound && (
-                                                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
-                                                                                            getScoreColor(comparisonData.find(d => d.opponent === nextMatch.opponent)?.firstRound || '')
-                                                                                        }`}>
-                                                                                            {comparisonData.find(d => d.opponent === nextMatch.opponent)?.firstRound}
-                                                                                        </span>
-                                                                                    )}
-                                                                                </div>
-                                                                            </div>
-                                                                            <div className="font-semibold text-gray-900 break-words pr-2" style={{ wordBreak: 'break-word' }}>
-                                                                                {nextMatch.opponent}
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                        </div>
-
-                                                                <div className="flex items-center gap-2 text-gray-600 mb-3">
-                                                                    <MapPin className="h-4 w-4 text-gray-400" />
-                                                                    <span className="font-medium">{nextMatch.venue}</span>
-                                            </div>
-
-                                                                <div className="flex items-center justify-between">
-                                                                    <div className="text-sm text-gray-500">
-                                                                        {nextMatch.address}, {nextMatch.location}
-                                            </div>
-                                                                    <a 
-                                                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                                                                            `${nextMatch.venue} ${nextMatch.address} ${nextMatch.location}`
-                                                                        )}`}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 focus:outline-none"
-                                                                    >
-                                                                        <Navigation className="h-4 w-4 mr-1" />
-                                                                        Get Directions
-                                                                    </a>
-                                        </div>
                                     </div>
                                 </div>
-                                                    ) : (
-                                                        <div className="text-gray-500 text-center py-4">
-                                                            No upcoming matches
-                                                        </div>
-                                                    );
-                                                })()}
                             </CardContent>
-                                        </div>
-                                    </Card>
-                                </div>
-                            )}
+                            </Card>
                         </div>
                         <Tabs defaultValue="matches" className="space-y-4">
                             <TabsList className="flex flex-wrap gap-2 justify-start mb-32 sm:mb-6">
@@ -754,90 +676,132 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     <Trophy className="h-5 w-5 text-green-500 mr-1" />
                                     Best Performances
                                 </TabsTrigger>
+                                <TabsTrigger value="pairs" className="flex items-center">
+                                    <Users className="h-5 w-5 text-green-500 mr-1" />
+                                    Best Pairs
+                                </TabsTrigger>
                                 <TabsTrigger value="scoreBreakdown" className="flex items-center">
                                     <Rows4 className="h-5 w-5 text-green-500 mr-1" />
-                                    Distribution
+                                    Score Distribution
                                 </TabsTrigger>
                                 <TabsTrigger value="schedule" className="flex items-center">
                                     <Calendar className="h-5 w-5 text-green-500 mr-1" />
                                     Schedule
                                 </TabsTrigger>
+                               
                             </TabsList>
 
 
                             <TabsContent value="matches">
-                                <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {matchReports.map((matchday: MatchReport, index: number) => (
-                                        <Card key={index}>
-                                            <CardHeader>
-                                                <div className="flex items-center gap-3">
-                                                    <CalendarFold className="h-6 w-6 text-blue-500" />
-                                                    <CardTitle>Matchday {index + 1} vs. {matchday.opponent}</CardTitle>
-                                                    <button
-                                                        onClick={() => setSelectedMatchId(index)}
-                                                        className="text-sm px-3 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors duration-200"
-                                                    >
-                                                        Details
-                                                    </button>
-                                                </div>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    {/* Lineup */}
-                                                    <div>
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <Rows4 className="h-5 w-5 text-blue-500" />
-                                                            <h3 className="font-semibold">Lineup</h3>
+                                        <div key={index} className="bg-white rounded-lg border hover:border-blue-200 transition-all duration-200 overflow-hidden">
+                                            <div className="p-4">
+                                                {/* Header with score */}
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <div className="h-10 w-10 flex-shrink-0 rounded-full bg-blue-50 flex items-center justify-center">
+                                                            <span className="text-lg font-bold text-blue-600">
+                                                                {index + 1}
+                                                            </span>
                                                         </div>
-                                                        <ul className="space-y-1">
-                                                            {matchday.lineup.map((player: string, idx: number) => (
-                                                                <li key={idx} className="text-sm text-gray-600">
-                                                                    {idx + 1}. {player}
-                                                                </li>
-                                                            ))}
-                                                        </ul>
+                                                        <h3 className="text-lg font-semibold text-gray-900 break-words">
+                                                            {matchday.opponent}
+                                                        </h3>
                                                     </div>
-                                                    {/* Checkouts */}
-                                                    <div>
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <CheckCheck className="h-5 w-5 text-blue-500" />
-                                                            <h3 className="font-semibold">Checkouts</h3>
+                                                    <div className="flex-shrink-0 ml-2">
+                                                        <span className={`inline-block px-4 py-2 rounded-lg text-lg font-bold ${getScoreColor(matchday.score)}`}>
+                                                            {matchday.score}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-4">
+                                                    {/* Lineup with inline checkouts */}
+                                                    <div className="bg-gray-50 rounded-lg p-3">
+                                                        <div className="text-xs text-gray-500 mb-2">Lineup & Checkouts</div>
+                                                        <div className="text-sm space-y-1">
+                                                            {matchday.lineup.map((player, idx) => {
+                                                                // Only show checkouts for singles matches (positions 1,2,5,6)
+                                                                const isSinglesMatch = [0, 1, 4, 5].includes(idx);
+                                                                const playerCheckouts = isSinglesMatch 
+                                                                    ? matchday.checkouts
+                                                                        .filter(c => c.scores.startsWith(player))
+                                                                        .map(c => c.scores.split(': ')[1])
+                                                                    : [];
+
+                                                                // Get match result for the player
+                                                                let isWin = false;
+                                                                if (isSinglesMatch) {
+                                                                    const match = matchday.details.singles[idx > 3 ? idx - 2 : idx];
+                                                                    // Check if we're the home team by comparing first player name
+                                                                    const isHomeTeam = matchday.details.singles[0].homePlayer === matchday.lineup[0];
+                                                                    isWin = isHomeTeam ? match.homeScore > match.awayScore : match.awayScore > match.homeScore;
+                                                                } else {
+                                                                    const match = matchday.details.doubles[idx > 3 ? idx - 4 : idx - 2];
+                                                                    // Check if we're the home team by comparing first doubles pair
+                                                                    const isHomeTeam = matchday.details.doubles[0].homePlayers[0] === matchday.lineup[2].split(',')[0];
+                                                                    isWin = isHomeTeam ? match.homeScore > match.awayScore : match.awayScore > match.homeScore;
+                                                                }
+                                                                
+                                                                return (
+                                                                    <div key={idx} className="flex items-center justify-between text-gray-700">
+                                                <div className="flex items-center gap-2">
+                                                                            <span className={`font-medium w-6 h-6 flex items-center justify-center rounded-lg ${
+                                                                                isWin ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                                                            }`}>
+                                                                                {idx + 1}
+                                                                            </span>
+                                                                            {player}
+                                                                        </div>
+                                                                        {playerCheckouts.length > 0 && (
+                                                                            <span className="text-gray-500">
+                                                                                {playerCheckouts.join(', ')}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
-                                                        <ul className="space-y-1">
-                                                            {matchday.checkouts.map((checkout: Checkout, idx: number) => (
-                                                                <li key={idx} className="text-sm text-gray-600">
-                                                                    {checkout.scores}
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                        {/* Add Score Section */}
-                                                        <div className="mt-4">
-                                                            <div className="flex items-center gap-2 mb-2">
-                                                                <h3 className="font-semibold">Final Score</h3>
-                                                            </div>
-                                                            <div className={`inline-block px-4 py-2 rounded-lg ${getScoreColor(matchday.score)}`}>
-                                                                <span className="text-lg font-semibold">
-                                                                    {matchday.score || '-'}
+                                                    </div>
+
+                                                    {/* Bottom section with average and details button */}
+                                                    <div className="grid grid-cols-4 gap-4">
+                                                        {/* Details button - takes up 3 columns */}
+                                                        <div className="col-span-3">
+                                                            <button
+                                                                onClick={() => setSelectedMatchId(index)}
+                                                                className="w-full px-3 py-2 rounded-lg text-sm font-medium bg-blue-50 text-blue-600 hover:bg-blue-100"
+                                                            >
+                                                                View Details
+                                                            </button>
+                                                        </div>
+                                                        
+                                                        {/* Average - takes up 1 column */}
+                                                        <div className="col-span-1">
+                                                            <div className="bg-blue-50 rounded-lg px-3 py-2 text-center">
+                                                                <span className="text-sm font-medium text-blue-600">
+                                                                    {matchAverages[index]?.teamAverage.toFixed(2) || '-'}
                                                                 </span>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </CardContent>
-                                        </Card>
+                                            </div>
+                                        </div>
                                     ))}
                                 </div>
                             </TabsContent>
 
                             <TabsContent value="stats">
                                 <Card>
-                                    <CardHeader>
+                                            <CardHeader>
                                         <div className="flex items-center justify-between">
                                         <CardTitle>Player Statistics</CardTitle>
                                           
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent>
+                                                </div>
+                                            </CardHeader>
+                                            <CardContent>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             {sortedPlayers.map((player) => (
                                                 <div key={player.playerName} 
@@ -853,11 +817,11 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                         
                                                         <div className="space-y-4">
                                                             {/* Win Rate Progress */}
-                                                            <div>
+                                                    <div>
                                                                 <div className="flex justify-between text-sm mb-1">
                                                                     <span className="text-gray-500">Win Rate</span>
                                                                     <span className="font-medium text-gray-900">{player.winRate}%</span>
-                                                                </div>
+                                                        </div>
                                                                 <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                                                                     <div 
                                                                         className="h-full bg-green-500 rounded-full"
@@ -928,7 +892,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                     
                                                     <div className="space-y-4">
                                                         {/* Win Rate Progress - Updated calculation */}
-                                                        <div>
+                                                    <div>
                                                             <div className="flex justify-between text-sm mb-1">
                                                                 <span className="text-gray-500">Win Rate</span>
                                                                 <span className="font-medium text-gray-900">
@@ -959,7 +923,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                         return totalGames > 0 ? ((totalWins / totalGames) * 100).toFixed(1) : '0.0';
                                                                     })()}%
                                                                 </span>
-                                                            </div>
+                                                        </div>
                                                             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                                                                 <div 
                                                                     className="h-full bg-green-500 rounded-full"
@@ -1052,12 +1016,14 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 <span className="text-gray-500">Top 6</span>
                                                             </div>
                                                         </div>
+
+                                                       
                                                     </div>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
                             </TabsContent>
 
                             <TabsContent value="comparison">
@@ -1175,7 +1141,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                     </option>
                                                 ))}
                                             </select>
-                                        </div>
+                                                    </div>
                                         <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-500">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-4 h-0.5 bg-[#22c55e]"></div>
@@ -1261,99 +1227,89 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                     />
                                                 </LineChart>
                                             </ResponsiveContainer>
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
                             </TabsContent>
 
                             <TabsContent value="performances">
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle>Best Player Performances</CardTitle>
+                                        <CardTitle className="flex items-center gap-2">
+                                            Best Performances
+                                        </CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="overflow-x-auto relative">
-                                            <table className="min-w-full divide-y divide-gray-200">
-                                                <thead className="bg-gray-50">
-                                                    <tr>
-                                                        <th className="sticky left-0 bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider z-10">
-                                                            Player
-                                                        </th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                            Current Average
-                                                        </th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                            Best Average
-                                                        </th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                            Difference
-                                                        </th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                            Matchday
-                                                        </th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                            Opponent
-                                                        </th>
-                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                            Best 3 Checkouts
-                                                        </th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="bg-white divide-y divide-gray-200">
-                                                    {getAllPerformances().map((entry) => (
-                                                        <tr key={entry.name} className={entry.isTeam ? "border-b" : ""}>
-                                                            <td className={`sticky left-0 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-white z-10 ${
-                                                                entry.isTeam ? 'bg-white' : 'bg-gray-50'
-                                                            }`}>
-                                                                {entry.name} {entry.isTeam && <span className="text-blue-600">(Team)</span>}
-                                                            </td>
-                                                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} text-gray-900`}>
-                                                                {entry.currentAverage.toFixed(2)}
-                                                            </td>
-                                                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} text-gray-900`}>
-                                                                {isTeamPerformance(entry.bestPerformance) 
-                                                                    ? entry.bestPerformance.teamAverage.toFixed(2) 
-                                                                    : entry.bestPerformance.average.toFixed(2)}
-                                                            </td>
-                                                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} ${
-                                                                entry.difference > 0 ? 'text-green-600' : 'text-red-600'
-                                                            }`}>
-                                                                {entry.difference > 0 ? '+' : ''}{entry.difference.toFixed(2)}
-                                                            </td>
-                                                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} text-gray-900`}>
-                                                                {entry.isTeam ? entry.bestPerformance.matchday : entry.bestPerformance.matchday || '-'}
-                                                            </td>
-                                                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} text-gray-900`}>
-                                                                {entry.isTeam ? entry.bestPerformance.opponent : entry.bestPerformance.opponent}
-                                                            </td>
-                                                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${entry.isTeam ? "font-bold" : ""} text-gray-900`}>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {getAllPerformances().map((entry) => (
+                                                <div key={entry.name} 
+                                                    className="bg-white rounded-lg border hover:border-blue-200 transition-all duration-200 overflow-hidden p-4"
+                                                >
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <h3 className="text-lg font-semibold text-gray-900">
+                                                            {entry.name} {entry.isTeam && <span className="text-blue-600">(Team)</span>}
+                                                        </h3>
+                                                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                                            entry.difference > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                                        }`}>
+                                                            {entry.difference > 0 ? '+' : ''}{entry.difference.toFixed(2)}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="space-y-4">
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div className="bg-gray-50 rounded-lg p-3">
+                                                                <div className="text-xs text-gray-500 mb-1">Current Average</div>
+                                                                <div className="text-lg font-semibold">{entry.currentAverage.toFixed(2)}</div>
+                                                            </div>
+                                                            <div className="bg-gray-50 rounded-lg p-3">
+                                                                <div className="text-xs text-gray-500 mb-1">Best Average</div>
+                                                                <div className="text-lg font-semibold">
+                                                                    {isTeamPerformance(entry.bestPerformance) 
+                                                                        ? entry.bestPerformance.teamAverage.toFixed(2) 
+                                                                        : entry.bestPerformance.average.toFixed(2)}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="bg-gray-50 rounded-lg p-3">
+                                                            <div className="text-xs text-gray-500 mb-1">Best Match</div>
+                                                            <div className="text-sm">
+                                                                Matchday {entry.bestPerformance.matchday} vs {entry.bestPerformance.opponent}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="bg-gray-50 rounded-lg p-3">
+                                                            <div className="text-xs text-gray-500 mb-2">Best Checkouts</div>
+                                                            <div className="flex gap-2">
                                                                 {(() => {
                                                                     const checkouts = getBestCheckouts(entry.name, entry.isTeam);
                                                                     const lowestThree = getLowestThreeCheckouts();
-                                                                    if (checkouts.length === 0) return '-';
-                                                                    return (
-                                                                        <div className="flex gap-2">
-                                                                            {checkouts.map((checkout, index) => (
-                                                                                <span key={index} className={`px-3 py-1 rounded-lg ${
-                                                                                    !entry.isTeam && (
-                                                                                        checkout === lowestThree[0] ? 'bg-yellow-50 text-yellow-700 font-bold' :
-                                                                                        checkout === lowestThree[1] ? 'bg-gray-100 text-gray-700 font-bold' :
-                                                                                        checkout === lowestThree[2] ? 'bg-orange-50 text-orange-700 font-bold' :
-                                                                                        ''
-                                                                                    )
-                                                                                }`}>
-                                                                                    {checkout}
-                                                                                </span>
-                                                                            ))}
-                                                                        </div>
+                                                                    
+                                                                    return checkouts.length > 0 ? (
+                                                                        checkouts.map((checkout, index) => (
+                                                                            <span key={index} className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                                                                                entry.isTeam 
+                                                                                    ? 'bg-gray-100 text-gray-700'  // Plain style for team
+                                                                                    : checkout === lowestThree[0] ? 'bg-yellow-50 text-yellow-700' :
+                                                                                      checkout === lowestThree[1] ? 'bg-gray-200 text-gray-700' :
+                                                                                      checkout === lowestThree[2] ? 'bg-orange-50 text-orange-700' :
+                                                                                      checkout <= 24 ? 'bg-blue-50 text-blue-700' :
+                                                                                      ''
+                                                                            }`}>
+                                                                                {checkout}
+                                                                            </span>
+                                                                        ))
+                                                                    ) : (
+                                                                        <span className="text-sm text-gray-400">-</span>
                                                                     );
                                                                 })()}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                    ))}
+                                </div>
                                     </CardContent>
                                 </Card>
                             </TabsContent>
@@ -1361,18 +1317,18 @@ const DartsStatisticsDashboard: React.FC = () => {
                             <TabsContent value="scoreBreakdown">
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle>Score Distribution</CardTitle>
+                                        <CardTitle className="flex items-center gap-2">
+                                            Score Distribution
+                                        </CardTitle>
                                     </CardHeader>
                                     <CardContent>
                                         {(() => {
-                                            // Get all scores and calculate statistics
                                             const scores = matchReports.map(report => report.score).filter(Boolean);
                                             const scoreFrequency: { [key: string]: number } = {};
                                             let totalWins = 0;
                                             let totalLosses = 0;
                                             let totalDraws = 0;
                                             
-                                            // Process scores
                                             scores.forEach(score => {
                                                 scoreFrequency[score] = (scoreFrequency[score] || 0) + 1;
                                                 const [home, away] = score.split('-').map(Number);
@@ -1381,54 +1337,61 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                 else totalDraws++;
                                             });
 
-                                            // Sort scores by frequency
-                                            const sortedScores = Object.entries(scoreFrequency)
-                                                .sort((a, b) => b[1] - a[1]);
+                                            const sortedScores = Object.entries(scoreFrequency).sort((a, b) => b[1] - a[1]);
+                                            const totalMatches = totalWins + totalLosses + totalDraws;
 
                                             return (
-                                                <div className="space-y-8">
-                                                    {/* Summary Stats */}
-                                                    <div className="h-16">
-                                                        {/* Stats numbers */}
-                                                        <div className="grid grid-cols-3 h-16">
-                                                            <div className="text-center flex flex-col justify-center">
-                                                                <div className="text-2xl font-bold text-green-600">{totalWins}</div>
-                                                                <div className="text-sm text-gray-600">Wins</div>
+                                                <div className="space-y-6">
+                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                        <div className="bg-white rounded-lg border p-4">
+                                                            <div className="text-2xl font-bold text-green-600 mb-1">{totalWins}</div>
+                                                            <div className="text-sm text-gray-500">Wins</div>
+                                                            <div className="text-xs text-gray-400 mt-1">
+                                                                {((totalWins / totalMatches) * 100).toFixed(1)}% of matches
                                                             </div>
-                                                            <div className="text-center flex flex-col justify-center">
-                                                                <div className="text-2xl font-bold text-orange-400">{totalDraws}</div>
-                                                                <div className="text-sm text-gray-600">Draws</div>
+                                                        </div>
+                                                        <div className="bg-white rounded-lg border p-4">
+                                                            <div className="text-2xl font-bold text-orange-500 mb-1">{totalDraws}</div>
+                                                            <div className="text-sm text-gray-500">Draws</div>
+                                                            <div className="text-xs text-gray-400 mt-1">
+                                                                {((totalDraws / totalMatches) * 100).toFixed(1)}% of matches
                                                             </div>
-                                                            <div className="text-center flex flex-col justify-center">
-                                                                <div className="text-2xl font-bold text-red-600">{totalLosses}</div>
-                                                                <div className="text-sm text-gray-600">Losses</div>
+                                                        </div>
+                                                        <div className="bg-white rounded-lg border p-4">
+                                                            <div className="text-2xl font-bold text-red-600 mb-1">{totalLosses}</div>
+                                                            <div className="text-sm text-gray-500">Losses</div>
+                                                            <div className="text-xs text-gray-400 mt-1">
+                                                                {((totalLosses / totalMatches) * 100).toFixed(1)}% of matches
                                                             </div>
                                                         </div>
                                                     </div>
 
-                                                    {/* Score Distribution */}
-                                                    <div className="space-y-3">
-                                                        {sortedScores.map(([score, count]) => {
-                                                            const percentage = (count / scores.length) * 100;
-                                                            return (
-                                                                <div key={score} className="relative">
-                                                                    <div className="flex items-center gap-4">
-                                                                        <div className={`w-24 text-lg font-semibold ${getScoreColor(score)} px-3 py-1 rounded-lg text-center`}>
-                                                                            {score}
-                                                                        </div>
-                                                                        <div className="flex-1 h-8 bg-gray-100 rounded-lg overflow-hidden">
-                                                                            <div 
-                                                                                className="h-full bg-blue-100"
-                                                                                style={{ width: `${percentage}%` }}
-                                                                            />
-                                                                        </div>
-                                                                        <div className="w-20 text-sm text-gray-600">
-                                                                            {count} time{count !== 1 ? 's' : ''} ({percentage.toFixed(1)}%)
+                                                    <div className="bg-white rounded-lg border p-6">
+                                                        <h3 className="text-sm font-medium text-gray-900 mb-4">Score Frequency</h3>
+                                                        <div className="space-y-3">
+                                                            {sortedScores.map(([score, count]) => {
+                                                                const percentage = (count / scores.length) * 100;
+                                                                return (
+                                                                    <div key={score} className="relative">
+                                                                        <div className="flex items-center gap-4">
+                                                                            <span className={`w-20 text-lg font-semibold ${getScoreColor(score)} px-3 py-1 rounded-lg text-center`}>
+                                                                                {score}
+                                                                            </span>
+                                                                            <div className="flex-1 h-8 bg-gray-50 rounded-lg overflow-hidden">
+                                                                                <div 
+                                                                                    className="h-full bg-green-100"
+                                                                                    style={{ width: `${percentage}%` }}
+                                                                                />
+                                                                            </div>
+                                                                            <div className="w-32 text-sm">
+                                                                                <span className="font-medium">{count}×</span>
+                                                                                <span className="text-gray-500 ml-1">({percentage.toFixed(1)}%)</span>
+                                                                            </div>
                                                                         </div>
                                                                     </div>
-                                                                </div>
-                                                            );
-                                                        })}
+                                                                );
+                                                            })}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             );
@@ -1539,13 +1502,13 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                                 </div>
                                                                             </div>
                                                                         ))}
-                                                                    </div>
+                                        </div>
                                                                 </div>
                                                             ))}
                                                         </div>
                                                     );
                                                 })()}
-                                            </CardContent>
+                                    </CardContent>
                                         </>
                                     ) : (
                                         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -1556,6 +1519,137 @@ const DartsStatisticsDashboard: React.FC = () => {
                                             </p>
                                         </CardContent>
                                     )}
+                                </Card>
+                            </TabsContent>
+
+                            <TabsContent value="pairs">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Doubles Partnerships</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {(() => {
+                                                // Collect all doubles matches and their results
+                                                const pairsStats = matchReports.reduce((stats: {[key: string]: {
+                                                    games: {
+                                                        matchday: number,
+                                                        opponent: string,
+                                                        isWin: boolean
+                                                    }[]
+                                                }}, match, matchIndex) => {
+                                                    // First determine if we're home or away team by checking first singles player
+                                                    const isHomeTeam = match.details.singles[0].homePlayer === match.lineup[0];
+                                                    
+                                                    // Process all doubles matches
+                                                    match.details.doubles.forEach((double) => {
+                                                        // Get the correct pair based on whether we're home or away
+                                                        const ourPlayers = isHomeTeam ? double.homePlayers : double.awayPlayers;
+                                                        const pairKey = ourPlayers.sort().join(' / ');
+                                                        const isWin = isHomeTeam ? 
+                                                            double.homeScore > double.awayScore : 
+                                                            double.awayScore > double.homeScore;
+
+                                                        if (!stats[pairKey]) {
+                                                            stats[pairKey] = { games: [] };
+                                                        }
+                                                        
+                                                        stats[pairKey].games.push({
+                                                            matchday: matchIndex + 1,
+                                                            opponent: match.opponent,
+                                                            isWin
+                                                        });
+                                                    });
+                                                    return stats;
+                                                }, {});
+
+                                                // Convert to array and sort: first by 3+ games and win rate, then just win rate
+                                                return Object.entries(pairsStats)
+                                                    .map(([pair, stats]) => {
+                                                        const totalGames = stats.games.length;
+                                                        const wins = stats.games.filter(g => g.isWin).length;
+                                                        const winRate = (wins / totalGames) * 100;
+                                                        return { pair, stats, totalGames, winRate };
+                                                    })
+                                                    .sort((a, b) => {
+                                                        // First sort by whether they have 3+ games
+                                                        const aHasEnoughGames = a.totalGames >= 3;
+                                                        const bHasEnoughGames = b.totalGames >= 3;
+                                                        
+                                                        if (aHasEnoughGames !== bHasEnoughGames) {
+                                                            return aHasEnoughGames ? -1 : 1;
+                                                        }
+                                                        
+                                                        // Then sort by win rate within each group
+                                                        return b.winRate - a.winRate;
+                                                    })
+                                                    .map(({ pair, stats, totalGames, winRate }) => {
+                                                        const wins = stats.games.filter(g => g.isWin).length;
+                                                        
+                                                        return (
+                                                            <div key={pair} className="bg-white rounded-lg border hover:border-blue-200 transition-all duration-200 overflow-hidden">
+                                                                <div className="p-4">
+                                                                    <div className="flex items-center justify-between mb-4">
+                                                                        <h3 className="text-lg font-semibold text-gray-900">
+                                                                            <div className="flex flex-col">
+                                                                                <span>{pair.split(' / ')[0]} &</span>
+                                                                                <span>{pair.split(' / ')[1]}</span>
+                                                                            </div>
+                                                                        </h3>
+                                                                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                                                            totalGames < 3 
+                                                                                ? 'bg-orange-50 text-orange-700'  // Less than 3 games
+                                                                                : winRate >= 50 
+                                                                                    ? 'bg-green-50 text-green-700'  // 50% or higher
+                                                                                    : 'bg-red-50 text-red-700'  // Below 50%
+                                                                        }`}>
+                                                                            {winRate.toFixed(1)}%
+                                                                        </span>
+                                                                    </div>
+                                                                    
+                                                                    <div className="space-y-4">
+                                                                        {/* Win Rate Progress Bar */}
+                                                                        <div>
+                                                                            <div className="flex justify-between text-sm mb-1">
+                                                                                <span className="text-gray-500">Win Rate</span>
+                                                                                <span className="font-medium text-gray-900">
+                                                                                    {wins}-{totalGames - wins}
+                                                                                </span>
+                                                                            </div>
+                                                                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                                                                <div 
+                                                                                    className="h-full bg-green-500 rounded-full"
+                                                                                    style={{ width: `${winRate}%` }}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Games List */}
+                                                                        <div className="bg-gray-50 rounded-lg p-3">
+                                                                            <div className="text-xs text-gray-500 mb-2">Games</div>
+                                                                            <div className="space-y-2">
+                                                                                {stats.games.map((game, idx) => (
+                                                                                    <div key={idx} className="flex items-center justify-between text-sm">
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            <span className={`w-6 h-6 flex items-center justify-center rounded-lg font-medium ${
+                                                                                                game.isWin ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                                                                            }`}>
+                                                                                                {game.matchday}
+                                                                                            </span>
+                                                                                            <span className="text-gray-700">{game.opponent}</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    });
+                                            })()}
+                                        </div>
+                                    </CardContent>
                                 </Card>
                             </TabsContent>
                         </Tabs>
