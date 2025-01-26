@@ -11,3 +11,4 @@
 #next game card /adresse+datum+gegnername,position, team avg
 
 -
+#tones was here
