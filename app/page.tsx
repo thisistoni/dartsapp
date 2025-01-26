@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Search, Users, User, CalendarFold, Rows4, CheckCheck, MapPin, Martini, Phone, BarChart, ArrowLeftRight, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Navigation, ChevronDown } from 'lucide-react';
+import { Trophy, Search, Users, User,  Rows4,  MapPin, Martini, Phone, BarChart, ArrowLeftRight,  ArrowUp,  Calendar, Navigation } from 'lucide-react';
 import axios from 'axios';
 import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
-import { Checkout, ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings, MatchAverages } from '@/lib/types';
+import { ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings, MatchAverages } from '@/lib/types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 interface DotProps {
@@ -53,10 +53,9 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [teamStandings, setTeamStandings] = useState<TeamStandings | null>(null);
     const [selectedPlayer, setSelectedPlayer] = useState<string>("team");
     const [matchAverages, setMatchAverages] = useState<MatchAverages[]>([]);
-    const [sortColumn, setSortColumn] = useState<string>('winRate');
-    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+    const [sortColumn] = useState<string>('winRate');
+    const [sortDirection] = useState<'asc' | 'desc'>('desc');
     const [scheduleData, setScheduleData] = useState<ScheduleMatch[]>([]);
-    const [gamesVisibility, setGamesVisibility] = useState<{[key: string]: boolean}>({});
 
     // Update the teams array with all teams including DC Patron
     const teams: string[] = [
@@ -329,14 +328,7 @@ const DartsStatisticsDashboard: React.FC = () => {
         );
     };
 
-    const handleSort = (column: string) => {
-        if (sortColumn === column) {
-            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-        } else {
-            setSortColumn(column);
-            setSortDirection('asc');
-        }
-    };
+
 
     // Sort the players array
     const sortedPlayers = [...(teamData?.players || [])].sort((a, b) => {
@@ -424,8 +416,8 @@ const DartsStatisticsDashboard: React.FC = () => {
         }, 0) || 0;
         
         const totalSinglesLosses = teamData?.players.reduce((total, player) => {
-            const [_, losses = 0] = player.singles?.split('-').map(Number) || [0];
-            return total + losses;
+            const [_unused, losses = 0] = player.singles?.split('-').map(Number) || [0];
+            return total + losses +_unused-_unused;
         }, 0) || 0;
         
         const totalDoublesWins = Math.round((teamData?.players.reduce((total, player) => {
@@ -434,8 +426,8 @@ const DartsStatisticsDashboard: React.FC = () => {
         }, 0) || 0) / 2);
         
         const totalDoublesLosses = Math.round((teamData?.players.reduce((total, player) => {
-            const [_, losses = 0] = player.doubles?.split('-').map(Number) || [0];
-            return total + losses;
+            const [_unused, losses = 0] = player.doubles?.split('-').map(Number) || [0];
+            return total + losses+_unused-_unused;
         }, 0) || 0) / 2);
         
         const totalWins = totalSinglesWins + totalDoublesWins;
@@ -444,23 +436,7 @@ const DartsStatisticsDashboard: React.FC = () => {
         return totalGames > 0 ? Number(((totalWins / totalGames) * 100).toFixed(1)) : 0;
     })();
 
-    // Add this helper function to get all team checkouts
-    const getTeamBestCheckouts = () => {
-        const allCheckouts = matchReports.flatMap(report => 
-            report.checkouts
-                .map(c => {
-                    const scores = c.scores.split(': ')[1];
-                    return scores === '-' ? [] : scores.split(', ').map(Number);
-                })
-                .flat()
-        );
-        
-        return allCheckouts
-            .filter(c => !isNaN(c))
-            .sort((a, b) => a - b)
-            .slice(0, 5);
-    };
-
+   
     return (
         <div className="min-h-screen bg-gray-100 p-8">
             <div className="max-w-7xl mx-auto">
@@ -839,7 +815,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                             {player.singles?.split('-')[0] || '0'}
                                                                         </span>
                                                                         <span className="text-sm text-gray-500">
-                                                                            /{player.singles?.split('-')[1] || '0'}
+                                                                            - {player.singles?.split('-')[1] || '0'}
                                                                         </span>
                                                                     </div>
                                                                 </div>
@@ -850,7 +826,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                             {player.doubles?.split('-')[0] || '0'}
                                                                         </span>
                                                                         <span className="text-sm text-gray-500">
-                                                                            /{player.doubles?.split('-')[1] || '0'}
+                                                                            - {player.doubles?.split('-')[1] || '0'}
                                                                         </span>
                                                                     </div>
                                                                 </div>
@@ -868,7 +844,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 </div>
                                                                 <div className="flex items-center gap-1">
                                                                     <Trophy className={`h-4 w-4 ${
-                                                                        player.winRate > teamWinRate
+                                                                        (player?.winRate ?? 0) > teamWinRate
                                                                             ? 'text-amber-500'
                                                                             : 'text-gray-300'
                                                                     }`} />
@@ -903,8 +879,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                         }, 0) || 0;
                                                                         
                                                                         const totalSinglesLosses = teamData?.players.reduce((total, player) => {
-                                                                            const [_, losses = 0] = player.singles?.split('-').map(Number) || [0];
-                                                                            return total + losses;
+                                                                            const [_unused, losses = 0] = player.singles?.split('-').map(Number) || [0];
+                                                                            return total + losses+_unused-_unused;
                                                                         }, 0) || 0;
                                                                         
                                                                         const totalDoublesWins = Math.round((teamData?.players.reduce((total, player) => {
@@ -913,8 +889,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                         }, 0) || 0) / 2);
                                                                         
                                                                         const totalDoublesLosses = Math.round((teamData?.players.reduce((total, player) => {
-                                                                            const [_, losses = 0] = player.doubles?.split('-').map(Number) || [0];
-                                                                            return total + losses;
+                                                                            const [_unused, losses = 0] = player.doubles?.split('-').map(Number) || [0];
+                                                                            return total + losses+_unused-_unused;
                                                                         }, 0) || 0) / 2);
                                                                         
                                                                         const totalWins = totalSinglesWins + totalDoublesWins;
@@ -935,8 +911,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                             }, 0) || 0;
                                                                             
                                                                             const totalSinglesLosses = teamData?.players.reduce((total, player) => {
-                                                                                const [_, losses = 0] = player.singles?.split('-').map(Number) || [0];
-                                                                                return total + losses;
+                                                                                const [_unused, losses = 0] = player.singles?.split('-').map(Number) || [0];
+                                                                                return total + losses+_unused-_unused;
                                                                             }, 0) || 0;
                                                                             
                                                                             const totalDoublesWins = Math.round((teamData?.players.reduce((total, player) => {
@@ -945,8 +921,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                             }, 0) || 0) / 2);
                                                                             
                                                                             const totalDoublesLosses = Math.round((teamData?.players.reduce((total, player) => {
-                                                                                const [_, losses = 0] = player.doubles?.split('-').map(Number) || [0];
-                                                                                return total + losses;
+                                                                                const [_unused, losses = 0] = player.doubles?.split('-').map(Number) || [0];
+                                                                                return total + losses+_unused-_unused;
                                                                             }, 0) || 0) / 2);
                                                                             
                                                                             const totalWins = totalSinglesWins + totalDoublesWins;
@@ -971,9 +947,9 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                         }, 0)}
                                                                     </span>
                                                                     <span className="text-sm text-gray-500">
-                                                                        /{teamData?.players.reduce((total, player) => {
-                                                                            const [_, losses = 0] = player.singles?.split('-').map(Number) || [0];
-                                                                            return total + losses;
+                                                                        - {teamData?.players.reduce((total, player) => {
+                                                                            const [_unused, losses = 0] = player.singles?.split('-').map(Number) || [0];
+                                                                            return total + losses+_unused-_unused;
                                                                         }, 0)}
                                                                     </span>
                                                                 </div>
@@ -982,16 +958,16 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 <div className="text-xs text-gray-500 mb-1">Total Doubles</div>
                                                                 <div className="flex items-baseline gap-1">
                                                                     <span className="text-lg font-semibold text-gray-900">
-                                                                        {Math.round(teamData?.players.reduce((total, player) => {
+                                                                        {(teamData?.players.reduce((total, player) => {
                                                                             const [wins = 0] = player.doubles?.split('-').map(Number) || [0];
                                                                             return total + wins;
-                                                                        }, 0) / 2)}
+                                                                        }, 0) ?? 0) / 2}
                                                                     </span>
                                                                     <span className="text-sm text-gray-500">
-                                                                        /{Math.round(teamData?.players.reduce((total, player) => {
-                                                                            const [_, losses = 0] = player.doubles?.split('-').map(Number) || [0];
-                                                                            return total + losses;
-                                                                        }, 0) / 2)}
+                                                                        - {(teamData?.players.reduce((total, player) => {
+                                                                            const [_unused, losses = 0] = player.doubles?.split('-').map(Number) || [0];
+                                                                            return total + losses+_unused-_unused;
+                                                                        }, 0) ?? 0) / 2}
                                                                     </span>
                                                                 </div>
                                                             </div>
@@ -1190,7 +1166,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                         formatter={(value: number, name: string) => {
                                                             return [value.toFixed(2), name === 'runningAverage' ? 'Running Average' : 'Match Average'];
                                                         }}
-                                                        labelFormatter={(_, data) => {
+                                                        labelFormatter={(data) => {
                                                             const match = data[0]?.payload;
                                                             return match ? `Matchday ${match.matchday} vs ${match.opponent}` : `Matchday`;
                                                         }}
@@ -1525,130 +1501,153 @@ const DartsStatisticsDashboard: React.FC = () => {
                             <TabsContent value="pairs">
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle>Doubles Partnerships</CardTitle>
+                                        <div className="flex items-center justify-between">
+                                            <CardTitle>Doubles Partnerships</CardTitle>
+                                            <select
+                                                value={selectedPlayer}
+                                                onChange={(e) => setSelectedPlayer(e.target.value)}
+                                                className="px-3 py-1.5 bg-white border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            >
+                                                <option value="team">All Pairs</option>
+                                                {teamData?.players.map((player) => (
+                                                    <option key={player.playerName} value={player.playerName}>
+                                                        {player.playerName}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                            {(() => {
-                                                // Collect all doubles matches and their results
-                                                const pairsStats = matchReports.reduce((stats: {[key: string]: {
-                                                    games: {
-                                                        matchday: number,
-                                                        opponent: string,
-                                                        isWin: boolean
-                                                    }[]
-                                                }}, match, matchIndex) => {
-                                                    // First determine if we're home or away team by checking first singles player
-                                                    const isHomeTeam = match.details.singles[0].homePlayer === match.lineup[0];
-                                                    
-                                                    // Process all doubles matches
-                                                    match.details.doubles.forEach((double) => {
-                                                        // Get the correct pair based on whether we're home or away
-                                                        const ourPlayers = isHomeTeam ? double.homePlayers : double.awayPlayers;
-                                                        const pairKey = ourPlayers.sort().join(' / ');
-                                                        const isWin = isHomeTeam ? 
-                                                            double.homeScore > double.awayScore : 
-                                                            double.awayScore > double.homeScore;
-
-                                                        if (!stats[pairKey]) {
-                                                            stats[pairKey] = { games: [] };
-                                                        }
+                                        {!loading && matchReports.length > 0 ? (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {(() => {
+                                                    // Collect all doubles matches and their results
+                                                    const pairsStats = matchReports.reduce((stats: {[key: string]: {
+                                                        games: {
+                                                            matchday: number,
+                                                            opponent: string,
+                                                            isWin: boolean
+                                                        }[]
+                                                    }}, match, matchIndex) => {
+                                                        const isHomeTeam = match.details.singles[0].homePlayer === match.lineup[0];
                                                         
-                                                        stats[pairKey].games.push({
-                                                            matchday: matchIndex + 1,
-                                                            opponent: match.opponent,
-                                                            isWin
+                                                        // Process all doubles matches
+                                                        match.details.doubles.forEach((double) => {
+                                                            // Get the correct pair based on whether we're home or away
+                                                            const ourPlayers = isHomeTeam ? double.homePlayers : double.awayPlayers;
+                                                            const pairKey = ourPlayers.sort().join(' / ');
+                                                            const isWin = isHomeTeam ? 
+                                                                double.homeScore > double.awayScore : 
+                                                                double.awayScore > double.homeScore;
+
+                                                            if (!stats[pairKey]) {
+                                                                stats[pairKey] = { games: [] };
+                                                            }
+                                                            
+                                                            stats[pairKey].games.push({
+                                                                matchday: matchIndex + 1,
+                                                                opponent: match.opponent,
+                                                                isWin
+                                                            });
                                                         });
-                                                    });
-                                                    return stats;
-                                                }, {});
+                                                        return stats;
+                                                    }, {});
 
-                                                // Convert to array and sort: first by 3+ games and win rate, then just win rate
-                                                return Object.entries(pairsStats)
-                                                    .map(([pair, stats]) => {
-                                                        const totalGames = stats.games.length;
-                                                        const wins = stats.games.filter(g => g.isWin).length;
-                                                        const winRate = (wins / totalGames) * 100;
-                                                        return { pair, stats, totalGames, winRate };
-                                                    })
-                                                    .sort((a, b) => {
-                                                        // First sort by whether they have 3+ games
-                                                        const aHasEnoughGames = a.totalGames >= 3;
-                                                        const bHasEnoughGames = b.totalGames >= 3;
-                                                        
-                                                        if (aHasEnoughGames !== bHasEnoughGames) {
-                                                            return aHasEnoughGames ? -1 : 1;
-                                                        }
-                                                        
-                                                        // Then sort by win rate within each group
-                                                        return b.winRate - a.winRate;
-                                                    })
-                                                    .map(({ pair, stats, totalGames, winRate }) => {
-                                                        const wins = stats.games.filter(g => g.isWin).length;
-                                                        
-                                                        return (
-                                                            <div key={pair} className="bg-white rounded-lg border hover:border-blue-200 transition-all duration-200 overflow-hidden">
-                                                                <div className="p-4">
-                                                                    <div className="flex items-center justify-between mb-4">
-                                                                        <h3 className="text-lg font-semibold text-gray-900">
-                                                                            <div className="flex flex-col">
-                                                                                <span>{pair.split(' / ')[0]} &</span>
-                                                                                <span>{pair.split(' / ')[1]}</span>
-                                                                            </div>
-                                                                        </h3>
-                                                                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                                                            totalGames < 3 
-                                                                                ? 'bg-orange-50 text-orange-700'  // Less than 3 games
-                                                                                : winRate >= 50 
-                                                                                    ? 'bg-green-50 text-green-700'  // 50% or higher
-                                                                                    : 'bg-red-50 text-red-700'  // Below 50%
-                                                                        }`}>
-                                                                            {winRate.toFixed(1)}%
-                                                                        </span>
-                                                                    </div>
-                                                                    
-                                                                    <div className="space-y-4">
-                                                                        {/* Win Rate Progress Bar */}
-                                                                        <div>
-                                                                            <div className="flex justify-between text-sm mb-1">
-                                                                                <span className="text-gray-500">Win Rate</span>
-                                                                                <span className="font-medium text-gray-900">
-                                                                                    {wins}-{totalGames - wins}
-                                                                                </span>
-                                                                            </div>
-                                                                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                                                                <div 
-                                                                                    className="h-full bg-green-500 rounded-full"
-                                                                                    style={{ width: `${winRate}%` }}
-                                                                                />
-                                                                            </div>
+                                                    // Convert to array and sort: first by 3+ games and win rate, then just win rate
+                                                    return Object.entries(pairsStats)
+                                                        .map(([pair, stats]) => {
+                                                            const totalGames = stats.games.length;
+                                                            const wins = stats.games.filter(g => g.isWin).length;
+                                                            const winRate = (wins / totalGames) * 100;
+                                                            return { pair, stats, totalGames, winRate };
+                                                        })
+                                                        .filter(({ pair }) => 
+                                                            selectedPlayer === "team" || 
+                                                            pair.includes(selectedPlayer)
+                                                        )
+                                                        .sort((a, b) => {
+                                                            // First sort by whether they have 3+ games
+                                                            const aHasEnoughGames = a.totalGames >= 3;
+                                                            const bHasEnoughGames = b.totalGames >= 3;
+                                                            
+                                                            if (aHasEnoughGames !== bHasEnoughGames) {
+                                                                return aHasEnoughGames ? -1 : 1;
+                                                            }
+                                                            
+                                                            // Then sort by win rate within each group
+                                                            return b.winRate - a.winRate;
+                                                        })
+                                                        .map(({ pair, stats, totalGames, winRate }) => {
+                                                            const wins = stats.games.filter(g => g.isWin).length;
+                                                            
+                                                            return (
+                                                                <div key={pair} className="bg-white rounded-lg border hover:border-blue-200 transition-all duration-200 overflow-hidden">
+                                                                    <div className="p-4">
+                                                                        <div className="flex items-center justify-between mb-4">
+                                                                            <h3 className="text-lg font-semibold text-gray-900">
+                                                                                <div className="flex flex-col">
+                                                                                    <span>{pair.split(' / ')[0]} &</span>
+                                                                                    <span>{pair.split(' / ')[1]}</span>
+                                                                                </div>
+                                                                            </h3>
+                                                                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                                                                totalGames < 3 
+                                                                                    ? 'bg-orange-50 text-orange-700'  // Less than 3 games
+                                                                                    : winRate >= 50 
+                                                                                        ? 'bg-green-50 text-green-700'  // 50% or higher
+                                                                                        : 'bg-red-50 text-red-700'  // Below 50%
+                                                                            }`}>
+                                                                                {winRate.toFixed(1)}%
+                                                                            </span>
                                                                         </div>
+                                                                        
+                                                                        <div className="space-y-4">
+                                                                            {/* Win Rate Progress Bar */}
+                                                                            <div>
+                                                                                <div className="flex justify-between text-sm mb-1">
+                                                                                    <span className="text-gray-500">Win Rate</span>
+                                                                                    <span className="font-medium text-gray-900">
+                                                                                        {wins}-{totalGames - wins}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                                                                    <div 
+                                                                                        className="h-full bg-green-500 rounded-full"
+                                                                                        style={{ width: `${winRate}%` }}
+                                                                                    />
+                                                                                </div>
+                                                                            </div>
 
-                                                                        {/* Games List */}
-                                                                        <div className="bg-gray-50 rounded-lg p-3">
-                                                                            <div className="text-xs text-gray-500 mb-2">Games</div>
-                                                                            <div className="space-y-2">
-                                                                                {stats.games.map((game, idx) => (
-                                                                                    <div key={idx} className="flex items-center justify-between text-sm">
-                                                                                        <div className="flex items-center gap-2">
-                                                                                            <span className={`w-6 h-6 flex items-center justify-center rounded-lg font-medium ${
-                                                                                                game.isWin ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                                                                            }`}>
-                                                                                                {game.matchday}
-                                                                                            </span>
-                                                                                            <span className="text-gray-700">{game.opponent}</span>
-                                                                                        </div>
+                                                                            {/* Games List */}
+                                                                            <div className="bg-gray-50 rounded-lg p-3">
+                                                                                <div className="text-xs text-gray-500 mb-2">Games</div>
+                                                                                    <div className="space-y-2">
+                                                                                        {stats.games.map((game, idx) => (
+                                                                                            <div key={idx} className="flex items-center justify-between text-sm">
+                                                                                                <div className="flex items-center gap-2">
+                                                                                                    <span className={`w-6 h-6 flex items-center justify-center rounded-lg font-medium ${
+                                                                                                        game.isWin ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                                                                                    }`}>
+                                                                                                        {game.matchday}
+                                                                                                    </span>
+                                                                                                    <span className="text-gray-700">{game.opponent}</span>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        ))}
                                                                                     </div>
-                                                                                ))}
                                                                             </div>
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                        );
-                                                    });
-                                            })()}
-                                        </div>
+                                                            );
+                                                        });
+                                                })()}
+                                            </div>
+                                        ) : (
+                                            <div className="flex justify-center items-center p-8">
+                                                <p className="text-gray-500">Loading pairs data...</p>
+                                            </div>
+                                        )}
                                     </CardContent>
                                 </Card>
                             </TabsContent>
