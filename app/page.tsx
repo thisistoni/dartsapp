@@ -127,23 +127,34 @@ const DartsStatisticsDashboard: React.FC = () => {
                     setMatchReports(reports);
                     console.log('✓ Match reports loaded successfully');
                     
-                    // Now fetch averages for each match report
-                    return Promise.all(
-                        matchReports.map((res, index) => {
-                            const matchId = res.config.url?.split('id=')[1]?.split('&')[0];
-                            if (!matchId) throw new Error('Match ID not found');
-                            return axios.get(`/api/scraper?action=matchAverages&url=${encodeURIComponent(`https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${matchId}&saison=2024/25`)}&team=${encodeURIComponent(selectedTeam)}`)
-                                .then(avgRes => ({
-                                    ...avgRes.data.averages,
-                                    matchday: index + 1,
-                                    opponent: reports[index].opponent
-                                }));
-                        })
+                    // Only proceed with averages if we have valid reports with details
+                    const validReports = reports.filter(report => 
+                        report?.details?.singles?.[0]?.homePlayer && 
+                        report?.details?.singles?.[0]?.awayPlayer
                     );
+                    
+                    if (validReports.length > 0) {
+                        // Now fetch averages for each valid match report
+                        return Promise.all(
+                            validReports.map((report, index) => {
+                                const matchId = matchReports[index].config.url?.split('id=')[1]?.split('&')[0];
+                                if (!matchId) throw new Error('Match ID not found');
+                                return axios.get(`/api/scraper?action=matchAverages&url=${encodeURIComponent(`https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${matchId}&saison=2024/25`)}&team=${encodeURIComponent(selectedTeam)}`)
+                                    .then(avgRes => ({
+                                        ...avgRes.data.averages,
+                                        matchday: index + 1,
+                                        opponent: report.opponent
+                                    }));
+                            })
+                        );
+                    }
+                    return [];
                 })
                 .then(averages => {
-                    setMatchAverages(averages);
-                    console.log('✓ Player averages synchronized');
+                    if (averages.length > 0) {
+                        setMatchAverages(averages);
+                        console.log('✓ Player averages synchronized');
+                    }
                 })
                 .catch(error => {
                     console.error('Error fetching data:', error);
