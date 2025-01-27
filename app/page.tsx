@@ -8,6 +8,7 @@ import axios from 'axios';
 import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
 import { ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings, MatchAverages } from '@/lib/types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { TooltipProps } from 'recharts';
 
 interface DotProps {
     cx?: number;
@@ -698,31 +699,28 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                         <div className="text-xs text-gray-500 mb-2">Lineup & Checkouts</div>
                                                         <div className="text-sm space-y-1">
                                                             {matchday.lineup.map((player, idx) => {
-                                                                // Only show checkouts for singles matches (positions 1,2,5,6)
-                                                                const isSinglesMatch = [0, 1, 4, 5].includes(idx);
-                                                                const playerCheckouts = isSinglesMatch 
-                                                                    ? matchday.checkouts
-                                                                        .filter(c => c.scores.startsWith(player))
-                                                                        .map(c => c.scores.split(': ')[1])
-                                                                    : [];
-
-                                                                // Get match result for the player
-                                                                let isWin = false;
-                                                                if (isSinglesMatch) {
-                                                                    const match = matchday.details.singles[idx > 3 ? idx - 2 : idx];
-                                                                    // Check if we're the home team by comparing first player name
-                                                                    const isHomeTeam = matchday.details.singles[0].homePlayer === matchday.lineup[0];
-                                                                    isWin = isHomeTeam ? match.homeScore > match.awayScore : match.awayScore > match.homeScore;
-                                                                } else {
-                                                                    const match = matchday.details.doubles[idx > 3 ? idx - 4 : idx - 2];
-                                                                    // Check if we're the home team by comparing first doubles pair
-                                                                    const isHomeTeam = matchday.details.doubles[0].homePlayers[0] === matchday.lineup[2].split(',')[0];
-                                                                    isWin = isHomeTeam ? match.homeScore > match.awayScore : match.awayScore > match.homeScore;
-                                                                }
+                                                                // First determine if we're the home team by checking first player
+                                                                const isHomeTeam = matchday.details.singles[0].homePlayer === matchday.lineup[0];
                                                                 
+                                                                // Get match result based on position
+                                                                let isWin = false;
+                                                                if ([0, 1, 4, 5].includes(idx)) { // Singles matches
+                                                                    const matchIndex = idx > 3 ? idx - 2 : idx;
+                                                                    const match = matchday.details.singles[matchIndex];
+                                                                    isWin = isHomeTeam ? 
+                                                                        match.homeScore > match.awayScore : 
+                                                                        match.awayScore > match.homeScore;
+                                                                } else { // Doubles matches
+                                                                    const matchIndex = idx > 3 ? (idx - 4) : ((idx - 2));
+                                                                    const match = matchday.details.doubles[matchIndex];
+                                                                    isWin = isHomeTeam ? 
+                                                                        match.homeScore > match.awayScore : 
+                                                                        match.awayScore > match.homeScore;
+                                                                }
+
                                                                 return (
                                                                     <div key={idx} className="flex items-center justify-between text-gray-700">
-                                                <div className="flex items-center gap-2">
+                                                                        <div className="flex items-center gap-2">
                                                                             <span className={`font-medium w-6 h-6 flex items-center justify-center rounded-lg ${
                                                                                 isWin ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                                                                             }`}>
@@ -730,11 +728,6 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                             </span>
                                                                             {player}
                                                                         </div>
-                                                                        {playerCheckouts.length > 0 && (
-                                                                            <span className="text-gray-500">
-                                                                                {playerCheckouts.join(', ')}
-                                                                            </span>
-                                                                        )}
                                                                     </div>
                                                                 );
                                                             })}
@@ -1163,12 +1156,35 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                         }}
                                                     />
                                                     <Tooltip 
-                                                        formatter={(value: number, name: string) => {
-                                                            return [value.toFixed(2), name === 'runningAverage' ? 'Running Average' : 'Match Average'];
-                                                        }}
-                                                        labelFormatter={(data) => {
-                                                            const match = data[0]?.payload;
-                                                            return match ? `Matchday ${match.matchday} vs ${match.opponent}` : `Matchday`;
+                                                        content={({ active, payload, label }: TooltipProps<number, string>) => {
+                                                            if (active && payload && payload.length) {
+                                                                return (
+                                                                    <div className="bg-white p-3 border rounded-lg shadow-lg">
+                                                                        {/* Opponent Name */}
+                                                                        <div className="mb-2">
+                                                                            <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded">
+                                                                                {matchData.find(m => m.matchday === label)?.opponent}
+                                                                            </span>
+                                                                        </div>
+                                                                        {/* Values */}
+                                                                        {payload.map((entry, index) => (
+                                                                            <div key={index} className="flex items-center gap-2">
+                                                                                <span className={`px-2 py-1 rounded ${
+                                                                                    entry.name === 'runningAverage' 
+                                                                                        ? 'bg-green-50 text-green-700'
+                                                                                        : 'bg-red-50 text-red-700'
+                                                                                }`}>
+                                                                                    {Number(entry.value).toFixed(2)}
+                                                                                </span>
+                                                                                <span className="text-gray-600">
+                                                                                    {entry.name === 'runningAverage' ? 'Running Average' : 'Match Average'}
+                                                                                </span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            return null;
                                                         }}
                                                     />
                                                     {runningAverages.length > 0 && (
@@ -1355,7 +1371,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                             </span>
                                                                             <div className="flex-1 h-8 bg-gray-50 rounded-lg overflow-hidden">
                                                                                 <div 
-                                                                                    className="h-full bg-green-100"
+                                                                                    className="h-full bg-blue-100"
                                                                                     style={{ width: `${percentage}%` }}
                                                                                 />
                                                                             </div>
@@ -1622,15 +1638,27 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                             <div className="bg-gray-50 rounded-lg p-3">
                                                                                 <div className="text-xs text-gray-500 mb-2">Games</div>
                                                                                     <div className="space-y-2">
-                                                                                        {stats.games.map((game, idx) => (
-                                                                                            <div key={idx} className="flex items-center justify-between text-sm">
+                                                                                        {Object.entries(
+                                                                                            stats.games.reduce((acc, game) => {
+                                                                                                if (!acc[game.opponent]) {
+                                                                                                    acc[game.opponent] = { games: [] };
+                                                                                                }
+                                                                                                acc[game.opponent].games.push(game);
+                                                                                                return acc;
+                                                                                            }, {} as { [key: string]: { games: { matchday: number; isWin: boolean }[] } })
+                                                                                        ).map(([opponent, data]) => (
+                                                                                            <div key={opponent} className="flex items-center justify-between text-sm">
                                                                                                 <div className="flex items-center gap-2">
-                                                                                                    <span className={`w-6 h-6 flex items-center justify-center rounded-lg font-medium ${
-                                                                                                        game.isWin ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                                                                                    }`}>
-                                                                                                        {game.matchday}
-                                                                                                    </span>
-                                                                                                    <span className="text-gray-700">{game.opponent}</span>
+                                                                                                    <div className="flex gap-1">
+                                                                                                        {data.games.map((game, idx) => (
+                                                                                                            <span key={idx} className={`w-6 h-6 flex items-center justify-center rounded-lg font-medium ${
+                                                                                                                game.isWin ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                                                                                            }`}>
+                                                                                                                {game.matchday}
+                                                                                                            </span>
+                                                                                                        ))}
+                                                                                                    </div>
+                                                                                                    <span className="text-gray-700">{opponent}</span>
                                                                                                 </div>
                                                                                             </div>
                                                                                         ))}
