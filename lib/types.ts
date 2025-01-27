@@ -97,3 +97,14 @@ export interface PlayerBestPerformance {
     difference: number;
 }
 
+// Add these interfaces
+export interface OneEighty {
+  playerName: string;
+  count: number;
+}
+
+export interface HighFinish {
+  playerName: string;
+  finishes: number[];
+}
+

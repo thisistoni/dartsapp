@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Search, Users, User,  Rows4,  MapPin, Martini, Phone, BarChart, ArrowLeftRight,  ArrowUp,  Calendar, Navigation } from 'lucide-react';
+import { Trophy, Search, Users, User,  Rows4,  MapPin, Martini, Phone, BarChart, ArrowLeftRight,  ArrowUp,  Calendar, Navigation, Target, Zap } from 'lucide-react';
 import axios from 'axios';
 import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
-import { ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings, MatchAverages } from '@/lib/types';
+import { ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings, MatchAverages, OneEighty, HighFinish } from '@/lib/types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { TooltipProps } from 'recharts';
 
@@ -57,6 +57,8 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [sortColumn] = useState<string>('winRate');
     const [sortDirection] = useState<'asc' | 'desc'>('desc');
     const [scheduleData, setScheduleData] = useState<ScheduleMatch[]>([]);
+    const [oneEightys, setOneEightys] = useState<OneEighty[]>([]);
+    const [highFinishes, setHighFinishes] = useState<HighFinish[]>([]);
 
     // Update the teams array with all teams including DC Patron
     const teams: string[] = [
@@ -181,6 +183,14 @@ const DartsStatisticsDashboard: React.FC = () => {
                     setTeamStandings(response.data.standings);
                 })
                 .catch(error => console.error('Error fetching standings:', error));
+
+            // Special Stats
+            axios.get(`/api/scraper?action=specialStats&team=${encodeURIComponent(selectedTeam)}`)
+                .then(response => {
+                    setOneEightys(response.data.oneEightys);
+                    setHighFinishes(response.data.highFinishes);
+                })
+                .catch(error => console.error('Error fetching special stats:', error));
         }
     }, [selectedTeam]);
 
@@ -702,6 +712,22 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 // First determine if we're the home team by checking first player
                                                                 const isHomeTeam = matchday.details.singles[0].homePlayer === matchday.lineup[0];
                                                                 
+                                                                // Check if opponent player is "nicht angetreten"
+                                                                let isWalkover = false;
+                                                                if ([0, 1, 4, 5].includes(idx)) { // Singles matches
+                                                                    const matchIndex = idx > 3 ? idx - 2 : idx;
+                                                                    const match = matchday.details.singles[matchIndex];
+                                                                    isWalkover = isHomeTeam ? 
+                                                                        match.awayPlayer.toLowerCase().includes('nicht angetreten') : 
+                                                                        match.homePlayer.toLowerCase().includes('nicht angetreten');
+                                                                } else { // Doubles matches
+                                                                    const matchIndex = idx > 3 ? (idx - 4) : ((idx - 2));
+                                                                    const match = matchday.details.doubles[matchIndex];
+                                                                    isWalkover = isHomeTeam ? 
+                                                                        match.awayPlayers.some(p => p.toLowerCase().includes('nicht angetreten')) : 
+                                                                        match.homePlayers.some(p => p.toLowerCase().includes('nicht angetreten'));
+                                                                }
+
                                                                 // Get match result based on position
                                                                 let isWin = false;
                                                                 if ([0, 1, 4, 5].includes(idx)) { // Singles matches
@@ -718,6 +744,14 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                         match.awayScore > match.homeScore;
                                                                 }
 
+                                                                // Get checkouts for singles matches (only if not walkover)
+                                                                const isSinglesMatch = [0, 1, 4, 5].includes(idx);
+                                                                const playerCheckouts = !isWalkover && isSinglesMatch 
+                                                                    ? matchday.checkouts
+                                                                        .filter(c => c.scores.startsWith(player))
+                                                                        .map(c => c.scores.split(': ')[1])
+                                                                    : [];
+
                                                                 return (
                                                                     <div key={idx} className="flex items-center justify-between text-gray-700">
                                                                         <div className="flex items-center gap-2">
@@ -728,6 +762,13 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                             </span>
                                                                             {player}
                                                                         </div>
+                                                                        {isWalkover ? (
+                                                                            <span className="text-gray-500 italic">w/o</span>
+                                                                        ) : playerCheckouts.length > 0 && (
+                                                                            <span className="text-gray-500">
+                                                                                {playerCheckouts.join(', ')}
+                                                                            </span>
+                                                                        )}
                                                                     </div>
                                                                 );
                                                             })}
@@ -825,8 +866,9 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 </div>
                                                             </div>
 
-                                                            {/* Performance Indicators */}
-                                                            <div className="flex items-center justify-between text-sm">
+                                                            {/* Performance Indicators - Single flex container for all achievements */}
+                                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-sm gap-1 sm:gap-2">
+                                                                {/* First row on mobile / First item on desktop */}
                                                                 <div className="flex items-center gap-1">
                                                                     <ArrowUp className={`h-4 w-4 ${
                                                                         player.adjustedAverage > (teamAverage || 0)
@@ -835,6 +877,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                     }`} />
                                                                     <span className="text-gray-500">Above Team Avg</span>
                                                                 </div>
+                                                                
+                                                                {/* Second row on mobile / Second item on desktop */}
                                                                 <div className="flex items-center gap-1">
                                                                     <Trophy className={`h-4 w-4 ${
                                                                         (player?.winRate ?? 0) > teamWinRate
@@ -842,6 +886,28 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                             : 'text-gray-300'
                                                                     }`} />
                                                                     <span className="text-gray-500">Above Team Winrate</span>
+                                                                </div>
+                                                                
+                                                                {/* Third row on mobile / Third item on desktop */}
+                                                                <div className="flex items-center gap-1">
+                                                                    <Target className={`h-4 w-4 ${
+                                                                        oneEightys.find(x => x.playerName === player.playerName)?.count ?? 0 > 0
+                                                                            ? 'text-purple-500'
+                                                                            : 'text-gray-300'
+                                                                    }`} />
+                                                                    <span className="text-gray-500">180s ({oneEightys.find(x => x.playerName === player.playerName)?.count ?? 0})</span>
+                                                                </div>
+                                                                
+                                                                {/* Fourth row on mobile / Fourth item on desktop */}
+                                                                <div className="flex items-center gap-1">
+                                                                    <Zap className={`h-4 w-4 ${
+                                                                        (highFinishes.find(x => x.playerName === player.playerName)?.finishes?.length ?? 0) > 0
+                                                                            ? 'text-red-500'
+                                                                            : 'text-gray-300'
+                                                                    }`} />
+                                                                    <span className="text-gray-500">High Finish ({
+                                                                        highFinishes.find(x => x.playerName === player.playerName)?.finishes?.join(', ') ?? '-'
+                                                                    })</span>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -1277,12 +1343,11 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 {(() => {
                                                                     const checkouts = getBestCheckouts(entry.name, entry.isTeam);
                                                                     const lowestThree = getLowestThreeCheckouts();
-                                                                    
                                                                     return checkouts.length > 0 ? (
                                                                         checkouts.map((checkout, index) => (
                                                                             <span key={index} className={`px-3 py-1 rounded-lg text-sm font-medium ${
                                                                                 entry.isTeam 
-                                                                                    ? 'bg-gray-100 text-gray-700'  // Plain style for team
+                                                                                    ? 'bg-gray-100 text-gray-700'
                                                                                     : checkout === lowestThree[0] ? 'bg-yellow-50 text-yellow-700' :
                                                                                       checkout === lowestThree[1] ? 'bg-gray-200 text-gray-700' :
                                                                                       checkout === lowestThree[2] ? 'bg-orange-50 text-orange-700' :
@@ -1300,8 +1365,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                         </div>
                                                     </div>
                                                 </div>
-                                    ))}
-                                </div>
+                                            ))}
+                                        </div>
                                     </CardContent>
                                 </Card>
                             </TabsContent>
@@ -1494,7 +1559,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                                 </div>
                                                                             </div>
                                                                         ))}
-                                        </div>
+                                                                    </div>
                                                                 </div>
                                                             ))}
                                                         </div>

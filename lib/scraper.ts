@@ -1,6 +1,6 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { ClubVenue, MatchReport, Player, ComparisonData, TeamStandings } from './types';
+import { ClubVenue, MatchReport, Player, ComparisonData, TeamStandings, OneEighty, HighFinish } from './types';
 
 
 
@@ -522,4 +522,34 @@ export async function fetchMatchAverages(url: string, teamName: string): Promise
             playerAverages: []
         };
     }
+}
+
+export async function fetch180sAndHighFinishes(team: string): Promise<{oneEightys: OneEighty[], highFinishes: HighFinish[]}> {
+  const url = `https://www.wdv-dart.at/_landesliga/_statistik/mannschaft.php?start=1722506400&ende=1754042400&saison=2024/25&dartsldg=18&mannschaft=${encodeURIComponent(team)}`;
+  const response = await fetch(url);
+  const html = await response.text();
+  const $ = cheerio.load(html);
+
+  // Extract 180s
+  const oneEightys: OneEighty[] = [];
+  $('h4:contains("180s")').next('.ranking').find('tbody tr').each((_, elem) => {
+    const playerName = $(elem).find('td:nth-child(2)').text().trim();
+    const count = parseInt($(elem).find('td:nth-child(4)').text().trim());
+    if (playerName && !isNaN(count)) {
+      oneEightys.push({ playerName, count });
+    }
+  });
+
+  // Extract High Finishes
+  const highFinishes: HighFinish[] = [];
+  $('h4:contains("High Finish")').next('.ranking').find('tbody tr').each((_, elem) => {
+    const playerName = $(elem).find('td:nth-child(2)').text().trim();
+    const finishesStr = $(elem).find('td:nth-child(5)').text().trim();
+    if (playerName && finishesStr) {
+      const finishes = finishesStr.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+      highFinishes.push({ playerName, finishes });
+    }
+  });
+
+  return { oneEightys, highFinishes };
 }

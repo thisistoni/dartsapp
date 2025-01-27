@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchSpielberichteLink, fetchDartIds, fetchTeamPlayersAverage, fetchMatchReport, fetchLeaguePosition, fetchClubVenue, fetchComparisonData, fetchTeamStandings, fetchMatchAverages } from '@/lib/scraper';
+import { fetchSpielberichteLink, fetchDartIds, fetchTeamPlayersAverage, fetchMatchReport, fetchLeaguePosition, fetchClubVenue, fetchComparisonData, fetchTeamStandings, fetchMatchAverages, fetch180sAndHighFinishes } from '@/lib/scraper';
 
 // API-Endpunkte für verschiedene Funktionen
 export async function GET(request: Request) {
@@ -57,6 +57,11 @@ export async function GET(request: Request) {
                     return NextResponse.json({ averages });
                 }
                 return NextResponse.json({ error: 'Missing parameters' });
+
+            case 'specialStats':
+                if (!team) throw new Error('Team fehlt.');
+                const specialStats = await fetch180sAndHighFinishes(team);
+                return NextResponse.json(specialStats);
 
             default:
                 throw new Error('Ungültige Aktion.');
