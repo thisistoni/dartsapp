@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Trophy, Search, Users, User,  Rows4,  MapPin, Martini, Phone, BarChart, ArrowLeftRight,  ArrowUp,  Calendar, Navigation, Target, Zap } from 'lucide-react';
@@ -9,6 +9,7 @@ import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
 import { ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings, MatchAverages, OneEighty, HighFinish } from '@/lib/types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { TooltipProps } from 'recharts';
+import axiosRetry from 'axios-retry';
 
 interface DotProps {
     cx?: number;
@@ -59,6 +60,27 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [scheduleData, setScheduleData] = useState<ScheduleMatch[]>([]);
     const [oneEightys, setOneEightys] = useState<OneEighty[]>([]);
     const [highFinishes, setHighFinishes] = useState<HighFinish[]>([]);
+    const [dataSource, setDataSource] = useState<'database' | 'scraped' | null>(null);
+    const updateTimeoutRef = useRef<NodeJS.Timeout>();
+    // Add this state for controlling visibility
+    const [showIndicator, setShowIndicator] = useState(true);
+    // Add a new state for tracking retry status
+    const [isRetrying, setIsRetrying] = useState(false);
+    const currentTeamRef = useRef<string>('');
+    // At the top level of the component, add a retry timeout ref
+    const retryTimeoutRef = useRef<NodeJS.Timeout>();
+
+    // Update the useEffect where we fetch data to handle the fade-away
+    useEffect(() => {
+        if (dataSource === 'scraped') {
+            const timer = setTimeout(() => {
+                setShowIndicator(false);
+            }, 5000);
+            return () => clearTimeout(timer);
+        } else {
+            setShowIndicator(true);
+        }
+    }, [dataSource]);
 
     // Update the teams array with all teams including DC Patron
     const teams: string[] = [
@@ -105,103 +127,62 @@ const DartsStatisticsDashboard: React.FC = () => {
     useEffect(() => {
         if (selectedTeam) {
             setLoading(true);
+            setIsRetrying(false); // Reset retry status
+            currentTeamRef.current = selectedTeam;
 
-            // First get the Spielberichte link
-            axios.get(`/api/scraper?action=spielberichte`)
-                .then(response => {
-                    const url = response.data.link;
-                    if (!url) throw new Error('Spielberichte-Link nicht gefunden.');
-                    return axios.get(`/api/scraper?action=dartIds&url=${encodeURIComponent(url)}&team=${encodeURIComponent(selectedTeam)}`);
-                })
-                .then(response => {
-                    const matchIds = response.data.ids;
-                    // Fetch all match reports first
-                    return Promise.all(
-                        matchIds.map((id: string) => 
-                            axios.get(`/api/scraper?action=matchReport&id=${id}&team=${encodeURIComponent(selectedTeam)}`)
-                        )
-                    );
-                })
-                .then(matchReports => {
-                    const reports = matchReports.map(res => res.data.report);
-                    setMatchReports(reports);
-                    console.log('✓ Match reports loaded successfully');
-                    
-                    // Only proceed with averages if we have valid reports with details
-                    const validReports = reports.filter(report => 
-                        report?.details?.singles?.[0]?.homePlayer && 
-                        report?.details?.singles?.[0]?.awayPlayer
-                    );
-                    
-                    if (validReports.length > 0) {
-                        // Now fetch averages for each valid match report
-                        return Promise.all(
-                            validReports.map((report, index) => {
-                                const matchId = matchReports[index].config.url?.split('id=')[1]?.split('&')[0];
-                                if (!matchId) throw new Error('Match ID not found');
-                                return axios.get(`/api/scraper?action=matchAverages&url=${encodeURIComponent(`https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${matchId}&saison=2024/25`)}&team=${encodeURIComponent(selectedTeam)}`)
-                                    .then(avgRes => ({
-                                        ...avgRes.data.averages,
-                                        matchday: index + 1,
-                                        opponent: report.opponent
-                                    }));
-                            })
-                        );
+            // Clear existing timeouts
+            if (updateTimeoutRef.current) {
+                clearTimeout(updateTimeoutRef.current);
+            }
+            if (retryTimeoutRef.current) {
+                clearTimeout(retryTimeoutRef.current);
+            }
+
+            // Function to fetch data
+            const fetchData = async (forceUpdate = false) => {
+                const requestedTeam = currentTeamRef.current;  // Capture team at request time
+                try {
+                    const response = await axios.get(`/api/teamData?team=${encodeURIComponent(requestedTeam)}&forceUpdate=${forceUpdate}`);
+                    const { data, source } = response.data;
+
+                    // Only update state if we're still on the same team
+                    if (requestedTeam === currentTeamRef.current) {
+                        setDataSource(source);
+                        setMatchReports(data.matchReports);
+                        setLeaguePosition(data.leaguePosition);
+                        setClubVenue(data.clubVenue);
+                        setComparisonData(data.comparisonData);
+                        setTeamStandings(data.teamStandings);
+                        setMatchAverages(data.matchAverages);
+                        setOneEightys(data.oneEightys);
+                        setHighFinishes(data.highFinishes);
+
+                        const teamData = {
+                            players: data.players
+                        };
+                        setTeamData(teamData);
+                        setTeamAverage(data.players.reduce((sum: number, player: Player) => 
+                            sum + player.adjustedAverage, 0) / data.players.length);
+
+                        // Schedule next update only if still on same team
+                        if (source === 'database') {
+                            updateTimeoutRef.current = setTimeout(() => {
+                                if (requestedTeam === currentTeamRef.current) {
+                                    fetchData(true);
+                                }
+                            }, 1000);
+                        }
                     }
-                    return [];
-                })
-                .then(averages => {
-                    if (averages.length > 0) {
-                        setMatchAverages(averages);
-                        console.log('✓ Player averages synchronized');
-                    }
-                })
-                .catch(error => {
+                    setLoading(false);
+                } catch (error) {
                     console.error('Error fetching data:', error);
-                })
-                .finally(() => setLoading(false));
+                    if (requestedTeam === currentTeamRef.current) {
+                        setLoading(false);
+                    }
+                }
+            };
 
-            // Keep the other API calls separate
-            axios.get(`/api/scraper?action=comparison&team=${encodeURIComponent(selectedTeam)}`)
-                .then(response => {
-                    setComparisonData(response.data.comparison);
-                })
-                .catch(error => console.error('Error fetching comparison data:', error));
-
-            // League Position
-            axios.get(`/api/scraper?action=leaguePosition&team=${encodeURIComponent(selectedTeam)}`)
-                .then(response => setLeaguePosition(response.data.position))
-                .catch(error => console.error('Error fetching league position:', error));
-
-            // Club Venue
-            axios.get(`/api/scraper?action=clubVenue&team=${encodeURIComponent(selectedTeam)}`)
-                .then(response => setClubVenue(response.data.venue))
-                .catch(error => console.error('Error fetching club venue:', error));
-
-            // Team Players Average
-            axios.get(`/api/scraper?action=teamAverage&team=${encodeURIComponent(selectedTeam)}`)
-                .then(response => {
-                    const data = response.data.players;
-                    setTeamData({ players: data });
-                    setTeamAverage(data.reduce((sum: number, player: Player) => sum + player.adjustedAverage, 0) / data.length);
-                    console.log('✓ Team statistics loaded');
-                })
-                .catch(error => console.error('Error fetching team average:', error));
-
-            // Team Standings
-            axios.get(`/api/scraper?action=standings&team=${encodeURIComponent(selectedTeam)}`)
-                .then(response => {
-                    setTeamStandings(response.data.standings);
-                })
-                .catch(error => console.error('Error fetching standings:', error));
-
-            // Special Stats
-            axios.get(`/api/scraper?action=specialStats&team=${encodeURIComponent(selectedTeam)}`)
-                .then(response => {
-                    setOneEightys(response.data.oneEightys);
-                    setHighFinishes(response.data.highFinishes);
-                })
-                .catch(error => console.error('Error fetching special stats:', error));
+            fetchData();
         }
     }, [selectedTeam]);
 
@@ -458,9 +439,95 @@ const DartsStatisticsDashboard: React.FC = () => {
         return totalGames > 0 ? Number(((totalWins / totalGames) * 100).toFixed(1)) : 0;
     })();
 
-   
+    // Update the DataSourceIndicator component
+    const DataSourceIndicator = () => (
+        <div className="fixed bottom-4 right-4 z-50 overflow-hidden">
+            {dataSource && (
+                <div 
+                    className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-lg
+                        transition-all duration-1000 ease-in-out transform 
+                        ${dataSource === 'database' 
+                            ? 'bg-blue-100 text-blue-800 translate-x-0'
+                            : isRetrying 
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-green-100 text-green-800'
+                        } 
+                        ${dataSource === 'scraped' && !showIndicator && !isRetrying
+                            ? 'translate-x-[200%] opacity-0' 
+                            : 'translate-x-0 opacity-100'
+                        }`}
+                >
+                    {dataSource === 'database' ? (
+                        <>
+                            <div className="w-3 h-3 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
+                            <span>Updating ...</span>
+                        </>
+                    ) : isRetrying ? (
+                        <>
+                            <div className="w-3 h-3 rounded-full border-2 border-yellow-600 border-t-transparent animate-spin" />
+                            <span>Retrying connection...</span>
+                        </>
+                    ) : (
+                        <>
+                            <svg 
+                                className="w-4 h-4" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                viewBox="0 0 24 24"
+                            >
+                                <path 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round" 
+                                    strokeWidth={2} 
+                                    d="M5 13l4 4L19 7" 
+                                />
+                            </svg>
+                            <span>Updated</span>
+                        </>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+
+    // Update the axios-retry configuration
+    axiosRetry(axios, { 
+        retries: 3,
+        retryDelay: (retryCount) => {
+            const requestedTeam = currentTeamRef.current;
+            // Clear any existing retry timeout
+            if (retryTimeoutRef.current) {
+                clearTimeout(retryTimeoutRef.current);
+            }
+            
+            retryTimeoutRef.current = setTimeout(() => {
+                if (requestedTeam === currentTeamRef.current) {
+                    setIsRetrying(true);
+                }
+            }, 100);
+            
+            return retryCount * 1000;
+        },
+        retryCondition: (error) => {
+            const shouldRetry = axiosRetry.isNetworkOrIdempotentRequestError(error) || 
+                               error.code === 'ECONNRESET';
+            if (!shouldRetry || currentTeamRef.current !== selectedTeam) {
+                setIsRetrying(false);
+                return false;
+            }
+            return shouldRetry;
+        },
+        onRetry: (retryCount, error, requestConfig) => {
+            console.log(`Retry attempt ${retryCount} for ${requestConfig.url}`);
+            if (retryCount === 3 || currentTeamRef.current !== selectedTeam) {
+                setIsRetrying(false);
+            }
+        }
+    });
+
     return (
         <div className="min-h-screen bg-gray-100 p-8">
+            <DataSourceIndicator />
             <div className="max-w-7xl mx-auto">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
                     <h1 className="text-3xl font-bold text-gray-900 mb-4 md:mb-0">WDV Landesliga 5. Division A</h1>
@@ -1621,16 +1688,25 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                             isWin: boolean
                                                         }[]
                                                     }}, match, matchIndex) => {
+                                                        // Add null checks
+                                                        if (!match?.details?.singles?.[0]?.homePlayer || !match?.lineup?.[0]) {
+                                                            return stats;
+                                                        }
+
                                                         const isHomeTeam = match.details.singles[0].homePlayer === match.lineup[0];
                                                         
                                                         // Process all doubles matches
-                                                        match.details.doubles.forEach((double) => {
+                                                        match.details.doubles?.forEach((double) => {
+                                                            if (!double?.homePlayers || !double?.awayPlayers) {
+                                                                return;
+                                                            }
+
                                                             // Get the correct pair based on whether we're home or away
                                                             const ourPlayers = isHomeTeam ? double.homePlayers : double.awayPlayers;
                                                             const pairKey = ourPlayers.sort().join(' / ');
                                                             const isWin = isHomeTeam ? 
-                                                                double.homeScore > double.awayScore : 
-                                                                double.awayScore > double.homeScore;
+                                                                (double.homeScore ?? 0) > (double.awayScore ?? 0) : 
+                                                                (double.awayScore ?? 0) > (double.homeScore ?? 0);
 
                                                             if (!stats[pairKey]) {
                                                                 stats[pairKey] = { games: [] };
@@ -1638,7 +1714,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                             
                                                             stats[pairKey].games.push({
                                                                 matchday: matchIndex + 1,
-                                                                opponent: match.opponent,
+                                                                opponent: match.opponent || 'Unknown',
                                                                 isWin
                                                             });
                                                         });
@@ -1658,7 +1734,6 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                             pair.includes(selectedPlayer)
                                                         )
                                                         .sort((a, b) => {
-                                                            // First sort by whether they have 3+ games
                                                             const aHasEnoughGames = a.totalGames >= 3;
                                                             const bHasEnoughGames = b.totalGames >= 3;
                                                             
@@ -1666,7 +1741,6 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 return aHasEnoughGames ? -1 : 1;
                                                             }
                                                             
-                                                            // Then sort by win rate within each group
                                                             return b.winRate - a.winRate;
                                                         })
                                                         .map(({ pair, stats, totalGames, winRate }) => {
@@ -1744,12 +1818,14 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                     </div>
                                                                 </div>
                                                             );
-                                                        });
+                                                        })
                                                 })()}
                                             </div>
                                         ) : (
                                             <div className="flex justify-center items-center p-8">
-                                                <p className="text-gray-500">Loading pairs data...</p>
+                                                <p className="text-gray-500">
+                                                    {loading ? "Loading pairs data..." : "No match data available"}
+                                                </p>
                                             </div>
                                         )}
                                     </CardContent>

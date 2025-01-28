@@ -1,11 +1,20 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import axiosRetry from 'axios-retry';
 import { ClubVenue, MatchReport, Player, ComparisonData, TeamStandings, OneEighty, HighFinish } from './types';
 
-
-
-
-
+// Configure axios with retry logic
+axiosRetry(axios, { 
+    retries: 3,
+    retryDelay: (retryCount) => {
+        return retryCount * 1000; // Wait 1s, 2s, 3s between retries
+    },
+    retryCondition: (error) => {
+        // Retry on network errors and 5xx responses
+        return axiosRetry.isNetworkOrIdempotentRequestError(error) || 
+               error.code === 'ECONNRESET';
+    }
+});
 
 // Fetch Spielberichte-Link
 export async function fetchSpielberichteLink(): Promise<string | null> {
@@ -135,6 +144,7 @@ export async function fetchMatchReport(id: string, teamName: string): Promise<Ma
     const url = `https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${id}&saison=2024/25`;
     
     try {
+        console.log(`Fetching match report for ID: ${id}`);
         const { data } = await axios.get(url);
         const $ = cheerio.load(data);
         const matchReport: MatchReport = {
@@ -264,7 +274,8 @@ export async function fetchMatchReport(id: string, teamName: string): Promise<Ma
 
         return matchReport;
     } catch (error) {
-        console.error('❌ Critical error fetching data:', error);
+        console.error(`Failed to fetch match report for ID ${id}:`, error);
+        // Return empty match report structure on error
         return {
             lineup: [],
             checkouts: [],
