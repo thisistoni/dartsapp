@@ -69,6 +69,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     const currentTeamRef = useRef<string>('');
     // At the top level of the component, add a retry timeout ref
     const retryTimeoutRef = useRef<NodeJS.Timeout>();
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     // Update the useEffect where we fetch data to handle the fade-away
     useEffect(() => {
@@ -127,7 +128,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     useEffect(() => {
         if (selectedTeam) {
             setLoading(true);
-            setIsRetrying(false); // Reset retry status
+            setIsInitialLoad(true); // Set initial load state
             currentTeamRef.current = selectedTeam;
 
             // Clear existing timeouts
@@ -172,11 +173,13 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 }
                             }, 1000);
                         }
+                        setIsInitialLoad(false); // Clear initial load state after data is set
+                        setLoading(false);
                     }
-                    setLoading(false);
                 } catch (error) {
                     console.error('Error fetching data:', error);
                     if (requestedTeam === currentTeamRef.current) {
+                        setIsInitialLoad(false);
                         setLoading(false);
                     }
                 }
@@ -529,6 +532,7 @@ const DartsStatisticsDashboard: React.FC = () => {
         <div className="min-h-screen bg-gray-100 p-8">
             <DataSourceIndicator />
             <div className="max-w-7xl mx-auto">
+                {/* Search and Team Selection always visible */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
                     <h1 className="text-3xl font-bold text-gray-900 mb-4 md:mb-0">WDV Landesliga 5. Division A</h1>
 
@@ -565,14 +569,9 @@ const DartsStatisticsDashboard: React.FC = () => {
                     </div>
                 </div>
 
-                {loading ? (
-                    <div className="flex justify-center items-center h-64">
-                        <ClipLoader color={"#123abc"} loading={loading} size={80} />
-                    </div>
-                ) : (
+                {/* Hide content during initial load */}
+                {!isInitialLoad ? (
                     <>
-
-
                         {/* Display Selected Team */}
                         <div className="mb-4 bg-white rounded-lg shadow-sm border p-4">
                             <div className="flex items-center justify-between">
@@ -588,32 +587,24 @@ const DartsStatisticsDashboard: React.FC = () => {
                             </div>
                         </div>
 
-
-
-
-
                         {/* Top Players Card */}
                         <Card className="mb-8">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Trophy className="h-6 w-6 text-yellow-500" />
-                                    <h3 className="text-xl font-semibold text-slate-900">              Top Performers
-                                    </h3>
-
+                                    <h3 className="text-xl font-semibold text-slate-900">Top Performers</h3>
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     {teamData && teamData.players.slice(0, 3).map((player: Player, index: number) => {
-                                        let medalClass = ''; // Variable für die CSS-Klasse der Medaille
-
-                                        // Bestimmen der Klasse basierend auf dem Rang
+                                        let medalClass = '';
                                         if (index === 0) {
-                                            medalClass = 'bg-yellow-400 bg-opacity-75 text-yellow-800'; // Gold, halbtransparent
+                                            medalClass = 'bg-yellow-400 bg-opacity-75 text-yellow-800';
                                         } else if (index === 1) {
-                                            medalClass = 'bg-gray-300 bg-opacity-75 text-gray-800'; // Silber, halbtransparent
+                                            medalClass = 'bg-gray-300 bg-opacity-75 text-gray-800';
                                         } else if (index === 2) {
-                                            medalClass = 'bg-orange-400 bg-opacity-75 text-orange-800'; // Bronze, halbtransparent
+                                            medalClass = 'bg-orange-400 bg-opacity-75 text-orange-800';
                                         }
 
                                         return (
@@ -633,8 +624,10 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 </div>
                             </CardContent>
                         </Card>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                            
+
+                        {/* Stats Cards Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                            {/* ... your cards ... */}
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
@@ -718,6 +711,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 </div>
                             </CardContent>
                             </Card>
+
                         </div>
                         <Tabs defaultValue="matches" className="space-y-4">
                             <TabsList className="flex flex-wrap gap-2 justify-start mb-32 sm:mb-6">
@@ -1833,6 +1827,13 @@ const DartsStatisticsDashboard: React.FC = () => {
                             </TabsContent>
                         </Tabs>
                     </>
+                ) : (
+                    <div className="flex justify-center items-center min-h-[50vh]">
+                        <div className="flex flex-col items-center gap-4">
+                            <ClipLoader color="#3B82F6" size={50} />
+                            <p className="text-gray-600">Loading team data...</p>
+                        </div>
+                    </div>
                 )}
             </div>
             <Modal 
