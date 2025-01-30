@@ -45,6 +45,7 @@ export interface DetailedMatchReport {
 }
 
 export interface MatchReport {
+    matchId: string;
     lineup: string[];
     checkouts: Checkout[];
     opponent: string;

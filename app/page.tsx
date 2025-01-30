@@ -10,6 +10,7 @@ import { ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { TooltipProps } from 'recharts';
 import axiosRetry from 'axios-retry';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface DotProps {
     cx?: number;
@@ -60,7 +61,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [scheduleData, setScheduleData] = useState<ScheduleMatch[]>([]);
     const [oneEightys, setOneEightys] = useState<OneEighty[]>([]);
     const [highFinishes, setHighFinishes] = useState<HighFinish[]>([]);
-    const [dataSource, setDataSource] = useState<'database' | 'scraped' | null>(null);
+    const [dataSource, setDataSource] = useState<'db' | 'scraping' | null>(null);
     const updateTimeoutRef = useRef<NodeJS.Timeout>();
     // Add this state for controlling visibility
     const [showIndicator, setShowIndicator] = useState(true);
@@ -70,6 +71,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     // At the top level of the component, add a retry timeout ref
     const retryTimeoutRef = useRef<NodeJS.Timeout>();
     const [isInitialLoad, setIsInitialLoad] = useState(true);
+    const [isUpdating, setIsUpdating] = useState(false);
 
     // Update the useEffect where we fetch data to handle the fade-away
     useEffect(() => {
@@ -127,67 +129,114 @@ const DartsStatisticsDashboard: React.FC = () => {
 
     useEffect(() => {
         if (selectedTeam) {
-            setLoading(true);
-            setIsInitialLoad(true); // Set initial load state
-            currentTeamRef.current = selectedTeam;
-
-            // Clear existing timeouts
-            if (updateTimeoutRef.current) {
-                clearTimeout(updateTimeoutRef.current);
-            }
-            if (retryTimeoutRef.current) {
-                clearTimeout(retryTimeoutRef.current);
-            }
-
-            // Function to fetch data
-            const fetchData = async (forceUpdate = false) => {
-                const requestedTeam = currentTeamRef.current;  // Capture team at request time
-                try {
-                    const response = await axios.get(`/api/teamData?team=${encodeURIComponent(requestedTeam)}&forceUpdate=${forceUpdate}`);
-                    const { data, source } = response.data;
-
-                    // Only update state if we're still on the same team
-                    if (requestedTeam === currentTeamRef.current) {
-                        setDataSource(source);
-                        setMatchReports(data.matchReports);
-                        setLeaguePosition(data.leaguePosition);
-                        setClubVenue(data.clubVenue);
-                        setComparisonData(data.comparisonData);
-                        setTeamStandings(data.teamStandings);
-                        setMatchAverages(data.matchAverages);
-                        setOneEightys(data.oneEightys);
-                        setHighFinishes(data.highFinishes);
-
-                        const teamData = {
-                            players: data.players
-                        };
-                        setTeamData(teamData);
-                        setTeamAverage(data.players.reduce((sum: number, player: Player) => 
-                            sum + player.adjustedAverage, 0) / data.players.length);
-
-                        // Schedule next update only if still on same team
-                        if (source === 'database') {
-                            updateTimeoutRef.current = setTimeout(() => {
-                                if (requestedTeam === currentTeamRef.current) {
-                                    fetchData(true);
-                                }
-                            }, 1000);
-                        }
-                        setIsInitialLoad(false); // Clear initial load state after data is set
-                        setLoading(false);
-                    }
-                } catch (error) {
-                    console.error('Error fetching data:', error);
-                    if (requestedTeam === currentTeamRef.current) {
-                        setIsInitialLoad(false);
-                        setLoading(false);
-                    }
-                }
-            };
-
-            fetchData();
+            loadTeamData(selectedTeam);
         }
-    }, [selectedTeam]);
+    }, [selectedTeam]); // Only trigger when team changes, not on every render
+
+    const loadTeamData = async (team: string) => {
+        setLoading(true);
+        setDataSource('db');
+
+        try {
+            // Start both database and scraping requests in parallel
+            const [dbResponse, freshData] = await Promise.all([
+                // Get cached data from DB
+                axios.get(`/api/teamData?team=${encodeURIComponent(team)}`).catch(err => {
+                    console.error('DB fetch error:', err);
+                    return { data: { data: null } };
+                }),
+                // Start scraping fresh data immediately
+                (async () => {
+                    setIsUpdating(true);
+                    setDataSource('scraping');
+                    try {
+                        // First get the Spielberichte link
+                        const spielberichteResponse = await axios.get(`/api/scraper?action=spielberichte`);
+                        const url = spielberichteResponse.data.link;
+                        
+                        // Fetch all data in parallel
+                        const [
+                            teamAverageResponse,
+                            leaguePositionResponse,
+                            clubVenueResponse,
+                            comparisonResponse,
+                            standingsResponse,
+                            specialStatsResponse
+                        ] = await Promise.all([
+                            axios.get(`/api/scraper?action=teamAverage&team=${encodeURIComponent(team)}`),
+                            axios.get(`/api/scraper?action=leaguePosition&team=${encodeURIComponent(team)}`),
+                            axios.get(`/api/scraper?action=clubVenue&team=${encodeURIComponent(team)}`),
+                            axios.get(`/api/scraper?action=comparison&team=${encodeURIComponent(team)}`),
+                            axios.get(`/api/scraper?action=standings&team=${encodeURIComponent(team)}`),
+                            axios.get(`/api/scraper?action=specialStats&team=${encodeURIComponent(team)}`)
+                        ]);
+
+                        // Get match reports
+                        const dartIdsResponse = await axios.get(`/api/scraper?action=dartIds&url=${encodeURIComponent(url)}&team=${encodeURIComponent(team)}`);
+                        const matchIds = dartIdsResponse.data.ids;
+                        
+                        const matchReportsResponses = await Promise.all(
+                            matchIds.map((id: string) => 
+                                axios.get(`/api/scraper?action=matchReport&id=${id}&team=${encodeURIComponent(team)}`)
+                            )
+                        );
+
+                        return {
+                            players: teamAverageResponse.data.players,
+                            matchReports: matchReportsResponses.map(res => res.data.report),
+                            leaguePosition: leaguePositionResponse.data.position,
+                            clubVenue: clubVenueResponse.data.venue,
+                            comparisonData: comparisonResponse.data.comparison,
+                            teamStandings: standingsResponse.data.standings,
+                            oneEightys: specialStatsResponse.data.oneEightys,
+                            highFinishes: specialStatsResponse.data.highFinishes
+                        };
+                    } catch (error) {
+                        console.error('Scraping error:', error);
+                        return null;
+                    }
+                })()
+            ]);
+
+            // Show cached data immediately if available
+            if (dbResponse.data.data) {
+                const cachedData = dbResponse.data.data;
+                setTeamData(cachedData.players);
+                setMatchReports(cachedData.matchReports);
+                setLeaguePosition(cachedData.leaguePosition);
+                setClubVenue(cachedData.clubVenue);
+                setComparisonData(cachedData.comparisonData);
+                setTeamStandings(cachedData.teamStandings);
+                setOneEightys(cachedData.oneEightys);
+                setHighFinishes(cachedData.highFinishes);
+            }
+
+            // Update with fresh data when scraping is complete
+            if (freshData) {
+                setTeamData(freshData.players);
+                setMatchReports(freshData.matchReports);
+                setLeaguePosition(freshData.leaguePosition);
+                setClubVenue(freshData.clubVenue);
+                setComparisonData(freshData.comparisonData);
+                setTeamStandings(freshData.teamStandings);
+                setOneEightys(freshData.oneEightys);
+                setHighFinishes(freshData.highFinishes);
+
+                // Save fresh data to DB
+                await axios.post('/api/teamData', {
+                    teamName: team,
+                    data: freshData
+                });
+            }
+
+        } catch (error) {
+            console.error('Error loading team data:', error);
+        } finally {
+            setLoading(false);
+            setIsUpdating(false);
+            setDataSource(null);
+        }
+    };
 
     useEffect(() => {
         const fetchSchedule = async () => {
@@ -416,24 +465,26 @@ const DartsStatisticsDashboard: React.FC = () => {
 
     // Calculate team win rate once
     const teamWinRate = (() => {
-        const totalSinglesWins = teamData?.players.reduce((total, player) => {
+        if (!teamData?.players?.length) return 0;
+
+        const totalSinglesWins = teamData.players.reduce((total, player) => {
             const [wins = 0] = player.singles?.split('-').map(Number) || [0];
             return total + wins;
         }, 0) || 0;
         
-        const totalSinglesLosses = teamData?.players.reduce((total, player) => {
+        const totalSinglesLosses = teamData.players.reduce((total, player) => {
             const [_unused, losses = 0] = player.singles?.split('-').map(Number) || [0];
-            return total + losses +_unused-_unused;
+            return total + losses + _unused - _unused;
         }, 0) || 0;
         
-        const totalDoublesWins = Math.round((teamData?.players.reduce((total, player) => {
+        const totalDoublesWins = Math.round((teamData.players.reduce((total, player) => {
             const [wins = 0] = player.doubles?.split('-').map(Number) || [0];
             return total + wins;
         }, 0) || 0) / 2);
         
-        const totalDoublesLosses = Math.round((teamData?.players.reduce((total, player) => {
+        const totalDoublesLosses = Math.round((teamData.players.reduce((total, player) => {
             const [_unused, losses = 0] = player.doubles?.split('-').map(Number) || [0];
-            return total + losses+_unused-_unused;
+            return total + losses + _unused - _unused;
         }, 0) || 0) / 2);
         
         const totalWins = totalSinglesWins + totalDoublesWins;
@@ -527,7 +578,7 @@ const DartsStatisticsDashboard: React.FC = () => {
             }
         }
     });
-
+   
     return (
         <div className="min-h-screen bg-gray-100 p-8">
             <DataSourceIndicator />
@@ -624,7 +675,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 </div>
                             </CardContent>
                         </Card>
-
+                            
                         {/* Stats Cards Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
                             {/* ... your cards ... */}

@@ -19,6 +19,30 @@ export async function GET(request: Request) {
             case 'dartIds':
                 if (!url || !team) throw new Error('URL oder Team fehlt.');
                 const dartIds = await fetchDartIds(url, team);
+                
+                // Process each match report independently
+                if (dartIds && dartIds.length > 0) {
+                    const matchReports = await Promise.all(
+                        dartIds.map(async (id) => {
+                            try {
+                                const report = await fetchMatchReport(id, team);
+                                return report;
+                            } catch (error) {
+                                console.error(`Error fetching match report ${id}:`, error);
+                                // Return null for failed reports instead of a default report
+                                return null;
+                            }
+                        })
+                    );
+
+                    // Filter out null reports and keep valid ones
+                    const validReports = matchReports.filter(report => report !== null);
+                    
+                    return NextResponse.json({ 
+                        ids: dartIds,
+                        reports: validReports 
+                    });
+                }
                 return NextResponse.json({ ids: dartIds });
 
             case 'teamAverage':

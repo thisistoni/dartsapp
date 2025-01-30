@@ -139,6 +139,27 @@ export async function fetchTeamPlayersAverage(teamName: string): Promise<Player[
     }
 }
 
+// Add default values for match data
+const DEFAULT_MATCH_PLAYER = {
+    homePlayer: '-',
+    awayPlayer: '-',
+    homeScore: 0,
+    awayScore: 0
+};
+
+const DEFAULT_MATCH_REPORT = {
+    lineup: [],
+    checkouts: [],
+    opponent: 'Unknown',
+    score: '0-0',
+    details: {
+        singles: Array(4).fill({ ...DEFAULT_MATCH_PLAYER }),
+        doubles: Array(4).fill({ ...DEFAULT_MATCH_PLAYER }),
+        totalLegs: { home: 0, away: 0 },
+        totalSets: { home: 0, away: 0 }
+    }
+};
+
 // Fetch Match Report
 export async function fetchMatchReport(id: string, teamName: string): Promise<MatchReport> {
     const url = `https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${id}&saison=2024/25`;
@@ -147,143 +168,118 @@ export async function fetchMatchReport(id: string, teamName: string): Promise<Ma
         console.log(`Fetching match report for ID: ${id}`);
         const { data } = await axios.get(url);
         const $ = cheerio.load(data);
+        
+        // Get the match score first to determine if it's an empty match
+        const score = $('.ergebnis').first().text().trim() || '0-0';
+        
+        // If it's a 0-0 match, return a safely structured empty match report
+        if (score === '0-0') {
+            return {
+                lineup: [],
+                checkouts: [],
+                opponent: $('.gegner').first().text().trim() ,
+                score: '0-0',
+                details: {
+                    singles: Array(4).fill({
+                        homePlayer: '-',
+                        awayPlayer: '-',
+                        homeScore: 0,
+                        awayScore: 0
+                    }),
+                    doubles: Array(4).fill({
+                        homePlayer: '-',
+                        awayPlayer: '-',
+                        homeScore: 0,
+                        awayScore: 0
+                    }),
+                    totalLegs: { home: 0, away: 0 },
+                    totalSets: { home: 0, away: 0 }
+                }
+            };
+        }
+
+        // For non-empty matches, process normally but ensure safe parsing
         const matchReport: MatchReport = {
-            lineup: [],
-            checkouts: [],
-            opponent: '',
-            score: '',
+            lineup: $('.spieler')
+                .map((_, el) => $(el).text().trim())
+                .get(),
+            checkouts: $('.checkout')
+                .map((_, el) => ({
+                    scores: $(el).text().trim()
+                }))
+                .get(),
+            opponent: $('.gegner').first().text().trim(),
+            score: score,
             details: {
-                singles: [],
-                doubles: [],
+                singles: $('.einzel')
+                    .map((_, el) => ({
+                        homePlayer: $(el).find('.home-player').text().trim(),
+                        awayPlayer: $(el).find('.away-player').text().trim(),
+                        homeScore: parseInt($(el).find('.home-score').text()) || 0,
+                        awayScore: parseInt($(el).find('.away-score').text()) || 0
+                    }))
+                    .get(),
+                doubles: $('.doppel')
+                    .map((_, el) => ({
+                        homePlayer: $(el).find('.home-player').text().trim(),
+                        awayPlayer: $(el).find('.away-player').text().trim(),
+                        homeScore: parseInt($(el).find('.home-score').text()) || 0,
+                        awayScore: parseInt($(el).find('.away-score').text()) || 0
+                    }))
+                    .get(),
                 totalLegs: { home: 0, away: 0 },
                 totalSets: { home: 0, away: 0 }
             }
         };
 
-        const headerRow = $('table.spielbericht thead tr');
-        const homeTeam = headerRow.find('th').eq(1).text().trim().replace('Heim: ', '');
-        const awayTeam = headerRow.find('th').eq(3).text().trim().replace('Gast: ', '');
-        const isHomeTeam = homeTeam.includes(teamName);
-        const isAwayTeam = awayTeam.includes(teamName);
-        const opponentTeam = isHomeTeam ? awayTeam : homeTeam;
-
-        if (!isHomeTeam && !isAwayTeam) {
-            return matchReport;
-        }
-
-        matchReport.opponent = opponentTeam;
-
-        // Process each match row
-        $('table.spielbericht tbody tr.spielbericht').each((index, element) => {
-            const setNumber = Number($(element).find('td.t2 div b').text());
-            
-            // Process for match details
-            if ([1,2,5,6].includes(setNumber)) {
-                // Single matches
-                const homePlayer = $(element).find('td:nth-child(2) table.set tr:first-child td.t2:first-child b').text();
-                const homeScore = Number($(element).find('td:nth-child(2) table.set tr:first-child td.t2:last-child b').text());
-                const awayPlayer = $(element).find('td:nth-child(4) table.set tr:first-child td.t2:last-child b').text();
-                const awayScore = Number($(element).find('td:nth-child(4) table.set tr:first-child td.t2:first-child b').text());
-                
-                // Add to details
-                matchReport.details.singles.push({
-                    homePlayer,
-                    awayPlayer,
-                    homeScore,
-                    awayScore
-                });
-
-                // Add to lineup
-                if (isHomeTeam && homePlayer) {
-                    matchReport.lineup.push(homePlayer);
-                } else if (isAwayTeam && awayPlayer) {
-                    matchReport.lineup.push(awayPlayer);
-                }
-            } else {
-                // Double matches
-                const homePlayers = [
-                    $(element).find('td:nth-child(2) table.set tr td:nth-child(1) b').text(),
-                    $(element).find('td:nth-child(2) table.set tr td:nth-child(2) b').text()
-                ];
-                const awayPlayers = [
-                    $(element).find('td:nth-child(4) table.set tr td:nth-child(2) b').text(),
-                    $(element).find('td:nth-child(4) table.set tr td:nth-child(3) b').text()
-                ];
-                const homeScore = Number($(element).find('td:nth-child(2) table.set tr td:last-child b').text());
-                const awayScore = Number($(element).find('td:nth-child(4) table.set tr td:first-child b').text());
-                
-                // Add to details
-                matchReport.details.doubles.push({
-                    homePlayers,
-                    awayPlayers,
-                    homeScore,
-                    awayScore
-                });
-
-                // Add to lineup
-                if (isHomeTeam) {
-                    matchReport.lineup.push(`${homePlayers[0]}, ${homePlayers[1]}`);
-                } else if (isAwayTeam) {
-                    matchReport.lineup.push(`${awayPlayers[0]}, ${awayPlayers[1]}`);
-                }
-            }
-
-            // Process checkouts (keep existing checkout logic)
-            const homeDarts = $(element).find('td:nth-child(2) .set tr:nth-child(2) td').map((i, el) => $(el).text().trim()).get().filter(dart => dart !== '-' && dart !== '');
-            const homeRest = $(element).find('td:nth-child(2) .set tr:nth-child(3) td').map((i, el) => $(el).text().trim()).get().filter(rest => rest !== '-' && rest !== '');
-            const awayDarts = $(element).find('td:nth-child(4) .set tr:nth-child(2) td').map((i, el) => $(el).text().trim()).get().filter(dart => dart !== '-' && dart !== '');
-            const awayRest = $(element).find('td:nth-child(4) .set tr:nth-child(3) td').map((i, el) => $(el).text().trim()).get().filter(rest => rest !== '-' && rest !== '');
-
-            const formatPlayerPerformance = (player: string, darts: string[], rests: string[]) => {
-                const performance = darts.map((dart: string, index: number) => {
-                    return rests[index] === '0' ? dart : '';
-                }).filter((dart: string) => dart !== '').join(', ');
-                return `${player}: ${performance.length > 0 ? `${performance}` : '-'}`;
-            };
-
-            if (isHomeTeam && homeDarts.length > 0) {
-                const playerName = matchReport.lineup[matchReport.lineup.length - 1];
-                const playerPerformance = formatPlayerPerformance(playerName, homeDarts, homeRest);
-                matchReport.checkouts.push({ scores: playerPerformance });
-            } else if (isAwayTeam && awayDarts.length > 0) {
-                const playerName = matchReport.lineup[matchReport.lineup.length - 1];
-                const playerPerformance = formatPlayerPerformance(playerName, awayDarts, awayRest);
-                matchReport.checkouts.push({ scores: playerPerformance });
-            }
-        });
-
-        // Get total legs (from the last row in tbody)
-        const legsRow = $('table.spielbericht tbody tr:last');
+        // Safely calculate totals
+        const allMatches = [...matchReport.details.singles, ...matchReport.details.doubles];
         matchReport.details.totalLegs = {
-            home: Number(legsRow.find('td.t2').eq(1).find('b').text().trim()),
-            away: Number(legsRow.find('td.t2').eq(3).find('b').text().trim())
+            home: allMatches.reduce((sum, match) => sum + (match.homeScore || 0), 0),
+            away: allMatches.reduce((sum, match) => sum + (match.awayScore || 0), 0)
         };
 
-        // Get total sets
-        const setsRow = $('table.spielbericht tfoot tr');
         matchReport.details.totalSets = {
-            home: Number(setsRow.find('td:nth-child(2) h3').text().trim()),
-            away: Number(setsRow.find('td:nth-child(4) h3').text().trim())
+            home: allMatches.filter(match => (match.homeScore || 0) > (match.awayScore || 0)).length,
+            away: allMatches.filter(match => (match.awayScore || 0) > (match.homeScore || 0)).length
         };
 
-        // Get the final score from tfoot
-        const homeScore = $('table.spielbericht tfoot tr td').eq(1).find('h3').text().trim();
-        const awayScore = $('table.spielbericht tfoot tr td').eq(3).find('h3').text().trim();
-        const score = isHomeTeam ? `${homeScore}-${awayScore}` : `${awayScore}-${homeScore}`;
-        matchReport.score = score;
+        // Ensure all required fields exist and are of correct type before returning
+        return {
+            matchId: id,
+            lineup: matchReport.lineup || [],
+            checkouts: matchReport.checkouts || [],
+            opponent: matchReport.opponent || 'Unknown Opponent',
+            score: matchReport.score || '0-0',
+            details: {
+                singles: matchReport.details.singles || [],
+                doubles: matchReport.details.doubles || [],
+                totalLegs: matchReport.details.totalLegs,
+                totalSets: matchReport.details.totalSets
+            }
+        };
 
-        return matchReport;
     } catch (error) {
         console.error(`Failed to fetch match report for ID ${id}:`, error);
-        // Return empty match report structure on error
+        // Return a safely structured empty match report on error
         return {
             lineup: [],
             checkouts: [],
-            opponent: '',
-            score: '',
+            opponent: 'Error Loading Match',
+            score: '0-0',
             details: {
-                singles: [],
-                doubles: [],
+                singles: Array(4).fill({
+                    homePlayer: '-',
+                    awayPlayer: '-',
+                    homeScore: 0,
+                    awayScore: 0
+                }),
+                doubles: Array(4).fill({
+                    homePlayer: '-',
+                    awayPlayer: '-',
+                    homeScore: 0,
+                    awayScore: 0
+                }),
                 totalLegs: { home: 0, away: 0 },
                 totalSets: { home: 0, away: 0 }
             }
