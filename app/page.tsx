@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Search, Users, User,  Rows4,  MapPin, Martini, Phone, BarChart, ArrowLeftRight,  ArrowUp,  Calendar, Navigation, Target, Zap } from 'lucide-react';
+import { Trophy, Search, Users, User,  Rows4,  MapPin, Martini, Phone, BarChart, ArrowLeftRight,  ArrowUp,  Calendar, Navigation, Target, Zap, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
 import { ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings, MatchAverages, OneEighty, HighFinish } from '@/lib/types';
@@ -46,7 +46,6 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [selectedTeam, setSelectedTeam] = useState<string>('DC Patron');
     const [teamData, setTeamData] = useState<TeamData | null>(null);
     const [matchReports, setMatchReports] = useState<MatchReport[]>([]);
-    const [loading, setLoading] = useState<boolean>(false);
     const [leaguePosition, setLeaguePosition] = useState<number | null>(null); // New state variable for league position
     const [clubVenue, setClubVenue] = useState<ClubVenue | null>(null);
     const [teamAverage, setTeamAverage] = useState<number | null>(null);
@@ -70,6 +69,24 @@ const DartsStatisticsDashboard: React.FC = () => {
     // At the top level of the component, add a retry timeout ref
     const retryTimeoutRef = useRef<NodeJS.Timeout>();
     const [isInitialLoad, setIsInitialLoad] = useState(true);
+    // First, add a state for showing/hiding secondary tabs
+    const [showSecondaryTabs, setShowSecondaryTabs] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [loading, setLoading] = useState<boolean>(false);
+
+    // Add this at the top level
+    const playerImages: { [key: string]: string } = {
+        'Luca Schuckert': 'https://www.oefb.at/oefb2/images/1278650591628556536_b0b441e826bc548aa7fc-1,0-320x320.png',
+        'Marko Cvejic': 'https://www.oefb.at/oefb2/images/1278650591628556536_e1e6df7df2184ef1349b-1,0-320x320.png',
+        'Josip Matijevic': 'https://www.oefb.at/oefb2/images/1278650591628556536_4dcb084bb2c30e1395ee-1,0-320x320.png',
+        'Muhamet Mahmutaj': 'https://www.oefb.at/oefb2/images/1278650591628556536_f740f25ac9da09af2246-1,0-320x320.png',
+        'Marvin De Chavez': 'https://www.oefb.at/oefb2/images/1278650591628556536_49e17c18c1d6921a7870-1,0-320x320.png',
+        'Christoph Hafner': 'https://www.oefb.at/oefb2/images/1278650591628556536_7ccdd5ee9c5e8e2a0c22-1,0-320x320.png',
+        'Michael Frühwirth': 'https://www.oefb.at/oefb2/images/1278650591628556536_ba89cc5af9585cffb11c-1,0-320x320.png',
+        'Ermin Kokic': 'https://www.oefb.at/oefb2/images/1278650591628556536_e807ce175060c2e86db6-1,0-320x320.png',
+        'Dominik Kubiak': 'https://www.oefb.at/oefb2/images/1278650591628556536_77be3e9035fdc75e8cff-1,0-320x320.png',
+        'Markus Hafner': 'https://www.oefb.at/oefb2/images/1278650591628556536_762e3056bd0e1a82d61c-1,0-320x320.png'
+    };
 
     // Update the useEffect where we fetch data to handle the fade-away
     useEffect(() => {
@@ -108,26 +125,9 @@ const DartsStatisticsDashboard: React.FC = () => {
 
     // Filter teams for comparison table (exclude selected team)
     const comparisonTeams = teams.filter(team => team !== selectedTeam);
-
-    // Helper function for ordinal numbers (1st, 2nd, 3rd, etc.)
-    const getOrdinalSuffix = (i: number) => {
-        const j = i % 10;
-        const k = i % 100;
-        if (j === 1 && k !== 11) {
-            return "st";
-        }
-        if (j === 2 && k !== 12) {
-            return "nd";
-        }
-        if (j === 3 && k !== 13) {
-            return "rd";
-        }
-        return "th";
-    };
-
+    
     useEffect(() => {
         if (selectedTeam) {
-            setLoading(true);
             setIsInitialLoad(true); // Set initial load state
             currentTeamRef.current = selectedTeam;
 
@@ -528,16 +528,108 @@ const DartsStatisticsDashboard: React.FC = () => {
         }
     });
 
+    const getPointDifference = (matchday: number) => {
+        if (matchday < 14) return null;
+        
+        // Get corresponding first round matchday (13 matchdays before)
+        const firstRoundMatch = matchReports[matchday - 14];
+        const secondRoundMatch = matchReports[matchday - 1];
+        
+        if (!firstRoundMatch || !secondRoundMatch) return null;
+
+        // Get the home scores (first number) from both matches
+        const firstRoundScore = parseInt(firstRoundMatch.score.split('-')[0]);
+        const secondRoundScore = parseInt(secondRoundMatch.score.split('-')[0]);
+        
+        // Return the difference between second round and first round scores
+        return secondRoundScore - firstRoundScore;
+    };
+
+    const getAverageDifference = (matchday: number) => {
+        if (matchday < 14) return 0;
+        
+        const currentAvg = matchAverages[matchday - 1]?.teamAverage ?? 0;
+        const previousAvg = matchAverages[matchday - 14]?.teamAverage ?? 0;
+        
+        return currentAvg - previousAvg;
+    };
+
+    // Add this before the return statement
+    const pairStats = matchReports.reduce((stats: { 
+        [key: string]: { 
+            wins: number, 
+            losses: number, 
+            winRate: number,
+            matches: Array<{
+                matchday: number,
+                opponent: string,
+                isWin: boolean
+            }>
+        } 
+    }, match, matchIndex) => {
+        const isHomeTeam = match.details.singles[0].homePlayer === match.lineup[0];
+        
+        match.details.doubles.forEach((double) => {
+            const ourPlayers = isHomeTeam ? double.homePlayers : double.awayPlayers;
+            const pairKey = ourPlayers.sort().join(' & ');
+            const isWin = isHomeTeam ? double.homeScore > double.awayScore : double.awayScore > double.homeScore;
+
+            if (!stats[pairKey]) {
+                stats[pairKey] = { 
+                    wins: 0, 
+                    losses: 0, 
+                    winRate: 0,
+                    matches: []
+                };
+            }
+            
+            if (isWin) stats[pairKey].wins++;
+            else stats[pairKey].losses++;
+            
+            stats[pairKey].winRate = Math.round((stats[pairKey].wins / (stats[pairKey].wins + stats[pairKey].losses)) * 100);
+            
+            stats[pairKey].matches.push({
+                matchday: matchIndex + 1,
+                opponent: match.opponent,
+                isWin
+            });
+        });
+        
+        return stats;
+    }, {});
+
+    // Add this helper function at the top level
+    const getInitials = (name: string) => {
+        const parts = name.split(' ');
+        return parts.length > 1 ? 
+            `${parts[0][0]}${parts[parts.length-1][0]}`.toUpperCase() : 
+            name.substring(0, 2).toUpperCase();
+    };
+
+    const medalColors: { [key: number]: string } = {
+        0: 'from-amber-400/40 to-amber-500/40',
+        1: 'from-slate-400/40 to-slate-500/40',
+        2: 'from-orange-400/40 to-orange-500/40'
+    };
+
     return (
         <div className="min-h-screen bg-gray-100 p-8">
             <DataSourceIndicator />
             <div className="max-w-7xl mx-auto">
-                {/* Search and Team Selection always visible */}
+                {/* Main Header */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-4 md:mb-0">WDV Landesliga 5. Division A</h1>
+                    <div className="flex items-center gap-3">
+                        <div className="h-12 w-12 rounded-lg bg-green-50 border border-green-100 flex items-center justify-center">
+                            <Target className="h-6 w-6 text-green-500" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900">WDV Landesliga</h1>
+                            <span className="text-sm font-medium text-gray-500">5. Division A</span>
+                        </div>
+                    </div>
 
                     {/* Search and Team Selection */}
-                    <div className="relative">
+                    <div className="relative mt-4 md:mt-0">
                         <div className="flex items-center bg-white rounded-lg shadow-sm border p-2">
                             <Search className="h-5 w-5 text-gray-400 mr-2" />
                             <input
@@ -548,7 +640,6 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 className="outline-none bg-transparent"
                             />
                         </div>
-
                         {/* Dropdown for Search Results */}
                         {searchTerm && (
                             <div className="absolute w-full mt-1 bg-white rounded-lg shadow-lg border z-10">
@@ -573,233 +664,441 @@ const DartsStatisticsDashboard: React.FC = () => {
                 {!isInitialLoad ? (
                     <>
                         {/* Display Selected Team */}
-                        <div className="mb-4 bg-white rounded-lg shadow-sm border p-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h2 className="text-xl font-semibold text-gray-900">{selectedTeam}</h2>
-                                    <p className="text-sm text-gray-500">Season 2024/25</p>
-                                </div>
-                                <div className="text-sm text-gray-500">
-                                    League Position: <span className="font-semibold">
-                                        {leaguePosition !== null ? `${leaguePosition}${getOrdinalSuffix(leaguePosition)}` : 'Loading...'}
-                                    </span>
+                        <div className="mb-6 bg-white rounded-xl shadow-sm border overflow-visible">
+                            <div className="h-1 w-full bg-gradient-to-r from-blue-400/40 to-blue-500/40" />
+                            <div className="p-5">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-12 w-12 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center">
+                                            <Trophy className="h-6 w-6 text-blue-500" />
+                                        </div>
+                                        <div>
+                                            {/* Modified team name and badges container */}
+                                            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                                <h2 className="text-xl font-semibold text-gray-900">{selectedTeam}</h2>
+                                                <div className="flex gap-1.5 mt-1 sm:mt-0">
+                                                    {/* Position Badge */}
+                                                    <div className="relative group/badge">
+                                                        <div className={`h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg ${
+                                                            leaguePosition && leaguePosition <= 6
+                                                                ? 'bg-emerald-50 border border-emerald-100'
+                                                                : 'bg-blue-50 border border-blue-100'
+                                                        } flex items-center justify-center`}>
+                                                            <span className={`text-[10px] font-bold ${
+                                                                leaguePosition && leaguePosition <= 6
+                                                                    ? 'text-emerald-600'
+                                                                    : 'text-blue-600'
+                                                            }`}>POS</span>
+                                                        </div>
+                                                        <div className={`absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white ${
+                                                            leaguePosition && leaguePosition <= 6
+                                                                ? 'text-emerald-600 border border-emerald-200'
+                                                                : 'text-blue-600 border border-blue-200'
+                                                        } text-[10px] flex items-center justify-center font-medium`}>
+                                                            {leaguePosition !== null ? leaguePosition : '-'}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Average Badge */}
+                                                    <div className="relative group/badge">
+                                                        <div className="h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center">
+                                                            <span className="text-[10px] font-bold text-violet-600">AVG</span>
+                                                        </div>
+                                                        <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-violet-600 text-[10px] flex items-center justify-center border border-violet-200 font-medium">
+                                                            {teamAverage !== null ? teamAverage.toFixed(1) : '-'}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Existing 180s and HiFi badges */}
+                                                    {oneEightys.reduce((sum, player) => sum + (player.count || 0), 0) > 0 && (
+                                                        <div className="relative group/badge">
+                                                            <div className="h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center">
+                                                                <span className="text-[10px] font-bold text-amber-600">180</span>
+                                                            </div>
+                                                            <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-amber-600 text-[10px] flex items-center justify-center border border-amber-200 font-medium">
+                                                                {oneEightys.reduce((sum, player) => sum + (player.count || 0), 0)}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {highFinishes.reduce((sum, player) => sum + (player.finishes?.length || 0), 0) > 0 && (
+                                                        <div className="relative group/badge">
+                                                            <div className="h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center group-hover/badge:bg-rose-100 transition-colors">
+                                                                <span className="text-[10px] font-bold text-rose-600">HiFi</span>
+                                                            </div>
+                                                            <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-rose-600 text-[10px] flex items-center justify-center border border-rose-200 font-medium">
+                                                                {highFinishes.reduce((sum, player) => sum + (player.finishes?.length || 0), 0)}
+                                                            </div>
+
+                                                            {/* Hover tooltip for high finishes */}
+                                                            <div className="absolute right-0 top-full mt-2 scale-0 group-hover/badge:scale-100 transition-transform origin-top-right z-[100]">
+                                                                <div className="bg-white rounded-lg shadow-lg border border-gray-100 p-2 whitespace-nowrap">
+                                                                    <div className="text-[11px] font-medium text-slate-500 mb-1.5">High Finishes</div>
+                                                                    <div className="flex gap-1.5">
+                                                                        {highFinishes.flatMap(player => player.finishes || [])
+                                                                            .sort((a, b) => b - a)
+                                                                            .map((finish, idx) => (
+                                                                                <span 
+                                                                                    key={idx}
+                                                                                    className="px-2 py-0.5 text-xs font-medium bg-rose-50 text-rose-700 rounded border border-rose-100"
+                                                                                >
+                                                                                    {finish}
+                                                                                </span>
+                                                                            ))}
+                                                                    </div>
+                                                                </div>
+                                                                {/* Arrow */}
+                                                                <div className="absolute -top-1 right-3 w-2 h-2 bg-white border-t border-l border-gray-100 transform -rotate-45"></div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <span className="text-sm text-gray-500">Season 2024/25</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Top Players Card */}
-                        <Card className="mb-8">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Trophy className="h-6 w-6 text-yellow-500" />
-                                    <h3 className="text-xl font-semibold text-slate-900">Top Performers</h3>
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    {teamData && teamData.players.slice(0, 3).map((player: Player, index: number) => {
-                                        let medalClass = '';
-                                        if (index === 0) {
-                                            medalClass = 'bg-yellow-400 bg-opacity-75 text-yellow-800';
-                                        } else if (index === 1) {
-                                            medalClass = 'bg-gray-300 bg-opacity-75 text-gray-800';
-                                        } else if (index === 2) {
-                                            medalClass = 'bg-orange-400 bg-opacity-75 text-orange-800';
-                                        }
+                        {/* Top Performers Card */}
+                        <div className="mb-8 bg-white rounded-xl shadow-sm border overflow-hidden">
+                            <div className="h-1 w-full bg-gradient-to-r from-amber-400/40 to-amber-500/40" />
+                            <div className="p-5">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="h-10 w-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center">
+                                        <Trophy className="h-5 w-5 text-amber-500" />
+                                    </div>
+                                    <span className="text-base font-medium text-gray-900">Top Performers</span>
+                                </div>
 
-                                        return (
-                                            <div key={player.playerName} className="bg-white p-4 rounded-lg shadow-sm border">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`px-4 py-2 rounded-full text-2xl font-extrabold ${medalClass}`}>
-                                                        #{index + 1}
-                                                    </span>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {teamData && teamData.players.slice(0, 3).map((player: Player, index: number) => (
+                                        <div key={player.playerName} 
+                                            className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden border border-gray-100"
+                                        >
+                                            <div className={`h-1 w-full bg-gradient-to-r ${medalColors[index]}`} />
+                                            <div className="p-4">
+                                                <div className="flex items-center gap-3">
+                                                    {/* Player Avatar */}
+                                                    <div className="h-12 w-12 rounded-full bg-violet-50 border-2 border-white overflow-hidden flex items-center justify-center flex-shrink-0">
+                                                        {selectedTeam === 'DC Patron' && playerImages[player.playerName] ? (
+                                                            <img 
+                                                                src={playerImages[player.playerName]} 
+                                                                alt={player.playerName}
+                                                                className="h-full w-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <span className="text-sm font-medium text-violet-700">
+                                                                {getInitials(player.playerName)}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <div>
                                                         <h3 className="font-semibold text-gray-900">{player.playerName}</h3>
-                                                        <p className="text-sm text-gray-500">{player.adjustedAverage} Avg</p>
+                                                        <div className="flex items-center gap-1.5 mt-1">
+                                                            <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded border ${
+                                                                index === 0 
+                                                                    ? 'bg-amber-50 text-amber-700 border-amber-100'  // Gold
+                                                                    : index === 1
+                                                                        ? 'bg-slate-50 text-slate-700 border-slate-100'  // Silver
+                                                                        : 'bg-orange-50 text-orange-700 border-orange-100'  // Bronze
+                                                            }`}>
+                                                                #{index + 1}
+                                                            </span>
+                                                            <span className="px-2 py-0.5 text-xs font-medium bg-violet-50 text-violet-700 rounded-md border border-violet-100">
+                                                                {player.adjustedAverage.toFixed(2)} avg
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        );
-                                    })}
+                                        </div>
+                                    ))}
                                 </div>
-                            </CardContent>
-                        </Card>
+                            </div>
+                        </div>
 
                         {/* Stats Cards Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                            {/* ... your cards ... */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <BarChart className="h-6 w-6 text-blue-500" />
-                                        Team Average
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                <div className="space-y-2">
-
-                                    <p className="text-2xl font-bold text-gray-900">
-                                        {teamAverage !== null ? teamAverage.toFixed(2) : 'Loading...'}
-                                    </p>
-                                    <p className="text-sm text-gray-500">Current Team Average</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            {/* Team Average Card with Singles/Doubles */}
+                            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                                <div className="h-1 w-full bg-gradient-to-r from-violet-400/40 to-violet-500/40" />
+                                <div className="p-5">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="h-10 w-10 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center">
+                                            <BarChart className="h-5 w-5 text-violet-500" />
+                                        </div>
+                                        <span className="text-base font-medium text-gray-900">Performance</span>
+                                    </div>
+                                    
+                                    {/* Singles and Doubles Stats */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="relative rounded-lg bg-slate-50/50 p-3 border border-slate-100 group hover:border-blue-200">
+                                            <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-transparent rounded-lg"></div>
+                                            <div className="relative z-10">
+                                                <div className="text-[11px] text-blue-600 font-medium mb-1">Singles</div>
+                                                <div className="flex items-baseline gap-1">
+                                                    <span className="text-xl font-semibold text-slate-700">
+                                                        {(teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0)}
+                                                    </span>
+                                                    <span className="text-sm text-slate-400">
+                                                        /{(teamData?.players ?? []).reduce((sum, player) => {
+                                                            const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                            return sum + wins + losses;
+                                                        }, 0)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <User className="absolute bottom-1 right-1 h-8 w-8 text-blue-200" />
+                                        </div>
+                                        <div className="relative rounded-lg bg-slate-50/50 p-3 border border-slate-100 group hover:border-violet-200">
+                                            <div className="absolute inset-0 bg-gradient-to-br from-violet-50/50 to-transparent rounded-lg"></div>
+                                            <div className="relative z-10">
+                                                <div className="text-[11px] text-violet-600 font-medium mb-1">Doubles</div>
+                                                <div className="flex items-baseline gap-1">
+                                                    <span className="text-xl font-semibold text-slate-700">
+                                                        {Math.round((teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2)}
+                                                    </span>
+                                                    <span className="text-sm text-slate-400">
+                                                        /{Math.round((teamData?.players ?? []).reduce((sum, player) => {
+                                                            const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                            return sum + wins + losses;
+                                                        }, 0) / 2)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <Users className="absolute bottom-1 right-1 h-8 w-8 text-violet-200" />
+                                        </div>
+                                    </div>
                                 </div>
-                                </CardContent>
-                            </Card>
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Trophy className="h-6 w-6 text-amber-500" />
-                                        Standings
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-2">
-                                    <p className="text-2xl font-bold text-gray-900">
-                                            {teamStandings 
-                                                ? `${teamStandings.wins}-${teamStandings.draws}-${teamStandings.losses}`
-                                                : 'Loading...'}
-                                        </p>
-                                        <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+                            </div>
+
+                            {/* Standings Card */}
+                            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                                <div className="h-1 w-full bg-gradient-to-r from-amber-400/40 to-amber-500/40" />
+                                <div className="p-5">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="h-10 w-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center">
+                                            <Trophy className="h-5 w-5 text-amber-500" />
+                                        </div>
+                                        <span className="text-base font-medium text-gray-900">Record</span>
+                                    </div>
+                                    {teamStandings && (
+                                        <>
+                                            <div className="flex items-baseline gap-2 mb-3">
+                                                <span className="text-2xl font-bold text-gray-900">
+                                                    {`${teamStandings.wins}-${teamStandings.draws}-${teamStandings.losses}`}
+                                                </span>
+                                                <span className="text-sm text-gray-500">W-D-L</span>
+                                            </div>
+                                            <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
                                             <div className="h-full flex">
-                                                <div 
-                                                    className="h-full bg-green-200" 
-                                                    style={{ 
-                                                        width: teamStandings 
-                                                            ? `${(teamStandings.wins / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` 
-                                                            : '0%' 
-                                                    }} 
-                                                />
-                                                <div 
-                                                    className="h-full bg-orange-200" 
-                                                    style={{ 
-                                                        width: teamStandings 
-                                                            ? `${(teamStandings.draws / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` 
-                                                            : '0%' 
-                                                    }} 
-                                                />
-                                                <div 
-                                                    className="h-full bg-red-200" 
-                                                    style={{ 
-                                                        width: teamStandings 
-                                                            ? `${(teamStandings.losses / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` 
-                                                            : '0%' 
-                                                    }} 
+                                                    <div className="h-full bg-emerald-200 transition-all duration-300"
+                                                        style={{ width: `${(teamStandings.wins / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` }} 
+                                                    />
+                                                    <div className="h-full bg-amber-200 transition-all duration-300"
+                                                        style={{ width: `${(teamStandings.draws / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` }} 
+                                                    />
+                                                    <div className="h-full bg-rose-200 transition-all duration-300"
+                                                        style={{ width: `${(teamStandings.losses / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` }} 
                                                 />
                                             </div>
                                         </div>
+                                        </>
+                                    )}
                                     </div>
-                                </CardContent>
-                            </Card>
+                            </div>
 
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Martini className="h-6 w-6 text-purple-500" />
-                                        {clubVenue?.venue}
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
+                            {/* Venue Card */}
+                            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                                <div className="h-1 w-full bg-gradient-to-r from-emerald-400/40 to-emerald-500/40" />
+                                <div className="p-5">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="h-10 w-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+                                            <Martini className="h-5 w-5 text-emerald-500" />
+                                        </div>
+                                        <span className="text-base font-medium text-gray-900">{clubVenue?.venue}</span>
+                                    </div>
                                         <div className="space-y-2">
-                                            <div className="flex items-center gap-2 text-slate-700">
-                                                <MapPin className="h-4 w-4 text-slate-500" />
-                                            <span className="text-sm">{clubVenue?.address}, {clubVenue?.city}</span>
+                                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                                            <MapPin className="h-4 w-4 text-gray-400" />
+                                            <span>{clubVenue?.address}, {clubVenue?.city}</span>
                                             </div>
-                                            <div className="flex items-center gap-2 text-slate-700">
-                                                <Phone className="h-4 w-4 text-slate-500" />
-                                            <span className="text-sm">{clubVenue?.phone}</span>
+                                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                                            <Phone className="h-4 w-4 text-gray-400" />
+                                            <span>{clubVenue?.phone}</span>
                                     </div>
                                 </div>
-                            </CardContent>
-                            </Card>
-
+                                </div>
+                            </div>
                         </div>
                         <Tabs defaultValue="matches" className="space-y-4">
                             <TabsList className="flex flex-wrap gap-2 justify-start mb-32 sm:mb-6">
+                                {/* Primary Tabs - Always visible */}
                                 <TabsTrigger value="matches" className="flex items-center">
                                     <Users className="h-5 w-5 text-green-500 mr-1" />
                                     Matches
                                 </TabsTrigger>
-                                <TabsTrigger value="stats" className="flex items-center">
+                                <TabsTrigger value="mergedStats" className="flex items-center">
                                     <User className="h-5 w-5 text-green-500 mr-1" />
-                                    Player Stats
+                                    Player Overview
                                 </TabsTrigger>
+                                <TabsTrigger value="pairs" className="flex items-center">
+                                    <Users className="h-5 w-5 text-green-500 mr-1" />
+                                    Pairs
+                                </TabsTrigger>
+                                {selectedTeam === 'DC Patron' && (
                                 <TabsTrigger value="comparison" className="flex items-center">
                                     <ArrowLeftRight className="h-5 w-5 text-green-500 mr-1" />
-                                    Point Comparison
+                                        Points +/-
                                 </TabsTrigger>
+                                )}
                                 <TabsTrigger value="charts" className="flex items-center">
                                     <BarChart className="h-5 w-5 text-green-500 mr-1" />
                                     Charts
                                 </TabsTrigger>
+
+                                {/* Show More Button */}
+                                <button 
+                                    onClick={() => setShowSecondaryTabs(!showSecondaryTabs)}
+                                    className="flex items-center px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 bg-white rounded-md border border-green-200 hover:border-green-300 hover:bg-green-50/50 transition-colors"
+                                >
+                                    {showSecondaryTabs ? (
+                                        <>
+                                            <ArrowUp className="h-5 w-5 text-green-500 mr-1" />
+                                            Show Less
+                                        </>
+                                    ) : (
+                                        <>
+                                            <ArrowUp className="h-5 w-5 text-green-500 mr-1 rotate-180" />
+                                            Show More
+                                        </>
+                                    )}
+                                </button>
+
+                                {/* Secondary Tabs - Initially hidden */}
+                                {showSecondaryTabs && (
+                                    <>
+                                        <TabsTrigger value="stats" className="flex items-center">
+                                            <User className="h-5 w-5 text-green-500 mr-1" />
+                                            Stats
+                                        </TabsTrigger>
+                                        <TabsTrigger value="schedule" className="flex items-center">
+                                            <Calendar className="h-5 w-5 text-green-500 mr-1" />
+                                            Schedule
+                                </TabsTrigger>
                                 <TabsTrigger value="performances" className="flex items-center">
                                     <Trophy className="h-5 w-5 text-green-500 mr-1" />
-                                    Best Performances
-                                </TabsTrigger>
-                                <TabsTrigger value="pairs" className="flex items-center">
-                                    <Users className="h-5 w-5 text-green-500 mr-1" />
-                                    Best Pairs
+                                           Performances
                                 </TabsTrigger>
                                 <TabsTrigger value="scoreBreakdown" className="flex items-center">
                                     <Rows4 className="h-5 w-5 text-green-500 mr-1" />
-                                    Score Distribution
-                                </TabsTrigger>
-                                <TabsTrigger value="schedule" className="flex items-center">
-                                    <Calendar className="h-5 w-5 text-green-500 mr-1" />
-                                    Schedule
+                                         Distribution
                                 </TabsTrigger>
                                
+                                    </>
+                                )}
                             </TabsList>
 
 
                             <TabsContent value="matches">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {matchReports.map((matchday: MatchReport, index: number) => (
-                                        <div key={index} className="bg-white rounded-lg border hover:border-blue-200 transition-all duration-200 overflow-hidden">
-                                            <div className="p-4">
-                                                {/* Header with score */}
-                                                <div className="flex items-center justify-between mb-4">
-                                                    <div className="flex items-center gap-2 min-w-0">
-                                                        <div className="h-10 w-10 flex-shrink-0 rounded-full bg-blue-50 flex items-center justify-center">
-                                                            <span className="text-lg font-bold text-blue-600">
-                                                                {index + 1}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {[...matchReports].reverse().map((matchday: MatchReport, index: number) => {
+                                        // First determine if we're the home team by checking first player
+                                        const isHomeTeam = matchday.details.singles[0].homePlayer === matchday.lineup[0];
+                                        
+                                        return (
+                                            <div 
+                                                key={matchReports.length - index - 1} 
+                                                className="group relative bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden border border-gray-100"
+                                            >
+                                                {/* Subtle top accent line */}
+                                                <div className={`h-1 w-full bg-gradient-to-r ${
+                                                    matchday.score.split('-')[0] > matchday.score.split('-')[1]
+                                                        ? 'from-emerald-400/40 to-emerald-500/40'
+                                                        : matchday.score.split('-')[0] === matchday.score.split('-')[1]
+                                                            ? 'from-amber-400/40 to-amber-500/40'
+                                                            : 'from-rose-400/40 to-rose-500/40'
+                                                }`} />
+
+                                                <div className="p-5">
+                                                    {/* Header Section */}
+                                                    <div className="flex items-start justify-between mb-6">
+                                                        <div className="space-y-1.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center">
+                                                                    <span className="text-sm font-bold text-blue-600">
+                                                                        {matchReports.length - index}
                                                             </span>
                                                         </div>
-                                                        <h3 className="text-lg font-semibold text-gray-900 break-words">
+                                                                <h3 className="text-lg sm:text-lg text-sm font-semibold text-gray-800 truncate">
                                                             {matchday.opponent}
                                                         </h3>
                                                     </div>
-                                                    <div className="flex-shrink-0 ml-2">
-                                                        <span className={`inline-block px-4 py-2 rounded-lg text-lg font-bold ${getScoreColor(matchday.score)}`}>
+                                                            <div className="flex items-center gap-1.5">
+                                                                {/* Match Score Badge with connected boxes */}
+                                                                <div className="flex items-center">
+                                                                    <div className={`px-2.5 py-1 text-xs font-medium rounded-l-md border-y border-l ${
+                                                                        matchday.score.split('-')[0] > matchday.score.split('-')[1]
+                                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                                                            : matchday.score.split('-')[0] === matchday.score.split('-')[1]
+                                                                                ? 'bg-amber-50 text-amber-700 border-amber-100'
+                                                                                : 'bg-rose-50 text-rose-700 border-rose-100'
+                                                                    }`}>
                                                             {matchday.score}
+                                                                    </div>
+                                                                    {matchReports.length - index >= 14 ? (
+                                                                        <div className={`px-2.5 py-1 text-xs font-medium border border-l-0 flex items-center gap-1 ${
+                                                                            (getPointDifference(matchReports.length - index) ?? 0) > 0 
+                                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+                                                                                : (getPointDifference(matchReports.length - index) ?? 0) === 0
+                                                                                    ? 'bg-amber-50 text-amber-700 border-amber-100'
+                                                                                    : 'bg-rose-50 text-rose-700 border-rose-100'
+                                                                        }`}>
+                                                                            <span className="text-[10px] opacity-60"><i>vs MD{matchReports.length - index - 13}</i></span>
+                                                                            <span>
+                                                                                {(getPointDifference(matchReports.length - index) ?? 0) > 0 ? '+' : ''}
+                                                                                {getPointDifference(matchReports.length - index) ?? 0}
                                                         </span>
                                                     </div>
+                                                                    ) : (
+                                                                        <div className="px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-600 border border-blue-100 rounded-r-md -ml-[1px] flex items-center gap-1">
+                                                                            <span className="text-blue-400 text-[10px]">AVG</span>
+                                                                            <span>{matchAverages[matchReports.length - index - 1]?.teamAverage.toFixed(2)}</span>
+                                                                        </div>
+                                                                    )}
                                                 </div>
 
-                                                <div className="space-y-4">
-                                                    {/* Lineup with inline checkouts */}
-                                                    <div className="bg-gray-50 rounded-lg p-3">
-                                                        <div className="text-xs text-gray-500 mb-2">Lineup & Checkouts</div>
-                                                        <div className="text-sm space-y-1">
-                                                            {matchday.lineup.map((player, idx) => {
-                                                                // First determine if we're the home team by checking first player
-                                                                const isHomeTeam = matchday.details.singles[0].homePlayer === matchday.lineup[0];
-                                                                
-                                                                // Check if opponent player is "nicht angetreten"
-                                                                let isWalkover = false;
-                                                                if ([0, 1, 4, 5].includes(idx)) { // Singles matches
-                                                                    const matchIndex = idx > 3 ? idx - 2 : idx;
-                                                                    const match = matchday.details.singles[matchIndex];
-                                                                    isWalkover = isHomeTeam ? 
-                                                                        match.awayPlayer.toLowerCase().includes('nicht angetreten') : 
-                                                                        match.homePlayer.toLowerCase().includes('nicht angetreten');
-                                                                } else { // Doubles matches
-                                                                    const matchIndex = idx > 3 ? (idx - 4) : ((idx - 2));
-                                                                    const match = matchday.details.doubles[matchIndex];
-                                                                    isWalkover = isHomeTeam ? 
-                                                                        match.awayPlayers.some(p => p.toLowerCase().includes('nicht angetreten')) : 
-                                                                        match.homePlayers.some(p => p.toLowerCase().includes('nicht angetreten'));
-                                                                }
+                                                                {/* Average Badge with comparison for matchday 14+ */}
+                                                                {matchReports.length - index >= 14 && (
+                                                                    <div className="flex items-center">
+                                                                        <div className="px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-600 border border-blue-100 rounded-l-md flex items-center gap-1">
+                                                                            <span className="text-blue-400 text-[10px]">AVG</span>
+                                                                            <span>{matchAverages[matchReports.length - index - 1]?.teamAverage.toFixed(2)}</span>
+                                                                        </div>
+                                                                        <div className={`px-2 py-1 text-xs font-medium border border-l-0 rounded-r-md flex items-center gap-0.5 ${
+                                                                            getAverageDifference(matchReports.length - index) > 0
+                                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                                                                : 'bg-rose-50 text-rose-700 border-rose-100'
+                                                                        }`}>
+                                                                            <span className="text-[10px] opacity-60"><i>vs MD{matchReports.length - index - 13}</i></span>
+                                                                            <span>
+                                                                                {getAverageDifference(matchReports.length - index) > 0 ? '+' : ''}
+                                                                                {getAverageDifference(matchReports.length - index).toFixed(2)}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
 
+                                                    {/* Lineup Section */}
+                                                <div className="space-y-4">
+                                                        <div className="rounded-lg bg-slate-50/50 border border-slate-100 p-3">
+                                                            <div className="text-xs text-slate-500 font-medium mb-2">Lineup & Performances</div>
+                                                            <div className="space-y-2">
+                                                            {matchday.lineup.map((player, idx) => {
                                                                 // Get match result based on position
                                                                 let isWin = false;
                                                                 if ([0, 1, 4, 5].includes(idx)) { // Singles matches
@@ -816,62 +1115,97 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                         match.awayScore > match.homeScore;
                                                                 }
 
-                                                                // Get checkouts for singles matches (only if not walkover)
+                                                                    // Get checkouts for singles matches
                                                                 const isSinglesMatch = [0, 1, 4, 5].includes(idx);
-                                                                const playerCheckouts = !isWalkover && isSinglesMatch 
+                                                                    const playerCheckouts = isSinglesMatch 
                                                                     ? matchday.checkouts
                                                                         .filter(c => c.scores.startsWith(player))
                                                                         .map(c => c.scores.split(': ')[1])
                                                                     : [];
 
+                                                                    // Get player's matchday average and running average for singles matches
+                                                                    const matchdayAvg = isSinglesMatch ? 
+                                                                        matchAverages[matchReports.length - index - 1]?.playerAverages.find(
+                                                                            pa => pa.playerName === player
+                                                                        )?.average : null;
+                                                                    
+                                                                    const runningAvg = sortedPlayers.find(p => p.playerName === player)?.adjustedAverage ?? 0;
+                                                                    const avgDiff = matchdayAvg ? matchdayAvg - runningAvg : 0;
+
+                                                                // Inside the lineup.map function, before the return statement
+                                                                // Check if opponent player is "nicht angetreten"
+                                                                let isWalkover = false;
+                                                                if ([0, 1, 4, 5].includes(idx)) { // Singles matches
+                                                                    const matchIndex = idx > 3 ? idx - 2 : idx;
+                                                                    const match = matchday.details.singles[matchIndex];
+                                                                    isWalkover = isHomeTeam ? 
+                                                                        match.awayPlayer.toLowerCase().includes('nicht angetreten') : 
+                                                                        match.homePlayer.toLowerCase().includes('nicht angetreten');
+                                                                } else { // Doubles matches
+                                                                    const matchIndex = idx > 3 ? (idx - 4) : ((idx - 2));
+                                                                    const match = matchday.details.doubles[matchIndex];
+                                                                    isWalkover = isHomeTeam ? 
+                                                                        match.awayPlayers.some(p => p.toLowerCase().includes('nicht angetreten')) : 
+                                                                        match.homePlayers.some(p => p.toLowerCase().includes('nicht angetreten'));
+                                                                }
+
                                                                 return (
-                                                                    <div key={idx} className="flex items-center justify-between text-gray-700">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <span className={`font-medium w-6 h-6 flex items-center justify-center rounded-lg ${
-                                                                                isWin ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                                                        <div key={idx} className="flex items-center justify-between group/player">
+                                                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                                                <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                                                                                    isWin ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
                                                                             }`}>
-                                                                                {idx + 1}
-                                                                            </span>
-                                                                            {player}
+                                                                                    <span className="text-[10px] font-medium">{idx + 1}</span>
                                                                         </div>
-                                                                        {isWalkover ? (
-                                                                            <span className="text-gray-500 italic">w/o</span>
-                                                                        ) : playerCheckouts.length > 0 && (
-                                                                            <span className="text-gray-500">
-                                                                                {playerCheckouts.join(', ')}
+                                                                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                                                                    <span className="text-sm text-slate-700 truncate">{player}</span>
+                                                                                    {isSinglesMatch && matchdayAvg && (
+                                                                                        <div className="flex items-center gap-0.5 flex-shrink-0">
+                                                                                            <span className="text-xs text-slate-500 italic">
+                                                                                                {matchdayAvg.toFixed(2)}
+                                                                            </span>
+                                                                                            {avgDiff !== 0 && (
+                                                                                                <span className={`text-[10px] ${avgDiff > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                                                                    {avgDiff > 0 ? '▲' : '▼'}
                                                                             </span>
                                                                         )}
+                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex gap-1.5 flex-shrink-0">
+                                                                        {isWalkover ? (
+                                                                                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-slate-50 text-slate-500 rounded border border-slate-100 italic">
+                                                                                        w/o
+                                                                            </span>
+                                                                                ) : (
+                                                                                    playerCheckouts.map((checkout, cidx) => (
+                                                                                        <span key={cidx} 
+                                                                                            className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-50 text-blue-600 rounded border border-blue-100"
+                                                                                        >
+                                                                                            {checkout}
+                                                                                        </span>
+                                                                                    ))
+                                                                                )}
+                                                                            </div>
                                                                     </div>
                                                                 );
                                                             })}
                                                         </div>
                                                     </div>
 
-                                                    {/* Bottom section with average and details button */}
-                                                    <div className="grid grid-cols-4 gap-4">
-                                                        {/* Details button - takes up 3 columns */}
-                                                        <div className="col-span-3">
+                                                        {/* Match Details Button */}
                                                             <button
-                                                                onClick={() => setSelectedMatchId(index)}
-                                                                className="w-full px-3 py-2 rounded-lg text-sm font-medium bg-blue-50 text-blue-600 hover:bg-blue-100"
+                                                            onClick={() => setSelectedMatchId(matchReports.length - index - 1)}
+                                                            className="w-full px-3 py-2 text-sm font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
                                                             >
                                                                 View Details
                                                             </button>
                                                         </div>
-                                                        
-                                                        {/* Average - takes up 1 column */}
-                                                        <div className="col-span-1">
-                                                            <div className="bg-blue-50 rounded-lg px-3 py-2 text-center">
-                                                                <span className="text-sm font-medium text-blue-600">
-                                                                    {matchAverages[index]?.teamAverage.toFixed(2) || '-'}
-                                                                </span>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </TabsContent>
 
@@ -1106,7 +1440,7 @@ const DartsStatisticsDashboard: React.FC = () => {
 
                                                         {/* Performance Indicators */}
                                                         <div className="flex items-center justify-between text-sm">
-                                                            <div className="flex items-center gap-1">
+                                                            <div className="flex items-center gap-1.5">
                                                                 <Trophy className={`h-4 w-4 ${
                                                                     teamStandings && teamStandings.wins > (teamStandings.losses + teamStandings.draws)
                                                                         ? 'text-amber-500'
@@ -1114,7 +1448,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 }`} />
                                                                 <span className="text-gray-500">More Wins than Losses</span>
                                                             </div>
-                                                            <div className="flex items-center gap-1">
+                                                            <div className="flex items-center gap-1.5">
                                                                 <ArrowUp className={`h-4 w-4 ${
                                                                     leaguePosition && leaguePosition <= 6
                                                                         ? 'text-green-500'
@@ -1124,7 +1458,50 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                             </div>
                                                         </div>
 
-                                                       
+                                                        {/* Add the new badges section */}
+                                                        <div className="flex gap-1.5 mt-3">
+                                                            {oneEightys.reduce((sum, player) => sum + (player.count || 0), 0) > 0 && (
+                                                                <div className="relative group/badge">
+                                                                    <div className="h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center">
+                                                                        <span className="text-[10px] font-bold text-amber-600">180</span>
+                                                                    </div>
+                                                                    <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-amber-600 text-[10px] flex items-center justify-center border border-amber-200 font-medium">
+                                                                        {oneEightys.reduce((sum, player) => sum + (player.count || 0), 0)}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            {highFinishes.reduce((sum, player) => sum + (player.finishes?.length || 0), 0) > 0 && (
+                                                                <div className="relative group/badge">
+                                                                    <div className="h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center group-hover/badge:bg-rose-100 transition-colors">
+                                                                        <span className="text-[10px] font-bold text-rose-600">HiFi</span>
+                                                                    </div>
+                                                                    <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-rose-600 text-[10px] flex items-center justify-center border border-rose-200 font-medium">
+                                                                        {highFinishes.reduce((sum, player) => sum + (player.finishes?.length || 0), 0)}
+                                                                    </div>
+
+                                                                    {/* Hover tooltip for high finishes */}
+                                                                    <div className="absolute right-0 top-full mt-2 scale-0 group-hover/badge:scale-100 transition-transform origin-top-right z-[100]">
+                                                                        <div className="bg-white rounded-lg shadow-lg border border-gray-100 p-2 whitespace-nowrap">
+                                                                            <div className="text-[11px] font-medium text-slate-500 mb-1.5">High Finishes</div>
+                                                                            <div className="flex gap-1.5">
+                                                                                {highFinishes.flatMap(player => player.finishes || [])
+                                                                                    .sort((a, b) => b - a)
+                                                                                    .map((finish, idx) => (
+                                                                                        <span 
+                                                                                            key={idx}
+                                                                                            className="px-2 py-0.5 text-xs font-medium bg-rose-50 text-rose-700 rounded border border-rose-100"
+                                                                                        >
+                                                                                            {finish}
+                                                                                        </span>
+                                                                                    ))}
+                                                                            </div>
+                                                                        </div>
+                                                                        {/* Arrow */}
+                                                                        <div className="absolute -top-1 right-3 w-2 h-2 bg-white border-t border-l border-gray-100 transform -rotate-45"></div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                                     </div>
@@ -1134,29 +1511,23 @@ const DartsStatisticsDashboard: React.FC = () => {
                             </TabsContent>
 
                             <TabsContent value="comparison">
-                                <Card>
-                                    {selectedTeam === 'DC Patron' ? (
-                                        <>
-                                            <CardHeader>
+                                <div className="space-y-6">
+                                    {/* Header */}
                                                 <div className="flex items-center justify-between">
-                                                    <CardTitle className="flex items-center gap-2">
-                                                       
-                                                        Point Comparison
-                                                        <span className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                                        <h2 className="text-lg font-semibold text-gray-800">Points Comparison</h2>
+                                        <div className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
                                                         calculateTotalDifference(comparisonData) > 0
-                                                            ? 'bg-green-100 text-green-800'
-                                                            : calculateTotalDifference(comparisonData) < 0
-                                                                ? 'bg-red-100 text-red-800'
-                                                                : 'bg-orange-100 text-orange-800'
-                                                    }`}>
-                                                        Total: {calculateTotalDifference(comparisonData) > 0 ? '+' : ''}{calculateTotalDifference(comparisonData)}
-                                                    </span>
-                                                    </CardTitle>
-                                                  
+                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                                : calculateTotalDifference(comparisonData) === 0
+                                                    ? 'bg-amber-50 text-amber-700 border border-amber-100'
+                                                    : 'bg-rose-50 text-rose-700 border border-rose-100'
+                                        }`}>
+                                            Total Difference: {calculateTotalDifference(comparisonData) > 0 ? '+' : ''}{calculateTotalDifference(comparisonData)}
                                                 </div>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    </div>
+
+                                    {/* Comparison Grid */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                                     {comparisonTeams.map((team) => {
                                                         const data = comparisonData.find(d => d.opponent === team);
                                                         const difference = data?.firstRound && data?.secondRound 
@@ -1165,70 +1536,105 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                         
                                                         return (
                                                             <div key={team} 
-                                                                className={`bg-white rounded-lg border p-4 ${
-                                                                    difference !== null
-                                                                        ? difference > 0 
-                                                                            ? 'border-green-200'
-                                                                            : difference < 0
-                                                                                ? 'border-red-200'
-                                                                                : 'border-orange-200'
-                                                                        : 'border-gray-200'
-                                                                }`}
-                                                            >
+                                                    className="group relative bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden border border-gray-100"
+                                                >
+                                                    {/* Accent line based on difference */}
+                                                    <div className={`h-1 w-full bg-gradient-to-r ${
+                                                        difference === null
+                                                            ? 'from-slate-400/40 to-slate-500/40'
+                                                            : difference > 0
+                                                                ? 'from-emerald-400/40 to-emerald-500/40'
+                                                                : difference === 0
+                                                                    ? 'from-amber-400/40 to-amber-500/40'
+                                                                    : 'from-rose-400/40 to-rose-500/40'
+                                                    }`} />
+
+                                                    <div className="p-5">
+                                                        {/* Team Name and Difference */}
                                                                 <div className="flex items-center justify-between mb-4">
-                                                                    <h3 className="font-bold text-gray-900 text-lg">{team}</h3>
+                                                            <h3 className="text-base font-semibold text-gray-900">{team}</h3>
                                                                     {difference !== null && (
-                                                                        <span className={`px-3 py-1 rounded-lg text-sm font-bold ${
+                                                                <div className={`px-2.5 py-1 rounded-md text-xs font-medium ${
                                                                             difference > 0
-                                                                                ? 'bg-green-100 text-green-800'
-                                                                                : difference < 0
-                                                                                    ? 'bg-red-100 text-red-800'
-                                                                                    : 'bg-orange-100 text-orange-800'
-                                                                        }`}>
-                                                                            {difference > 0 ? '+' : ''}{difference}
-                                                                        </span>
+                                                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                                                        : difference === 0
+                                                                            ? 'bg-amber-50 text-amber-700 border border-amber-100'
+                                                                            : 'bg-rose-50 text-rose-700 border border-rose-100'
+                                                                }`}>
+                                                                    {difference > 0 ? '+' : ''}{difference} points
+                                                                </div>
                                                                     )}
                                                                 </div>
                                                                 
-                                                                <div className="grid grid-cols-2 gap-4">
-                                                                    <div className="bg-gray-50 rounded-lg p-3">
-                                                                        <div className="text-xs text-gray-500 mb-2">First Round</div>
+                                                        {/* Rounds Comparison */}
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div className="relative rounded-lg bg-slate-50/50 p-3 border border-slate-100">
+                                                                <div className="text-[11px] text-slate-600 font-medium mb-1">First Round</div>
+                                                                <div className="flex items-baseline gap-1">
                                                                         {data?.firstRound ? (
-                                                                            <span className={`inline-block px-3 py-1 rounded-lg text-lg font-bold ${getScoreColor(data.firstRound)}`}>
+                                                                        <span className={`px-2 py-1 text-sm font-medium rounded-md ${
+                                                                            parseInt(data.firstRound) >= 2  // Parse string to number
+                                                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                                                                : parseInt(data.firstRound) === 4
+                                                                                    ? 'bg-amber-50 text-amber-700 border border-amber-100'
+                                                                                    : 'bg-rose-50 text-rose-700 border border-rose-100'
+                                                                        }`}>
                                                                                 {data.firstRound}
                                                                             </span>
                                                                         ) : (
-                                                                            <span className="text-sm text-gray-400">-</span>
+                                                                        <span className="text-sm text-slate-400">Pending</span>
                                                                         )}
                                                                     </div>
-                                                                    
-                                                                    <div className="bg-gray-50 rounded-lg p-3">
-                                                                        <div className="text-xs text-gray-500 mb-2">Second Round</div>
+                                                            </div>
+                                                            <div className="relative rounded-lg bg-slate-50/50 p-3 border border-slate-100">
+                                                                <div className="text-[11px] text-slate-600 font-medium mb-1">Second Round</div>
+                                                                <div className="flex items-baseline gap-1">
                                                                         {data?.secondRound ? (
-                                                                            <span className={`inline-block px-3 py-1 rounded-lg text-lg font-bold ${getScoreColor(data.secondRound)}`}>
-                                                                                {data.secondRound}
+                                                                        <span className={`px-2 py-1 text-sm font-medium rounded-md ${
+                                                                            data?.secondRound ? (
+                                                                                ['7-1', '6-2', '5-3', '8-0'].includes(data.secondRound)
+                                                                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                                                                    : data.secondRound === '4-4'
+                                                                                        ? 'bg-amber-50 text-amber-700 border border-amber-100'
+                                                                                        : 'bg-rose-50 text-rose-700 border border-rose-100'
+                                                                            ) : 'text-sm text-slate-400'
+                                                                        }`}>
+                                                                            {data.secondRound || 'Pending'}
                                                                             </span>
                                                                         ) : (
-                                                                            <span className="text-sm text-gray-400">-</span>
+                                                                        <span className="text-sm text-slate-400">Pending</span>
                                                                         )}
                                                                     </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Progress Bar */}
+                                                        {difference !== null && (
+                                                            <div className="mt-4 space-y-2">
+                                                                <div className="flex justify-between items-center text-xs">
+                                                                    <span className="font-medium text-slate-600">Improvement</span>
+                                                                    <span className="font-medium text-slate-700">{difference > 0 ? '+' : ''}{difference}</span>
+                                                                </div>
+                                                                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                    <div 
+                                                                        className={`h-full rounded-full transition-all duration-500 ${
+                                                                            difference > 0
+                                                                                ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                                                                                : difference === 0
+                                                                                    ? 'bg-gradient-to-r from-amber-400 to-amber-500'
+                                                                                    : 'bg-gradient-to-r from-rose-400 to-rose-500'
+                                                                        }`}
+                                                                        style={{ width: `${Math.abs(difference) * 10}%`, maxWidth: '100%' }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                                 </div>
                                                             </div>
                                                         );
                                                     })}
                                                 </div>
-                                            </CardContent>
-                                        </>
-                                    ) : (
-                                        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                                            <ArrowLeftRight className="h-12 w-12 text-gray-400 mb-4" />
-                                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Point Comparison Limited</h3>
-                                            <p className="text-gray-500 max-w-md">
-                                                This feature is currently only available for DC Patron. Select DC Patron to view point comparisons.
-                                            </p>
-                                        </CardContent>
-                                    )}
-                                </Card>
+                                </div>
                             </TabsContent>
 
                             <TabsContent value="charts">
@@ -1652,14 +2058,14 @@ const DartsStatisticsDashboard: React.FC = () => {
                             </TabsContent>
 
                             <TabsContent value="pairs">
-                                <Card>
-                                    <CardHeader>
-                                        <div className="flex items-center justify-between">
-                                            <CardTitle>Doubles Partnerships</CardTitle>
+                                <div className="space-y-6">
+                                    {/* Header with Filter */}
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h2 className="text-lg font-semibold text-gray-800">Doubles Partnerships</h2>
                                             <select
                                                 value={selectedPlayer}
                                                 onChange={(e) => setSelectedPlayer(e.target.value)}
-                                                className="px-3 py-1.5 bg-white border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            className="px-3 py-1.5 bg-white border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                                             >
                                                 <option value="team">All Pairs</option>
                                                 {teamData?.players.map((player) => (
@@ -1669,161 +2075,379 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                 ))}
                                             </select>
                                         </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        {!loading && matchReports.length > 0 ? (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                {(() => {
-                                                    // Collect all doubles matches and their results
-                                                    const pairsStats = matchReports.reduce((stats: {[key: string]: {
-                                                        games: {
-                                                            matchday: number,
-                                                            opponent: string,
-                                                            isWin: boolean
-                                                        }[]
-                                                    }}, match, matchIndex) => {
-                                                        // Add null checks
-                                                        if (!match?.details?.singles?.[0]?.homePlayer || !match?.lineup?.[0]) {
-                                                            return stats;
-                                                        }
 
-                                                        const isHomeTeam = match.details.singles[0].homePlayer === match.lineup[0];
-                                                        
-                                                        // Process all doubles matches
-                                                        match.details.doubles?.forEach((double) => {
-                                                            if (!double?.homePlayers || !double?.awayPlayers) {
-                                                                return;
-                                                            }
+                                    {/* Partnerships Grid */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {Object.entries(pairStats)
+                                            .filter(([pair]) => selectedPlayer === "team" || pair.includes(selectedPlayer))
+                                            .sort(([, a], [, b]) => {
+                                                const aHasEnoughMatches = (a.wins + a.losses) >= 3;
+                                                const bHasEnoughMatches = (b.wins + b.losses) >= 3;
+                                                
+                                                // If one has enough matches and the other doesn't, prioritize the one with enough
+                                                if (aHasEnoughMatches !== bHasEnoughMatches) {
+                                                    return aHasEnoughMatches ? -1 : 1;
+                                                }
+                                                
+                                                // If both have enough matches or both don't, sort by win rate
+                                                return b.winRate - a.winRate;
+                                            })
+                                            .map(([pair, stats]) => {
+                                                const totalMatches = stats.wins + stats.losses;
+                                                const hasEnoughMatches = totalMatches >= 3;
 
-                                                            // Get the correct pair based on whether we're home or away
-                                                            const ourPlayers = isHomeTeam ? double.homePlayers : double.awayPlayers;
-                                                            const pairKey = ourPlayers.sort().join(' / ');
-                                                            const isWin = isHomeTeam ? 
-                                                                (double.homeScore ?? 0) > (double.awayScore ?? 0) : 
-                                                                (double.awayScore ?? 0) > (double.homeScore ?? 0);
+                                                // Add visual distinction for pairs with fewer than 3 matches
+                                                const cardStyle = hasEnoughMatches 
+                                                    ? "border-gray-100" 
+                                                    : "border-gray-100 opacity-75";
 
-                                                            if (!stats[pairKey]) {
-                                                                stats[pairKey] = { games: [] };
-                                                            }
-                                                            
-                                                            stats[pairKey].games.push({
-                                                                matchday: matchIndex + 1,
-                                                                opponent: match.opponent || 'Unknown',
-                                                                isWin
-                                                            });
-                                                        });
-                                                        return stats;
-                                                    }, {});
+                                                return (
+                                                    <div key={pair} 
+                                                        className={`group relative bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-visible border ${cardStyle}`}
+                                                    >
+                                                        {/* Accent line based on win rate and matches played */}
+                                                        <div className={`h-1 w-full bg-gradient-to-r ${
+                                                            totalMatches < 3 
+                                                                ? 'from-blue-400/40 to-blue-500/40'
+                                                                : stats.winRate > 50
+                                                                    ? 'from-emerald-400/40 to-emerald-500/40'
+                                                                    : stats.winRate === 50
+                                                                        ? 'from-amber-400/40 to-amber-500/40'
+                                                                        : 'from-rose-400/40 to-rose-500/40'
+                                                        }`} />
 
-                                                    // Convert to array and sort: first by 3+ games and win rate, then just win rate
-                                                    return Object.entries(pairsStats)
-                                                        .map(([pair, stats]) => {
-                                                            const totalGames = stats.games.length;
-                                                            const wins = stats.games.filter(g => g.isWin).length;
-                                                            const winRate = (wins / totalGames) * 100;
-                                                            return { pair, stats, totalGames, winRate };
-                                                        })
-                                                        .filter(({ pair }) => 
-                                                            selectedPlayer === "team" || 
-                                                            pair.includes(selectedPlayer)
-                                                        )
-                                                        .sort((a, b) => {
-                                                            const aHasEnoughGames = a.totalGames >= 3;
-                                                            const bHasEnoughGames = b.totalGames >= 3;
-                                                            
-                                                            if (aHasEnoughGames !== bHasEnoughGames) {
-                                                                return aHasEnoughGames ? -1 : 1;
-                                                            }
-                                                            
-                                                            return b.winRate - a.winRate;
-                                                        })
-                                                        .map(({ pair, stats, totalGames, winRate }) => {
-                                                            const wins = stats.games.filter(g => g.isWin).length;
+                                                        <div className="p-5">
+                                                            {/* Players Section */}
+                                                            <div className="flex items-center justify-between mb-4">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="flex -space-x-3">
+                                                                        <div className="h-10 w-10 rounded-full bg-violet-50 border-2 border-white overflow-hidden flex items-center justify-center">
+                                                                            {selectedTeam === 'DC Patron' && playerImages[pair.split(' & ')[0]] ? (
+                                                                                <img 
+                                                                                    src={playerImages[pair.split(' & ')[0]]} 
+                                                                                    alt={pair.split(' & ')[0]}
+                                                                                    className="h-full w-full object-cover"
+                                                                                />
+                                                                            ) : (
+                                                                                <span className="text-xs font-medium text-violet-700">
+                                                                                    {getInitials(pair.split(' & ')[0])}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="h-10 w-10 rounded-full bg-violet-50 border-2 border-white overflow-hidden flex items-center justify-center">
+                                                                            {selectedTeam === 'DC Patron' && playerImages[pair.split(' & ')[1]] ? (
+                                                                                <img 
+                                                                                    src={playerImages[pair.split(' & ')[1]]} 
+                                                                                    alt={pair.split(' & ')[1]}
+                                                                                    className="h-full w-full object-cover"
+                                                                                />
+                                                                            ) : (
+                                                                                <span className="text-xs font-medium text-violet-700">
+                                                                                    {getInitials(pair.split(' & ')[1])}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="ml-1">
+                                                                        <div className="text-sm font-medium text-gray-900">{pair.split(' & ')[0]}</div>
+                                                                        <div className="text-sm font-medium text-gray-900">{pair.split(' & ')[1]}</div>
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                <div className={`px-2.5 py-1 rounded-md text-xs font-medium ${
+                                                                    stats.winRate >= 75 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                                                                    stats.winRate >= 50 ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+                                                                    'bg-slate-50 text-slate-700 border border-slate-100'
+                                                                }`}>
+                                                                    {stats.winRate}% Win Rate
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Stats Grid */}
+                                                            <div className="grid grid-cols-3 gap-3 mb-4">
+                                                                <div className="relative rounded-lg bg-slate-50/50 p-2 border border-slate-100">
+                                                                    <div className="text-[11px] text-slate-600 font-medium mb-0.5">Matches</div>
+                                                                    <div className="text-lg font-semibold text-slate-700">{totalMatches}</div>
+                                                                </div>
+                                                                <div className="relative rounded-lg bg-emerald-50/50 p-2 border border-emerald-100">
+                                                                    <div className="text-[11px] text-emerald-600 font-medium mb-0.5">Wins</div>
+                                                                    <div className="text-lg font-semibold text-emerald-700">{stats.wins}</div>
+                                                                </div>
+                                                                <div className="relative rounded-lg bg-rose-50/50 p-2 border border-rose-100">
+                                                                    <div className="text-[11px] text-rose-600 font-medium mb-0.5">Losses</div>
+                                                                    <div className="text-lg font-semibold text-rose-700">{stats.losses}</div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Match History */}
+                                                            <div className="space-y-2 overflow-visible">
+                                                                <div className="text-xs font-medium text-slate-500">Match History</div>
+                                                                <div className="flex flex-wrap gap-2 overflow-visible">
+                                                                    {stats.matches.map((match, idx) => (
+                                                                        <div key={idx} 
+                                                                            className={`relative h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-medium hover:scale-110 transition-transform duration-200 group/circle ${
+                                                                                match.isWin 
+                                                                                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300' 
+                                                                                    : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 hover:border-rose-300'
+                                                                            }`}
+                                                                        >
+                                                                            <span>{match.matchday}</span>
+                                                                            
+                                                                            {/* Tooltip */}
+                                                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/circle:block z-[100]">
+                                                                                <div className="bg-slate-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap">
+                                                                                    {match.opponent}
+                                                                                </div>
+                                                                                <div className="border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-slate-800 w-0 h-0 mx-auto"></div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                    </div>
+                                </div>
+                            </TabsContent>
+
+                            <TabsContent value="mergedStats">
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    {sortedPlayers.map((player) => {
+                                        const playerAverages = matchAverages
+                                            .flatMap(match => ({
+                                                average: match.playerAverages.find(avg => avg.playerName === player.playerName)?.average || 0,
+                                                matchday: match.matchday,
+                                                opponent: match.opponent
+                                            }))
+                                            .filter(data => data.average > 0);
+                                        
+                                        const bestPerformance = playerAverages.reduce((best, current) => 
+                                            current.average > best.average ? current : best,
+                                            playerAverages[0] || { average: 0, matchday: 0, opponent: '-' }
+                                        );
+                                        
+                                        const difference = bestPerformance.average - player.adjustedAverage;
+                                        const oneEightyCount = oneEightys.find(x => x.playerName === player.playerName)?.count ?? 0;
+                                        const highFinishList = highFinishes.find(x => x.playerName === player.playerName)?.finishes ?? [];
                                                             
                                                             return (
-                                                                <div key={pair} className="bg-white rounded-lg border hover:border-blue-200 transition-all duration-200 overflow-hidden">
-                                                                    <div className="p-4">
-                                                                        <div className="flex items-center justify-between mb-4">
-                                                                            <h3 className="text-lg font-semibold text-gray-900">
-                                                                                <div className="flex flex-col">
-                                                                                    <span>{pair.split(' / ')[0]} &</span>
-                                                                                    <span>{pair.split(' / ')[1]}</span>
+                                            <div key={player.playerName} 
+                                                className="group relative bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden border border-gray-100"
+                                            >
+                                                {/* Subtle top accent line */}
+                                                <div className={`h-1 w-full bg-gradient-to-r ${
+                                                    player.adjustedAverage > (teamAverage || 0) 
+                                                        ? 'from-teal-400/40 to-teal-500/40'
+                                                        : 'from-slate-400/30 to-slate-500/30'
+                                                }`} />
+
+                                                <div className="p-5">
+                                                    {/* Header Section with minimalist design */}
+                                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-6 gap-4 sm:gap-0">
+                                                        {/* Player Info Section */}
+                                                        <div className="flex items-center gap-3">
+                                                            {/* Avatar */}
+                                                            <div className="h-12 w-12 rounded-full bg-violet-50 border-2 border-white overflow-hidden flex items-center justify-center flex-shrink-0">
+                                                                {selectedTeam === 'DC Patron' && playerImages[player.playerName] ? (
+                                                                    <img 
+                                                                        src={playerImages[player.playerName]} 
+                                                                        alt={player.playerName}
+                                                                        className="h-full w-full object-cover"
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-sm font-medium text-violet-700">
+                                                                        {getInitials(player.playerName)}
+                                                                    </span>
+                                                                )}
                                                                                 </div>
-                                                                            </h3>
-                                                                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                                                                totalGames < 3 
-                                                                                    ? 'bg-orange-50 text-orange-700'  // Less than 3 games
-                                                                                    : winRate >= 50 
-                                                                                        ? 'bg-green-50 text-green-700'  // 50% or higher
-                                                                                        : 'bg-red-50 text-red-700'  // Below 50%
-                                                                            }`}>
-                                                                                {winRate.toFixed(1)}%
+                                                            {/* Name and Stats */}
+                                                            <div className="space-y-1">
+                                                                <h3 className="text-lg font-semibold text-gray-800">{player.playerName}</h3>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                                        <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-gray-50 text-gray-700 rounded-md border border-gray-100 whitespace-nowrap">
+                                                                            {player.adjustedAverage.toFixed(2)} avg
                                                                             </span>
+                                                                        {difference > 0 && (
+                                                                            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-violet-50 text-violet-700 rounded-md border border-violet-100 whitespace-nowrap">
+                                                                                peak: {bestPerformance.average.toFixed(2)}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
                                                                         </div>
                                                                         
-                                                                        <div className="space-y-4">
-                                                                            {/* Win Rate Progress Bar */}
-                                                                            <div>
-                                                                                <div className="flex justify-between text-sm mb-1">
-                                                                                    <span className="text-gray-500">Win Rate</span>
-                                                                                    <span className="font-medium text-gray-900">
-                                                                                        {wins}-{totalGames - wins}
-                                                                                    </span>
+                                                        {/* Achievement Badges */}
+                                                        <div className="flex gap-1.5 ml-14 sm:ml-0">
+                                                            {player.adjustedAverage > (teamAverage || 0) && (
+                                                                <div className="relative group/badge">
+                                                                    <div className="h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center">
+                                                                        <span className="text-[10px] font-bold text-blue-600">AVG+</span>
                                                                                 </div>
-                                                                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                                                                    <div 
-                                                                                        className="h-full bg-green-500 rounded-full"
-                                                                                        style={{ width: `${winRate}%` }}
+                                                                    <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-blue-600 text-[10px] flex items-center justify-center border border-blue-200 font-medium">
+                                                                        +{(player.adjustedAverage - (teamAverage || 0)).toFixed(1)}
+                                                                                </div>
+                                                                </div>
+                                                            )}
+                                                            {(player?.winRate ?? 0) > teamWinRate && (
+                                                                <div className="relative group/badge">
+                                                                    <div className="h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+                                                                        <span className="text-[10px] font-bold text-emerald-600">WIN+</span>
+                                                                    </div>
+                                                                    <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-emerald-600 text-[10px] flex items-center justify-center border border-emerald-200 font-medium">
+                                                                        +{((player?.winRate ?? 0) - teamWinRate).toFixed(0)}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            {oneEightyCount > 0 && (
+                                                                <div className="relative group/badge">
+                                                                    <div className="h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center">
+                                                                        <span className="text-[10px] font-bold text-amber-600">180</span>
+                                                                    </div>
+                                                                    <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-amber-600 text-[10px] flex items-center justify-center border border-amber-200 font-medium">
+                                                                        {oneEightyCount}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            {highFinishList.length > 0 && (
+                                                                <div className="relative group/badge">
+                                                                    <div className="h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center group-hover/badge:bg-rose-100 transition-colors">
+                                                                        <span className="text-[10px] font-bold text-rose-600">HiFi</span>
+                                                                    </div>
+                                                                    <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-rose-600 text-[10px] flex items-center justify-center border border-rose-200 font-medium">
+                                                                        {highFinishList.length}
+                                                                            </div>
+
+                                                                    {/* Hover tooltip for high finishes */}
+                                                                    <div className="absolute right-0 top-full mt-2 scale-0 group-hover/badge:scale-100 transition-transform origin-top-right z-[100]">
+                                                                        <div className="bg-white rounded-lg shadow-lg border border-gray-100 p-2 whitespace-nowrap">
+                                                                            <div className="text-[11px] font-medium text-slate-500 mb-1.5">High Finishes</div>
+                                                                            <div className="flex gap-1.5">
+                                                                                {highFinishList.map((finish, idx) => (
+                                                                                    <span 
+                                                                                        key={idx}
+                                                                                        className="px-2 py-0.5 text-xs font-medium bg-rose-50 text-rose-700 rounded border border-rose-100"
+                                                                                    >
+                                                                                        {finish}
+                                                                                                            </span>
+                                                                                                        ))}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                        {/* Arrow */}
+                                                                        <div className="absolute -top-1 right-3 w-2 h-2 bg-white border-t border-l border-gray-100 transform -rotate-45"></div>
+                                                                                            </div>
+                                                                                    </div>
+                                                            )}
+                                                                            </div>
+                                                                        </div>
+                                                                        
+                                                    {/* Elegant stats grid */}
+                                                    <div className="grid grid-cols-2 gap-3 mb-5">
+                                                        <div className="relative rounded-lg bg-slate-50/50 p-3 border border-slate-100 group hover:border-blue-200">
+                                                            <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-transparent rounded-lg"></div>
+                                                            <div className="relative z-10">
+                                                                <div className="text-[11px] text-blue-600 font-medium mb-1">Singles</div>
+                                                                <div className="flex items-baseline gap-1">
+                                                                    <span className="text-xl font-semibold text-slate-700">
+                                                                        {player.singles?.split('-')[0] || '0'}
+                                                                    </span>
+                                                                    <span className="text-sm text-slate-400">
+                                                                        /{parseInt(player.singles?.split('-')[0] || '0') + parseInt(player.singles?.split('-')[1] || '0')}
+                                                                                    </span>
+                                                                    </div>
+                                                                </div>
+                                                            <User className="absolute bottom-1 right-1 h-8 w-8 text-blue-200" />
+                                            </div>
+                                                        <div className="relative rounded-lg bg-slate-50/50 p-3 border border-slate-100 group hover:border-violet-200">
+                                                            <div className="absolute inset-0 bg-gradient-to-br from-violet-50/50 to-transparent rounded-lg"></div>
+                                                            <div className="relative z-10">
+                                                                <div className="text-[11px] text-violet-600 font-medium mb-1">Doubles</div>
+                                                                <div className="flex items-baseline gap-1">
+                                                                    <span className="text-xl font-semibold text-slate-700">
+                                                                        {player.doubles?.split('-')[0] || '0'}
+                                                                    </span>
+                                                                    <span className="text-sm text-slate-400">
+                                                                        /{parseInt(player.doubles?.split('-')[0] || '0') + parseInt(player.doubles?.split('-')[1] || '0')}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <Users className="absolute bottom-1 right-1 h-8 w-8 text-violet-200" />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Refined win rate bar */}
+                                                    <div className="mb-5">
+                                                        <div className="flex justify-between items-center mb-1.5">
+                                                            <span className="text-xs font-medium text-slate-500">Win Rate</span>
+                                                            <span className="text-xs font-semibold text-slate-700">{player.winRate}%</span>
+                                                        </div>
+                                                        <div className="h-1.5 bg-emerald-50 rounded-full overflow-hidden">
+                                                            <div 
+                                                                className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-500"
+                                                                style={{ width: `${player.winRate}%` }}
                                                                                     />
                                                                                 </div>
                                                                             </div>
 
-                                                                            {/* Games List */}
-                                                                            <div className="bg-gray-50 rounded-lg p-3">
-                                                                                <div className="text-xs text-gray-500 mb-2">Games</div>
-                                                                                    <div className="space-y-2">
-                                                                                        {Object.entries(
-                                                                                            stats.games.reduce((acc, game) => {
-                                                                                                if (!acc[game.opponent]) {
-                                                                                                    acc[game.opponent] = { games: [] };
-                                                                                                }
-                                                                                                acc[game.opponent].games.push(game);
-                                                                                                return acc;
-                                                                                            }, {} as { [key: string]: { games: { matchday: number; isWin: boolean }[] } })
-                                                                                        ).map(([opponent, data]) => (
-                                                                                            <div key={opponent} className="flex items-center justify-between text-sm">
-                                                                                                <div className="flex items-center gap-2">
-                                                                                                    <div className="flex gap-1">
-                                                                                                        {data.games.map((game, idx) => (
-                                                                                                            <span key={idx} className={`w-6 h-6 flex items-center justify-center rounded-lg font-medium ${
-                                                                                                                game.isWin ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                                                                                            }`}>
-                                                                                                                {game.matchday}
-                                                                                                            </span>
-                                                                                                        ))}
+                                                    {/* Best performance section */}
+                                                    {bestPerformance.average > 0 && (
+                                                        <div className="rounded-lg bg-slate-50/50 border border-slate-100 p-3 mb-4">
+                                                            <div className="flex items-center justify-between">
+                                                                <div>
+                                                                    <div className="text-[11px] text-slate-500 font-medium mb-0.5">Best Performance</div>
+                                                                    <div className="text-sm text-slate-700">
+                                                                        {bestPerformance.average.toFixed(2)} vs {bestPerformance.opponent}
                                                                                                     </div>
-                                                                                                    <span className="text-gray-700">{opponent}</span>
                                                                                                 </div>
+                                                                <div className="px-2 py-1 bg-white rounded text-[11px] font-medium text-slate-500 border border-slate-200">
+                                                                    MD {bestPerformance.matchday}
                                                                                             </div>
-                                                                                        ))}
                                                                                     </div>
-                                                                            </div>
+                                            </div>
+                                        )}
+
+                                                    {/* Elegant checkouts display */}
+                                                    {getBestCheckouts(player.playerName).length > 0 && (
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {getBestCheckouts(player.playerName).map((checkout, idx) => {
+                                                                const lowestThree = getLowestThreeCheckouts();
+                                                                let checkoutStyle = "";
+                                                                
+                                                                if (checkout === lowestThree[0]) {
+                                                                    // Gold for lowest
+                                                                    checkoutStyle = "bg-amber-50 text-amber-700 border-amber-200";
+                                                                } else if (checkout === lowestThree[1]) {
+                                                                    // Silver for second lowest
+                                                                    checkoutStyle = "bg-gray-100 text-gray-700 border-gray-200";
+                                                                } else if (checkout === lowestThree[2]) {
+                                                                    // Bronze for third lowest
+                                                                    checkoutStyle = "bg-orange-50 text-orange-700 border-orange-200";
+                                                                } else if (checkout <= 24) {
+                                                                    // Light blue for checkouts under 24
+                                                                    checkoutStyle = "bg-blue-50 text-blue-700 border-blue-100";
+                                                                } else {
+                                                                    // Light grey for all others
+                                                                    checkoutStyle = "bg-slate-50 text-slate-600 border-slate-200";
+                                                                }
+
+                                                                return (
+                                                                    <div key={idx} 
+                                                                        className={`px-2 py-1 text-xs font-medium rounded-md border ${checkoutStyle}`}
+                                                                    >
+                                                                        {checkout}
                                                                         </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
                                                                     </div>
                                                                 </div>
                                                             );
-                                                        })
-                                                })()}
+                                    })}
                                             </div>
-                                        ) : (
-                                            <div className="flex justify-center items-center p-8">
-                                                <p className="text-gray-500">
-                                                    {loading ? "Loading pairs data..." : "No match data available"}
-                                                </p>
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                </Card>
                             </TabsContent>
                         </Tabs>
                     </>
@@ -1841,81 +2465,174 @@ const DartsStatisticsDashboard: React.FC = () => {
                 onClose={() => setSelectedMatchId(null)}
             >
                 {selectedMatchId !== null && matchReports[selectedMatchId] && (
-                    <div className="space-y-4">
-                        <h2 className="text-xl font-semibold mb-4">Match Details</h2>
-                        
-                        {/* First Singles (1-2) */}
+                    <div className="space-y-6">
+                        {/* Header Section */}
+                        <div className="flex items-start justify-between pb-4 border-b">
+                            <div className="space-y-2">
+                                <h2 className="text-2xl font-semibold text-gray-800">Matchday {selectedMatchId + 1}</h2>
+                                <div className="flex flex-col gap-2">
+                                    <span className="text-sm text-gray-500">{matchReports[selectedMatchId].opponent}</span>
+                                    <div className="flex flex-wrap gap-2">
+                                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md border ${
+                                            matchReports[selectedMatchId].score.split('-')[0] > matchReports[selectedMatchId].score.split('-')[1]
+                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                                : matchReports[selectedMatchId].score.split('-')[0] === matchReports[selectedMatchId].score.split('-')[1]
+                                                    ? 'bg-amber-50 text-amber-700 border-amber-100'
+                                                    : 'bg-rose-50 text-rose-700 border-rose-100'
+                                        }`}>
+                                            Sets {matchReports[selectedMatchId].score}
+                                        </span>
+                                        <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-600 rounded-md border border-blue-100">
+                                            Legs {matchReports[selectedMatchId].details.totalLegs.home}-{matchReports[selectedMatchId].details.totalLegs.away}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Match Flow Section */}
+                        <div className="grid gap-4">
+                            {/* First Singles (0-1) */}
                         {matchReports[selectedMatchId].details.singles.slice(0, 2).map((match, idx) => (
-                            <div key={`single1-${idx}`} className="flex items-center py-2 border-b">
-                                <span className="w-[42%] text-right pr-4 text-xs sm:text-base">{match.homePlayer}</span>
-                                <span className="w-[16%] text-center px-3 py-1 rounded bg-gray-100">
-                                    <span className="text-[10px] sm:text-base">
-                                        {match.homeScore} - {match.awayScore}
+                                <div key={`single1-${idx}`} 
+                                    className="flex items-center bg-slate-50/50 rounded-lg border border-slate-100 overflow-hidden"
+                                >
+                                    <div className={`w-[42%] flex items-center justify-end gap-2 p-3 ${
+                                        match.homeScore > match.awayScore ? 'text-emerald-600' : 'text-slate-600'
+                                    }`}>
+                                        <span className="text-sm font-medium">{match.homePlayer}</span>
+                                        {match.homeScore > match.awayScore && (
+                                            <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                <CheckCircle className="h-3 w-3" />
+                                                W
                                     </span>
+                                        )}
+                                    </div>
+                                    <div className="w-[16%] flex items-center justify-center px-2 py-2 bg-white border-x border-slate-100">
+                                        <span className="text-sm font-semibold text-slate-700 whitespace-nowrap">
+                                            {match.homeScore}-{match.awayScore}
                                 </span>
-                                <span className="w-[42%] pl-4 text-xs sm:text-base">{match.awayPlayer}</span>
+                                    </div>
+                                    <div className={`w-[42%] flex items-center gap-2 p-3 ${
+                                        match.awayScore > match.homeScore ? 'text-emerald-600' : 'text-slate-600'
+                                    }`}>
+                                        <span className="text-sm font-medium">{match.awayPlayer}</span>
+                                        {match.awayScore > match.homeScore && (
+                                            <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                <CheckCircle className="h-3 w-3" />
+                                                W
+                                            </span>
+                                        )}
+                                    </div>
                             </div>
                         ))}
                         
-                        {/* First Doubles (3-4) */}
+                            {/* First Doubles (0-1) */}
                         {matchReports[selectedMatchId].details.doubles.slice(0, 2).map((match, idx) => (
-                            <div key={`double1-${idx}`} className="flex items-center py-2 border-b">
-                                <span className="w-[42%] text-right pr-4 text-xs sm:text-base">{match.homePlayers.join(' & ')}</span>
-                                <span className="w-[16%] text-center px-3 py-1 rounded bg-gray-100">
-                                    <span className="text-[10px] sm:text-base">
-                                        {match.homeScore} - {match.awayScore}
+                                <div key={`double1-${idx}`} 
+                                    className="flex items-center bg-violet-50/50 rounded-lg border border-violet-100 overflow-hidden"
+                                >
+                                    <div className={`w-[42%] flex items-center justify-end gap-2 p-3 ${
+                                        match.homeScore > match.awayScore ? 'text-emerald-600' : 'text-slate-600'
+                                    }`}>
+                                        <span className="text-sm font-medium">{match.homePlayers.join(' / ')}</span>
+                                        {match.homeScore > match.awayScore && (
+                                            <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                <CheckCircle className="h-3 w-3" />
+                                                W
                                     </span>
+                                        )}
+                                    </div>
+                                    <div className="w-[16%] flex items-center justify-center px-2 py-2 bg-white border-x border-violet-100">
+                                        <span className="text-sm font-semibold text-slate-700 whitespace-nowrap">
+                                            {match.homeScore}-{match.awayScore}
                                 </span>
-                                <span className="w-[42%] pl-4 text-xs sm:text-base">{match.awayPlayers.join(' & ')}</span>
+                            </div>
+                                    <div className={`w-[42%] flex items-center gap-2 p-3 ${
+                                        match.awayScore > match.homeScore ? 'text-emerald-600' : 'text-slate-600'
+                                    }`}>
+                                        <span className="text-sm font-medium">{match.awayPlayers.join(' / ')}</span>
+                                        {match.awayScore > match.homeScore && (
+                                            <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                <CheckCircle className="h-3 w-3" />
+                                                W
+                                    </span>
+                                        )}
+                                    </div>
                             </div>
                         ))}
                         
-                        {/* Second Singles (5-6) */}
-                        {matchReports[selectedMatchId].details.singles.slice(2, 4).map((match, idx) => (
-                            <div key={`single2-${idx}`} className="flex items-center py-2 border-b">
-                                <span className="w-[42%] text-right pr-4 text-xs sm:text-base">{match.homePlayer}</span>
-                                <span className="w-[16%] text-center px-3 py-1 rounded bg-gray-100">
-                                    <span className="text-[10px] sm:text-base">
-                                        {match.homeScore} - {match.awayScore}
+                            {/* Second Singles (2-3) */}
+                            {matchReports[selectedMatchId].details.singles.slice(2).map((match, idx) => (
+                                <div key={`single2-${idx}`} 
+                                    className="flex items-center bg-slate-50/50 rounded-lg border border-slate-100 overflow-hidden"
+                                >
+                                    {/* Same structure as First Singles */}
+                                    <div className={`w-[42%] flex items-center justify-end gap-2 p-3 ${
+                                        match.homeScore > match.awayScore ? 'text-emerald-600' : 'text-slate-600'
+                                    }`}>
+                                        <span className="text-sm font-medium">{match.homePlayer}</span>
+                                        {match.homeScore > match.awayScore && (
+                                            <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                <CheckCircle className="h-3 w-3" />
+                                                W
                                     </span>
+                                        )}
+                                    </div>
+                                    <div className="w-[16%] flex items-center justify-center px-2 py-2 bg-white border-x border-slate-100">
+                                        <span className="text-sm font-semibold text-slate-700 whitespace-nowrap">
+                                            {match.homeScore}-{match.awayScore}
                                 </span>
-                                <span className="w-[42%] pl-4 text-xs sm:text-base">{match.awayPlayer}</span>
+                                    </div>
+                                    <div className={`w-[42%] flex items-center gap-2 p-3 ${
+                                        match.awayScore > match.homeScore ? 'text-emerald-600' : 'text-slate-600'
+                                    }`}>
+                                        <span className="text-sm font-medium">{match.awayPlayer}</span>
+                                        {match.awayScore > match.homeScore && (
+                                            <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                <CheckCircle className="h-3 w-3" />
+                                                W
+                                            </span>
+                                        )}
+                                    </div>
                             </div>
                         ))}
                         
-                        {/* Second Doubles (7-8) */}
-                        {matchReports[selectedMatchId].details.doubles.slice(2, 4).map((match, idx) => (
-                            <div key={`double2-${idx}`} className="flex items-center py-2 border-b">
-                                <span className="w-[42%] text-right pr-4 text-xs sm:text-base">{match.homePlayers.join(' & ')}</span>
-                                <span className="w-[16%] text-center px-3 py-1 rounded bg-gray-100">
-                                    <span className="text-[10px] sm:text-base">
-                                        {match.homeScore} - {match.awayScore}
+                            {/* Second Doubles (2-3) */}
+                            {matchReports[selectedMatchId].details.doubles.slice(2).map((match, idx) => (
+                                <div key={`double2-${idx}`} 
+                                    className="flex items-center bg-violet-50/50 rounded-lg border border-violet-100 overflow-hidden"
+                                >
+                                    {/* Same structure as First Doubles */}
+                                    <div className={`w-[42%] flex items-center justify-end gap-2 p-3 ${
+                                        match.homeScore > match.awayScore ? 'text-emerald-600' : 'text-slate-600'
+                                    }`}>
+                                        <span className="text-sm font-medium">{match.homePlayers.join(' / ')}</span>
+                                        {match.homeScore > match.awayScore && (
+                                            <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                <CheckCircle className="h-3 w-3" />
+                                                W
                                     </span>
+                                        )}
+                                    </div>
+                                    <div className="w-[16%] flex items-center justify-center px-2 py-2 bg-white border-x border-violet-100">
+                                        <span className="text-sm font-semibold text-slate-700 whitespace-nowrap">
+                                            {match.homeScore}-{match.awayScore}
                                 </span>
-                                <span className="w-[42%] pl-4 text-xs sm:text-base">{match.awayPlayers.join(' & ')}</span>
                             </div>
-                        ))}
-                        
-                        {/* Totals */}
-                        <div className="pt-4 space-y-2">
-                            <div className="flex flex-col sm:flex-row items-center sm:items-start sm:justify-between">
-                                <span className="w-full sm:w-[42%] text-center sm:text-right pr-0 sm:pr-4 text-xs sm:text-base mb-1 sm:mb-0">Total Legs</span>
-                                <span className="w-[25%] sm:w-[16%] text-center px-3 py-1 rounded bg-blue-100">
-                                    <span className="text-[10px] sm:text-base">
-                                        {matchReports[selectedMatchId].details.totalLegs.home} - {matchReports[selectedMatchId].details.totalLegs.away}
+                                    <div className={`w-[42%] flex items-center gap-2 p-3 ${
+                                        match.awayScore > match.homeScore ? 'text-emerald-600' : 'text-slate-600'
+                                    }`}>
+                                        <span className="text-sm font-medium">{match.awayPlayers.join(' / ')}</span>
+                                        {match.awayScore > match.homeScore && (
+                                            <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                <CheckCircle className="h-3 w-3" />
+                                                W
                                     </span>
-                                </span>
-                                <span className="hidden sm:block sm:w-[42%]"></span>
+                                        )}
                             </div>
-                            <div className="flex flex-col sm:flex-row items-center sm:items-start sm:justify-between">
-                                <span className="w-full sm:w-[42%] text-center sm:text-right pr-0 sm:pr-4 text-xs sm:text-base mb-1 sm:mb-0">Total Sets</span>
-                                <span className="w-[25%] sm:w-[16%] text-center px-3 py-1 rounded bg-blue-100">
-                                    <span className="text-[10px] sm:text-base">
-                                        {matchReports[selectedMatchId].details.totalSets.home} - {matchReports[selectedMatchId].details.totalSets.away}
-                                    </span>
-                                </span>
-                                <span className="hidden sm:block sm:w-[42%]"></span>
-                            </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}
