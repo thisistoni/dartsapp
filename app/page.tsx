@@ -46,6 +46,8 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [selectedTeam, setSelectedTeam] = useState<string>('DC Patron');
     const [teamData, setTeamData] = useState<TeamData | null>(null);
     const [matchReports, setMatchReports] = useState<MatchReport[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [loading, setLoading] = useState<boolean>(false);
     const [leaguePosition, setLeaguePosition] = useState<number | null>(null); // New state variable for league position
     const [clubVenue, setClubVenue] = useState<ClubVenue | null>(null);
     const [teamAverage, setTeamAverage] = useState<number | null>(null);
@@ -71,8 +73,6 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     // First, add a state for showing/hiding secondary tabs
     const [showSecondaryTabs, setShowSecondaryTabs] = useState(false);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [loading, setLoading] = useState<boolean>(false);
 
     // Add this at the top level
     const playerImages: { [key: string]: string } = {
@@ -128,6 +128,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     
     useEffect(() => {
         if (selectedTeam) {
+            setLoading(true);
             setIsInitialLoad(true); // Set initial load state
             currentTeamRef.current = selectedTeam;
 
@@ -2357,8 +2358,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                     <span className="text-sm text-slate-400">
                                                                         /{parseInt(player.singles?.split('-')[0] || '0') + parseInt(player.singles?.split('-')[1] || '0')}
                                                                                     </span>
-                                                                    </div>
-                                                                </div>
+                                                                                    </div>
+                                                                                </div>
                                                             <User className="absolute bottom-1 right-1 h-8 w-8 text-blue-200" />
                                             </div>
                                                         <div className="relative rounded-lg bg-slate-50/50 p-3 border border-slate-100 group hover:border-violet-200">
