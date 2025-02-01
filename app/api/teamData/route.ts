@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { TeamData } from '@/lib/models/types';
 import { fetchSpielberichteLink, fetchDartIds, fetchTeamPlayersAverage, fetchMatchReport, fetchLeaguePosition, fetchClubVenue, fetchComparisonData, fetchTeamStandings, fetchMatchAverages, fetch180sAndHighFinishes } from '@/lib/scraper';
+import { Schema } from 'mongoose';
+import axios from 'axios';
 
 // Add these interfaces at the top of the file after the imports
 interface SingleMatch {
@@ -33,10 +35,20 @@ interface MatchReport {
   details: MatchDetails;
 }
 
+// Add schedule to TeamData model if not already there
+const scheduleSchema = new Schema({
+    round: String,
+    date: String,
+    opponent: String,
+    venue: String,
+    address: String,
+    location: String,
+    lastUpdated: Date
+});
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const teamName = searchParams.get('team');
-  const forceUpdate = searchParams.get('forceUpdate') === 'true';
 
   if (!teamName) {
     return NextResponse.json({ error: 'Team name is required' }, { status: 400 });
@@ -44,28 +56,8 @@ export async function GET(request: Request) {
 
   try {
     await connectToDatabase();
-
-    // Try to get data from database first
-    const teamData = await TeamData.findOne({ teamName });
     
-    // If we have data and not forcing update, return it immediately
-    if (teamData && !forceUpdate) {
-      const now = new Date();
-      const needsUpdate = now.getTime() - new Date(teamData.lastUpdated).getTime() > 3600000;
-      
-      // Return data immediately and trigger background update if needed
-      if (needsUpdate) {
-        // Trigger background update without waiting
-        updateTeamData(teamName).catch(console.error);
-      }
-      
-      return NextResponse.json({ 
-        data: teamData,
-        source: 'database'
-      });
-    }
-
-    // If no data or force update, fetch new data
+    // Always fetch new data
     const updatedData = await updateTeamData(teamName);
     
     return NextResponse.json({
@@ -111,68 +103,113 @@ function isValidMatchReport(report: MatchReport): boolean {
 
 // Update the updateTeamData function
 async function updateTeamData(teamName: string) {
-  const [
-    spielberichteLink,
-    clubVenue,
-    leaguePosition,
-    teamPlayers,
-    comparisonData,
-    teamStandings,
-    specialStats
-  ] = await Promise.all([
-    fetchSpielberichteLink(),
-    fetchClubVenue(teamName),
-    fetchLeaguePosition(teamName),
-    fetchTeamPlayersAverage(teamName),
-    fetchComparisonData(teamName),
-    fetchTeamStandings(teamName),
-    fetch180sAndHighFinishes(teamName)
-  ]);
+  try {
+    const [
+      spielberichteLink,
+      leaguePosition,
+      teamPlayers,
+      comparisonData,
+      teamStandings,
+      specialStats,
+      clubVenue  // Always fetch fresh clubVenue
+    ] = await Promise.all([
+      fetchSpielberichteLink(),
+      fetchLeaguePosition(teamName),
+      fetchTeamPlayersAverage(teamName),
+      fetchComparisonData(teamName),
+      fetchTeamStandings(teamName),
+      fetch180sAndHighFinishes(teamName),
+      fetchClubVenue(teamName)
+    ]);
 
-  const dartIds = await fetchDartIds(spielberichteLink!, teamName);
-  
-  // Fetch all match reports
-  const allMatchReports = await Promise.all(
-    dartIds.map(id => fetchMatchReport(id, teamName))
-  );
+    const dartIds = await fetchDartIds(spielberichteLink!, teamName);
+    
+    // Fetch all match reports
+    const allMatchReports = await Promise.all(
+      dartIds.map(id => fetchMatchReport(id, teamName))
+    );
 
-  // Filter out invalid match reports
-  const validMatchReports = allMatchReports.filter(isValidMatchReport);
+    // Filter out invalid match reports
+    const validMatchReports = allMatchReports.filter(isValidMatchReport);
 
-  // Only fetch averages for valid matches
-  const matchAverages = await Promise.all(
-    validMatchReports.map((report, index) => 
-      fetchMatchAverages(
-        `https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${dartIds[index]}&saison=2024/25`,
-        teamName
-      ).then(avg => ({
-        ...avg,
-        matchday: index + 1,
-        opponent: report.opponent
-      }))
-    )
-  );
+    // Only fetch averages for valid matches
+    const matchAverages = await Promise.all(
+      validMatchReports.map((report, index) => 
+        fetchMatchAverages(
+          `https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${dartIds[index]}&saison=2024/25`,
+          teamName
+        ).then(avg => ({
+          ...avg,
+          matchday: index + 1,
+          opponent: report.opponent
+        }))
+      )
+    );
 
-  const updatedData = {
-    teamName,
-    lastUpdated: new Date(),
-    players: teamPlayers,
-    matchReports: validMatchReports, // Use filtered reports
-    leaguePosition,
-    clubVenue,
-    comparisonData,
-    teamStandings,
-    matchAverages,
-    oneEightys: specialStats.oneEightys,
-    highFinishes: specialStats.highFinishes
-  };
+    const updatedData = {
+      teamName,
+      lastUpdated: new Date(),
+      players: teamPlayers,
+      matchReports: validMatchReports, // Use filtered reports
+      leaguePosition,
+      clubVenue,
+      comparisonData,
+      teamStandings,
+      matchAverages,
+      oneEightys: specialStats.oneEightys,
+      highFinishes: specialStats.highFinishes
+    };
 
-  // Update database
-  await TeamData.findOneAndUpdate(
-    { teamName }, 
-    updatedData,
-    { upsert: true }
-  );
+    // Update database
+    await TeamData.findOneAndUpdate(
+      { teamName }, 
+      updatedData,
+      { upsert: true }
+    );
 
-  return updatedData;
+    return updatedData;
+  } catch (error) {
+    console.error('Error in updateTeamData:', error);
+    throw error;
+  }
+}
+
+// In your fetch function
+async function getSchedule(teamName: string) {
+    try {
+        // Check if we have recent schedule data (less than a month old)
+        const existingData = await TeamData.findOne({
+            teamName,
+            'schedule.lastUpdated': { 
+                $gt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) 
+            }
+        });
+
+        if (existingData?.schedule) {
+            return existingData.schedule;
+        }
+
+        // If not in DB or too old, fetch new data
+        const response = await axios.get(`/api/schedule?team=${teamName}`);
+        const schedule = response.data;
+
+        // Update DB with new schedule
+        await TeamData.findOneAndUpdate(
+            { teamName },
+            { 
+                $set: { 
+                    schedule: {
+                        ...schedule,
+                        lastUpdated: new Date()
+                    }
+                }
+            },
+            { upsert: true }
+        );
+
+        return schedule;
+    } catch (error) {
+        console.error('Error fetching schedule:', error);
+        return null;
+    }
 } 
