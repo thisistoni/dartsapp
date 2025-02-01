@@ -36,6 +36,7 @@ interface MatchReport {
 }
 
 // Add schedule to TeamData model if not already there
+ // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const scheduleSchema = new Schema({
     round: String,
     date: String,
@@ -175,6 +176,7 @@ async function updateTeamData(teamName: string) {
 }
 
 // In your fetch function
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function getSchedule(teamName: string) {
     try {
         // Check if we have recent schedule data (less than a month old)
