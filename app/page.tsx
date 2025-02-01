@@ -88,6 +88,23 @@ const DartsStatisticsDashboard: React.FC = () => {
         'Markus Hafner': 'https://www.oefb.at/oefb2/images/1278650591628556536_762e3056bd0e1a82d61c-1,0-320x320.png'
     };
 
+    // First, add a ref for the search container
+    const searchContainerRef = useRef<HTMLDivElement>(null);
+
+    // Add useEffect for click outside handling
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+                setSearchTerm('');
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
     // Update the useEffect where we fetch data to handle the fade-away
     useEffect(() => {
         if (dataSource === 'scraped') {
@@ -707,7 +724,7 @@ const DartsStatisticsDashboard: React.FC = () => {
             <DataSourceIndicator />
             <div className="max-w-7xl mx-auto">
                 {/* Main Header */}
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
                     <div className="flex items-center gap-3">
                         <div className="h-12 w-12 rounded-lg bg-green-50 border border-green-100 flex items-center justify-center">
                             <Target className="h-6 w-6 text-green-500" />
@@ -719,32 +736,31 @@ const DartsStatisticsDashboard: React.FC = () => {
                     </div>
 
                     {/* Search and Team Selection */}
-                    <div className="relative mt-4 md:mt-0">
-                        <div className="flex items-center bg-white rounded-lg shadow-sm border p-2">
-                            <Search className="h-5 w-5 text-gray-400 mr-2" />
-                            <input
-                                type="text"
-                                placeholder="Search Team..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="outline-none bg-transparent"
-                            />
-                        </div>
-                        {/* Dropdown for Search Results */}
-                        {searchTerm && (
-                            <div className="absolute w-full mt-1 bg-white rounded-lg shadow-lg border z-10">
-                                {filteredTeams.map((team: string) => (
-                                    <button
-                                        key={team}
-                                        className="w-full text-left px-4 py-2 hover:bg-gray-100 focus:outline-none"
-                                        onClick={() => {
-                                            setSelectedTeam(team);
-                                            setSearchTerm('');
-                                        }}
-                                    >
-                                        {team}
-                                    </button>
-                                ))}
+                    <div className="relative w-full md:w-64" ref={searchContainerRef}>  {/* Added width control */}
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Search team..."
+                            className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200"
+                        />
+                        {searchTerm && filteredTeams.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg border border-gray-100 shadow-lg overflow-hidden z-50">
+                                <div className="max-h-[48rem] overflow-y-auto">  {/* Changed to 48rem (768px) */}
+                                    {filteredTeams.map((team) => (
+                                        <button
+                                            key={team}
+                                            onClick={() => {
+                                                setSelectedTeam(team);
+                                                setSearchTerm('');
+                                            }}
+                                            className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 focus:bg-gray-50 focus:outline-none text-gray-700 cursor-pointer transition-colors duration-150"
+                                        >
+                                            {team}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -864,7 +880,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     {teamData && teamData.players.slice(0, 3).map((player: Player, index: number) => (
                                         <div key={player.playerName} 
-                                            className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden border border-gray-100"
+                                            className="group relative bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-visible border border-gray-100"
                                         >
                                             <div className={`h-1 w-full bg-gradient-to-r ${medalColors[index]}`} />
                                             <div className="p-4">
@@ -2075,7 +2091,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                             </TabsContent>
 
                             <TabsContent value="mergedStats">
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-visible">
                                     {sortedPlayers.map((player) => {
                                         const playerAverages = matchAverages
                                             .flatMap(match => ({
@@ -2096,7 +2112,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                             
                                                             return (
                                             <div key={player.playerName} 
-                                                className="group relative bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden border border-gray-100"
+                                                className="group relative bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-visible border border-gray-100"
                                             >
                                                 {/* Subtle top accent line */}
                                                 <div className={`h-1 w-full bg-gradient-to-r ${
@@ -2105,7 +2121,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                         : 'from-slate-400/30 to-slate-500/30'
                                                 }`} />
 
-                                                <div className="p-5">
+                                                <div className="p-5 overflow-visible">
                                                     {/* Header Section with minimalist design */}
                                                     <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-6 gap-4 sm:gap-0">
                                                         {/* Player Info Section */}
@@ -2133,9 +2149,45 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                             {player.adjustedAverage.toFixed(2)} avg
                                                                             </span>
                                                                         {difference > 0 && (
-                                                                            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-violet-50 text-violet-700 rounded-md border border-violet-100 whitespace-nowrap">
-                                                                                peak: {bestPerformance.average.toFixed(2)}
-                                                                            </span>
+                                                                            <div className="group/peak relative">
+                                                                                <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-violet-50 text-violet-700 rounded-md border border-violet-100 whitespace-nowrap">
+                                                                                    Peak: {bestPerformance.average.toFixed(2)}
+                                                                                </span>
+
+                                                                                {/* Peak Performance Tooltip */}
+                                                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/peak:block z-[100]">
+                                                                                    <div className="bg-slate-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap">
+                                                                                        {bestPerformance.opponent}
+                                                                                        <br />
+                                                                                        {(() => {
+                                                                                            const matchWithPeak = matchReports[bestPerformance.matchday - 1];
+                                                                                            const playerGame = matchWithPeak?.details.singles.find(game => 
+                                                                                                game.homePlayer === player.playerName || game.awayPlayer === player.playerName
+                                                                                            );
+                                                                                            const opponentPlayer = playerGame?.homePlayer === player.playerName 
+                                                                                                ? playerGame.awayPlayer 
+                                                                                                : playerGame?.homePlayer;
+                                                                                            const playerWon = playerGame ? 
+                                                                                                (playerGame.homePlayer === player.playerName && playerGame.homeScore > playerGame.awayScore) ||
+                                                                                                (playerGame.awayPlayer === player.playerName && playerGame.awayScore > playerGame.homeScore)
+                                                                                                : false;
+
+                                                                                            return (
+                                                                                                <>
+                                                                                                    vs {opponentPlayer}
+                                                                                                    <div className="mt-1">
+                                                                                                        <span className="text-slate-400 italic">MD{bestPerformance.matchday}</span>
+                                                                                                        <span className={`ml-1 ${playerWon ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                                                                            {playerWon ? 'W' : 'L'}
+                                                                                                        </span>
+                                                                                                    </div>
+                                                                                                </>
+                                                                                            );
+                                                                                        })()}
+                                                                                    </div>
+                                                                                    <div className="border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-slate-800 w-0 h-0 mx-auto"></div>
+                                                                                </div>
+                                                                            </div>
                                                                         )}
                                                                     </div>
                                                                 </div>
@@ -2254,55 +2306,167 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                                 </div>
                                                                             </div>
 
-                                                    {/* Best performance section */}
-                                                    {bestPerformance.average > 0 && (
-                                                        <div className="rounded-lg bg-slate-50/50 border border-slate-100 p-3 mb-4">
-                                                            <div className="flex items-center justify-between">
-                                                                <div>
-                                                                    <div className="text-[11px] text-slate-500 font-medium mb-0.5">Best Performance</div>
-                                                                    <div className="text-sm text-slate-700">
-                                                                        {bestPerformance.average.toFixed(2)} vs {bestPerformance.opponent}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                <div className="px-2 py-1 bg-white rounded text-[11px] font-medium text-slate-500 border border-slate-200">
-                                                                    MD {bestPerformance.matchday}
-                                                                                            </div>
-                                                                                    </div>
-                                            </div>
-                                        )}
+                                                    
 
                                                     {/* Elegant checkouts display */}
                                                     {getBestCheckouts(player.playerName).length > 0 && (
-                                                        <div className="flex flex-wrap gap-1.5">
-                                                            {getBestCheckouts(player.playerName).map((checkout, idx) => {
-                                                                const lowestThree = getLowestThreeCheckouts();
-                                                                let checkoutStyle = "";
-                                                                
-                                                                if (checkout === lowestThree[0]) {
-                                                                    // Gold for lowest
-                                                                    checkoutStyle = "bg-amber-50 text-amber-700 border-amber-200";
-                                                                } else if (checkout === lowestThree[1]) {
-                                                                    // Silver for second lowest
-                                                                    checkoutStyle = "bg-gray-100 text-gray-700 border-gray-200";
-                                                                } else if (checkout === lowestThree[2]) {
-                                                                    // Bronze for third lowest
-                                                                    checkoutStyle = "bg-orange-50 text-orange-700 border-orange-200";
-                                                                } else if (checkout <= 24) {
-                                                                    // Light blue for checkouts under 24
-                                                                    checkoutStyle = "bg-blue-50 text-blue-700 border-blue-100";
-                                                                } else {
-                                                                    // Light grey for all others
-                                                                    checkoutStyle = "bg-slate-50 text-slate-600 border-slate-200";
-                                                                }
+                                                        <div className="flex flex-row items-center justify-between overflow-visible">  {/* Changed from flex-wrap to flex-row */}
+                                                            <div className="flex flex-wrap gap-1.5 max-w-[75%]">  {/* Added max-width to prevent overflow */}
+                                                                {getBestCheckouts(player.playerName).map((checkout, idx) => {
+                                                                    const lowestThree = getLowestThreeCheckouts();
+                                                                    let checkoutStyle = "";
+                                                                    
+                                                                    if (checkout === lowestThree[0]) {
+                                                                        // Gold for lowest
+                                                                        checkoutStyle = "bg-amber-50 text-amber-700 border-amber-200";
+                                                                    } else if (checkout === lowestThree[1]) {
+                                                                        // Silver for second lowest
+                                                                        checkoutStyle = "bg-gray-100 text-gray-700 border-gray-200";
+                                                                    } else if (checkout === lowestThree[2]) {
+                                                                        // Bronze for third lowest
+                                                                        checkoutStyle = "bg-orange-50 text-orange-700 border-orange-200";
+                                                                    } else if (checkout <= 24) {
+                                                                        // Light blue for checkouts under 24
+                                                                        checkoutStyle = "bg-blue-50 text-blue-700 border-blue-100";
+                                                                    } else {
+                                                                        // Light grey for all others
+                                                                        checkoutStyle = "bg-slate-50 text-slate-600 border-slate-200";
+                                                                    }
 
-                                                                return (
-                                                                    <div key={idx} 
-                                                                        className={`px-2 py-1 text-xs font-medium rounded-md border ${checkoutStyle}`}
-                                                                    >
-                                                                        {checkout}
+                                                                    // Find all matches where this checkout occurred
+                                                                    const matchesWithCheckout = matchReports.filter(match => 
+                                                                        match.checkouts.some(c => 
+                                                                            c.scores.startsWith(player.playerName) && 
+                                                                            c.scores.split(': ')[1].split(', ').includes(checkout.toString())
+                                                                        )
+                                                                    );
+
+                                                                    // Get the index of this specific checkout occurrence
+                                                                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                                                    const checkoutOccurrences = getBestCheckouts(player.playerName)
+                                                                        .filter(c => c === checkout)
+                                                                        .length;
+                                                                    const currentCheckoutIndex = getBestCheckouts(player.playerName)
+                                                                        .slice(0, idx + 1)
+                                                                        .filter(c => c === checkout)
+                                                                        .length - 1;
+
+                                                                    // Get the correct match for this specific checkout occurrence
+                                                                    const matchWithCheckout = matchesWithCheckout[currentCheckoutIndex];
+
+                                                                    return (
+                                                                        <div key={idx} 
+                                                                            className="group/checkout relative"
+                                                                        >
+                                                                            <div className={`px-1.5 py-0.5 sm:px-2 sm:py-1 text-[11px] sm:text-xs font-medium rounded-md border ${checkoutStyle}`}>
+                                                                                {checkout}
+                                                                            </div>
+
+                                                                            {/* Tooltip */}
+                                                                            {matchWithCheckout && (
+                                                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/checkout:block z-[100]">
+                                                                                    <div className="bg-slate-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap">
+                                                                                        {matchWithCheckout.opponent}
+                                                                                        <br />
+                                                                                        {(() => {
+                                                                                            const playerGame = matchWithCheckout.details.singles.find(game => 
+                                                                                                game.homePlayer === player.playerName || game.awayPlayer === player.playerName
+                                                                                            );
+                                                                                            const opponentPlayer = playerGame?.homePlayer === player.playerName 
+                                                                                                ? playerGame.awayPlayer 
+                                                                                                : playerGame?.homePlayer;
+                                                                                            return `vs ${opponentPlayer}`;
+                                                                                        })()}
+                                                                                        <div className="mt-1">
+                                                                                            <span className="text-slate-400 italic">MD{matchReports.indexOf(matchWithCheckout) + 1}</span>
+                                                                                            {(() => {
+                                                                                                const playerGame = matchWithCheckout.details.singles.find(game => 
+                                                                                                    game.homePlayer === player.playerName || game.awayPlayer === player.playerName
+                                                                                                );
+                                                                                                const playerWon = playerGame ? 
+                                                                                                    (playerGame.homePlayer === player.playerName && playerGame.homeScore > playerGame.awayScore) ||
+                                                                                                    (playerGame.awayPlayer === player.playerName && playerGame.awayScore > playerGame.homeScore)
+                                                                                                    : false;
+
+                                                                                                return (
+                                                                                                    <span className={`ml-1 ${playerWon ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                                                                        {playerWon ? 'W' : 'L'}
+                                                                                                    </span>
+                                                                                                );
+                                                                                            })()}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <div className="border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-slate-800 w-0 h-0 mx-auto"></div>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
-                                                                );
-                                                            })}
+                                                                    );
+                                                                })}
+                                                            </div>
+
+                                                            {/* Form Guide Circles */}
+                                                            <div className="flex items-center gap-2 overflow-visible flex-shrink-0">  {/* Added flex-shrink-0 */}
+                                                                {/* Get filtered matches first to check count */}
+                                                                {(() => {
+                                                                    const filteredMatches = [...matchReports]
+                                                                        .reverse()
+                                                                        .filter(match => match.details.singles.some(game => 
+                                                                            game.homePlayer === player.playerName || game.awayPlayer === player.playerName
+                                                                        ))
+                                                                        .slice(0, 5);
+
+                                                                    return (
+                                                                        <>
+                                                                            <span className="text-xs text-gray-500 italic">
+                                                                                L{filteredMatches.length < 5 ? filteredMatches.length : 5}
+                                                                            </span>
+                                                                            <div className="flex gap-1.5 overflow-visible">
+                                                                                {filteredMatches.map((match, idx) => {
+                                                                                    const playerGame = match.details.singles.find(game => 
+                                                                                        game.homePlayer === player.playerName || game.awayPlayer === player.playerName
+                                                                                    );
+                                                                                    const playerWon = playerGame ? 
+                                                                                        (playerGame.homePlayer === player.playerName && playerGame.homeScore > playerGame.awayScore) ||
+                                                                                        (playerGame.awayPlayer === player.playerName && playerGame.awayScore > playerGame.homeScore)
+                                                                                        : false;
+
+                                                                                    const opponentPlayer = playerGame?.homePlayer === player.playerName 
+                                                                                        ? playerGame.awayPlayer 
+                                                                                        : playerGame?.homePlayer;
+
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={idx}
+                                                                                            className="group/circle relative"
+                                                                                        >
+                                                                                            <div
+                                                                                                className={`h-3 w-3 rounded-full ${
+                                                                                                    playerWon 
+                                                                                                        ? 'bg-emerald-400'
+                                                                                                        : 'bg-rose-400'
+                                                                                                }`}
+                                                                                            />
+                                                                                            
+                                                                                            {/* Tooltip */}
+                                                                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/circle:block z-[100]">
+                                                                                                <div className="bg-slate-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap">
+                                                                                                    {match.opponent}
+                                                                                                    <br />
+                                                                                                    vs {opponentPlayer}
+                                                                                                    <div className="mt-1 text-slate-400 italic">
+                                                                                                        MD{matchReports.indexOf(match) + 1}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                                <div className="border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-slate-800 w-0 h-0 mx-auto"></div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        </>
+                                                                    );
+                                                                })()}
+                                                            </div>
                                                         </div>
                                                     )}
                                                                     </div>

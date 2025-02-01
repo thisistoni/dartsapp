@@ -1,7 +1,1 @@
-#Form guide (last 5 matches)
-
-#"Clutch factor" (performance in decisive legs)
-
-#radar charts comparing player attributes
-
-#lineup calculator
+#tabelle
