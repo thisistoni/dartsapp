@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Search, Users, User,  Rows4,  MapPin, Martini, Phone, BarChart, ArrowLeftRight,  ArrowUp,  Calendar, Navigation, Target, Zap, CheckCircle } from 'lucide-react';
+import { Trophy, Search, Users, User,  MapPin, Martini, Phone, BarChart, ArrowLeftRight,  ArrowUp,  Calendar, Navigation, Target, Zap, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
 import { ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings, MatchAverages, OneEighty, HighFinish } from '@/lib/types';
@@ -17,6 +17,7 @@ interface DotProps {
     payload?: {
         value: number;
         matchday: number;
+        opponent: string;
     };
 }
 
@@ -72,7 +73,6 @@ const DartsStatisticsDashboard: React.FC = () => {
     const retryTimeoutRef = useRef<NodeJS.Timeout>();
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     // First, add a state for showing/hiding secondary tabs
-    const [showSecondaryTabs, setShowSecondaryTabs] = useState(false);
 
     // Add this at the top level
     const playerImages: { [key: string]: string } = {
@@ -319,16 +319,59 @@ const DartsStatisticsDashboard: React.FC = () => {
 
     // Define the dot renderer as a simple function that returns an SVG element
     const renderDot = (props: DotProps) => {
-        const { cx, cy } = props;
-        if (!cx || !cy) return (
+        const { cx, cy, payload } = props;
+        if (!cx || !cy || !payload) return (
             <svg width={0} height={0}></svg>
         );
+
+        // Find the match report for this matchday
+        const matchReport = matchReports[payload.matchday - 1];
+        if (!matchReport) return (
+            <svg width={0} height={0}></svg>
+        );
+
+        // For team average, check the match score
+        if (selectedPlayer === "team") {
+            const [homeScore, awayScore] = matchReport.score.split('-').map(Number);
+            let color;
+            if (homeScore > awayScore) {
+                color = "#22c55e";  // green for win
+            } else if (homeScore < awayScore) {
+                color = "#ef4444";  // red for loss
+            } else {
+                color = "#f59e0b";  // amber for draw
+            }
+
+            return (
+                <svg key={`dot-${cx}-${cy}`} x={cx - 6} y={cy - 6} width={12} height={12} fill="none">
+                    <path
+                        d="M1 1L11 11M1 11L11 1"
+                        stroke={color}
+                        strokeWidth={2}
+                    />
+                </svg>
+            );
+        }
+
+        // For player average, find their result in the lineup
+        const playerIndex = matchReport.lineup.indexOf(selectedPlayer);
+        if (playerIndex === -1) return (
+            <svg width={0} height={0}></svg>
+        );
+
+        // Check if player won their matches
+        const playerWon = matchReport.details.singles.some(match => 
+            (match.homePlayer === selectedPlayer && match.homeScore > match.awayScore) ||
+            (match.awayPlayer === selectedPlayer && match.awayScore > match.homeScore)
+        );
+
+        const color = playerWon ? "#22c55e" : "#ef4444";  // green for win, red for loss
 
         return (
             <svg key={`dot-${cx}-${cy}`} x={cx - 6} y={cy - 6} width={12} height={12} fill="none">
                 <path
                     d="M1 1L11 11M1 11L11 1"
-                    stroke="#ef4444"
+                    stroke={color}
                     strokeWidth={2}
                 />
             </svg>
@@ -364,6 +407,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     });
 
     // First, create a sorted array of all entries (team and players)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const getAllPerformances = () => {
         // Get team performance
         const teamBestPerformance = matchAverages.reduce((best, current) => 
@@ -411,6 +455,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     };
 
     // Add type guard function
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     function isTeamPerformance(performance: PlayerPerformance | TeamPerformance): performance is TeamPerformance {
         return 'teamAverage' in performance;
     }
@@ -611,6 +656,50 @@ const DartsStatisticsDashboard: React.FC = () => {
         0: 'from-amber-400/40 to-amber-500/40',
         1: 'from-slate-400/40 to-slate-500/40',
         2: 'from-orange-400/40 to-orange-500/40'
+    };
+
+    const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-white p-3 border rounded-lg shadow-lg">
+                    {/* Opponent Name */}
+                    <div className="mb-2">
+                        <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded">
+                            {matchData.find(m => m.matchday === label)?.opponent}
+                        </span>
+                    </div>
+                    {/* Values */}
+                    {payload.map((entry, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded ${
+                                entry.name === 'runningAverage' 
+                                    ? 'bg-green-50 text-green-700'
+                                    : 'bg-red-50 text-red-700'
+                            }`}>
+                                {Number(entry.value).toFixed(2)}
+                            </span>
+                            <span className="text-gray-600">
+                                {entry.name === 'runningAverage' ? 'Running Average' : 'Match Average'}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+        return null;
+    };
+
+    // First, calculate the domain based on the data
+    const getChartDomain = () => {
+        const minValue = Math.min(...runningAverages.map(d => d.average));
+        const maxValue = Math.max(...runningAverages.map(d => d.average));
+        
+        let [min, max] = [30, 50];  // default range
+        
+        if (minValue < 30) min = Math.floor(minValue / 5) * 5;  // round down to nearest 5
+        if (maxValue > 50) max = Math.ceil(maxValue / 5) * 5;   // round up to nearest 5
+        
+        return [min, max];
     };
 
     return (
@@ -958,36 +1047,16 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     <BarChart className="h-5 w-5 text-green-500 mr-1" />
                                     Charts
                                 </TabsTrigger>
-
-                                {/* Show More Button */}
-                                <button 
-                                    onClick={() => setShowSecondaryTabs(!showSecondaryTabs)}
-                                    className="flex items-center px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 bg-white rounded-md border border-green-200 hover:border-green-300 hover:bg-green-50/50 transition-colors"
-                                >
-                                    {showSecondaryTabs ? (
-                                        <>
-                                            <ArrowUp className="h-5 w-5 text-green-500 mr-1" />
-                                            Show Less
-                                        </>
-                                    ) : (
-                                        <>
-                                            <ArrowUp className="h-5 w-5 text-green-500 mr-1 rotate-180" />
-                                            Show More
-                                        </>
-                                    )}
-                                </button>
-
-                                {/* Secondary Tabs - Initially hidden */}
-                                {showSecondaryTabs && (
-                                    <>
-                                        <TabsTrigger value="stats" className="flex items-center">
-                                            <User className="h-5 w-5 text-green-500 mr-1" />
-                                            Stats
-                                        </TabsTrigger>
-                                        <TabsTrigger value="schedule" className="flex items-center">
+                                <TabsTrigger value="schedule" className="flex items-center">
                                             <Calendar className="h-5 w-5 text-green-500 mr-1" />
                                             Schedule
                                 </TabsTrigger>
+                            
+                                        {/* <TabsTrigger value="stats" className="flex items-center">
+                                            <User className="h-5 w-5 text-green-500 mr-1" />
+                                            Stats
+                                        </TabsTrigger>
+                                        
                                 <TabsTrigger value="performances" className="flex items-center">
                                     <Trophy className="h-5 w-5 text-green-500 mr-1" />
                                            Performances
@@ -995,10 +1064,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 <TabsTrigger value="scoreBreakdown" className="flex items-center">
                                     <Rows4 className="h-5 w-5 text-green-500 mr-1" />
                                          Distribution
-                                </TabsTrigger>
-                               
-                                    </>
-                                )}
+                                </TabsTrigger> */}
                             </TabsList>
 
 
@@ -1639,423 +1705,218 @@ const DartsStatisticsDashboard: React.FC = () => {
                             </TabsContent>
 
                             <TabsContent value="charts">
-                                <Card>
-                                    <CardHeader>
-                                        <div className="flex justify-between items-center">
-                                            <CardTitle>Average Charts</CardTitle>
-                                            <select 
-                                                className="px-3 py-1 border rounded-md text-sm bg-white"
-                                                value={selectedPlayer}
-                                                onChange={(e) => setSelectedPlayer(e.target.value)}
-                                            >
-                                                <option value="team">{selectedTeam}</option>
-                                                {teamData?.players.map((player) => (
-                                                    <option key={player.playerName} value={player.playerName}>
-                                                                {player.playerName}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                                    </div>
-                                        <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-500">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-4 h-0.5 bg-[#22c55e]"></div>
-                                                <span>Running Average</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-4 h-4 text-[#ef4444]">✕</div>
-                                                <span>Match Average</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-4 h-0.5 bg-[#3b82f6] border-t-2 border-dashed"></div>
-                                                <span>Current Average</span>
-                                            </div>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="h-[400px] w-full">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <LineChart
-                                                    data={runningAverages}
-                                                    margin={{
-                                                        top: 20,
-                                                        right: 30,
-                                                        left: 20,
-                                                        bottom: 20,
-                                                    }}
-                                                >
-                                                    <CartesianGrid strokeDasharray="3 3" />
-                                                    <XAxis 
-                                                        dataKey="matchday" 
-                                                        label={{ 
-                                                            value: 'Matchday', 
-                                                            position: 'bottom' 
-                                                        }}
-                                                    />
-                                                    <YAxis 
-                                                        domain={[30, 50]}
-                                                        ticks={[30, 35, 40, 45, 50]}
-                                                        label={{ 
-                                                            value: 'Average', 
-                                                            angle: -90, 
-                                                            position: 'insideLeft' 
-                                                        }}
-                                                    />
-                                                    <Tooltip 
-                                                        content={({ active, payload, label }: TooltipProps<number, string>) => {
-                                                            if (active && payload && payload.length) {
-                                                                return (
-                                                                    <div className="bg-white p-3 border rounded-lg shadow-lg">
-                                                                        {/* Opponent Name */}
-                                                                        <div className="mb-2">
-                                                                            <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded">
-                                                                                {matchData.find(m => m.matchday === label)?.opponent}
-                                                                            </span>
-                                                                        </div>
-                                                                        {/* Values */}
-                                                                        {payload.map((entry, index) => (
-                                                                            <div key={index} className="flex items-center gap-2">
-                                                                                <span className={`px-2 py-1 rounded ${
-                                                                                    entry.name === 'runningAverage' 
-                                                                                        ? 'bg-green-50 text-green-700'
-                                                                                        : 'bg-red-50 text-red-700'
-                                                                                }`}>
-                                                                                    {Number(entry.value).toFixed(2)}
-                                                                                </span>
-                                                                                <span className="text-gray-600">
-                                                                                    {entry.name === 'runningAverage' ? 'Running Average' : 'Match Average'}
-                                                                                </span>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                );
-                                                            }
-                                                            return null;
-                                                        }}
-                                                    />
-                                                    {runningAverages.length > 0 && (
-                                                        <ReferenceLine 
-                                                            y={runningAverages[runningAverages.length - 1].runningAverage}
-                                                            stroke="#3b82f6" 
-                                                            strokeWidth={3}
-                                                            strokeDasharray="3 3"
-                                                            label={{
-                                                                position: 'right',
-                                                                fill: '#3b82f6'
-                                                            }}
-                                                        />
-                                                    )}
-                                                    {/* Running average line */}
-                                                    <Line 
-                                                        key="running-average-line"
-                                                        type="monotone" 
-                                                        dataKey="runningAverage" 
-                                                        stroke="#22c55e" 
-                                                        strokeWidth={2}
-                                                        dot={false}
-                                                    />
-                                                    {/* Individual match averages with X markers */}
-                                                    <Line
-                                                        key="match-average-line"
-                                                        type="monotone"
-                                                        dataKey="average"
-                                                        stroke="none"
-                                                        dot={renderDot}
-                                                        isAnimationActive={false}
-                                                    />
-                                                </LineChart>
-                                            </ResponsiveContainer>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                            </TabsContent>
-
-                            <TabsContent value="performances">
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
-                                            Best Performances
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                            {getAllPerformances().map((entry) => (
-                                                <div key={entry.name} 
-                                                    className="bg-white rounded-lg border hover:border-blue-200 transition-all duration-200 overflow-hidden p-4"
-                                                >
-                                                    <div className="flex items-center justify-between mb-4">
-                                                        <h3 className="text-lg font-semibold text-gray-900">
-                                                            {entry.name} {entry.isTeam && <span className="text-blue-600">(Team)</span>}
-                                                        </h3>
-                                                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                                            entry.difference > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                                        }`}>
-                                                            {entry.difference > 0 ? '+' : ''}{entry.difference.toFixed(2)}
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="space-y-4">
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div className="bg-gray-50 rounded-lg p-3">
-                                                                <div className="text-xs text-gray-500 mb-1">Current Average</div>
-                                                                <div className="text-lg font-semibold">{entry.currentAverage.toFixed(2)}</div>
-                                                            </div>
-                                                            <div className="bg-gray-50 rounded-lg p-3">
-                                                                <div className="text-xs text-gray-500 mb-1">Best Average</div>
-                                                                <div className="text-lg font-semibold">
-                                                                    {isTeamPerformance(entry.bestPerformance) 
-                                                                        ? entry.bestPerformance.teamAverage.toFixed(2) 
-                                                                        : entry.bestPerformance.average.toFixed(2)}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="bg-gray-50 rounded-lg p-3">
-                                                            <div className="text-xs text-gray-500 mb-1">Best Match</div>
-                                                            <div className="text-sm">
-                                                                Matchday {entry.bestPerformance.matchday} vs {entry.bestPerformance.opponent}
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="bg-gray-50 rounded-lg p-3">
-                                                            <div className="text-xs text-gray-500 mb-2">Best Checkouts</div>
-                                                            <div className="flex gap-2">
-                                                                {(() => {
-                                                                    const checkouts = getBestCheckouts(entry.name, entry.isTeam);
-                                                                    const lowestThree = getLowestThreeCheckouts();
-                                                                    return checkouts.length > 0 ? (
-                                                                        checkouts.map((checkout, index) => (
-                                                                            <span key={index} className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                                                                                entry.isTeam 
-                                                                                    ? 'bg-gray-100 text-gray-700'
-                                                                                    : checkout === lowestThree[0] ? 'bg-yellow-50 text-yellow-700' :
-                                                                                      checkout === lowestThree[1] ? 'bg-gray-200 text-gray-700' :
-                                                                                      checkout === lowestThree[2] ? 'bg-orange-50 text-orange-700' :
-                                                                                      checkout <= 24 ? 'bg-blue-50 text-blue-700' :
-                                                                                      ''
-                                                                            }`}>
-                                                                                {checkout}
-                                                                            </span>
-                                                                        ))
-                                                                    ) : (
-                                                                        <span className="text-sm text-gray-400">-</span>
-                                                                    );
-                                                                })()}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                <div className="space-y-6">
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h2 className="text-lg font-semibold text-gray-800">Average Development</h2>
+                                        <select
+                                            value={selectedPlayer}
+                                            onChange={(e) => setSelectedPlayer(e.target.value)}
+                                            className="px-3 py-1.5 bg-white border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        >
+                                            <option value="team">Team Average</option>
+                                            {teamData?.players.map((player) => (
+                                                <option key={player.playerName} value={player.playerName}>
+                                                    {player.playerName}
+                                                </option>
                                             ))}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </TabsContent>
+                                        </select>
+                                    </div>
 
-                            <TabsContent value="scoreBreakdown">
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
-                                            Score Distribution
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        {(() => {
-                                            const scores = matchReports.map(report => report.score).filter(Boolean);
-                                            const scoreFrequency: { [key: string]: number } = {};
-                                            let totalWins = 0;
-                                            let totalLosses = 0;
-                                            let totalDraws = 0;
-                                            
-                                            scores.forEach(score => {
-                                                scoreFrequency[score] = (scoreFrequency[score] || 0) + 1;
-                                                const [home, away] = score.split('-').map(Number);
-                                                if (home > away) totalWins++;
-                                                else if (home < away) totalLosses++;
-                                                else totalDraws++;
-                                            });
-
-                                            const sortedScores = Object.entries(scoreFrequency).sort((a, b) => b[1] - a[1]);
-                                            const totalMatches = totalWins + totalLosses + totalDraws;
-
-                                            return (
-                                                <div className="space-y-6">
-                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                        <div className="bg-white rounded-lg border p-4">
-                                                            <div className="text-2xl font-bold text-green-600 mb-1">{totalWins}</div>
-                                                            <div className="text-sm text-gray-500">Wins</div>
-                                                            <div className="text-xs text-gray-400 mt-1">
-                                                                {((totalWins / totalMatches) * 100).toFixed(1)}% of matches
-                                                            </div>
-                                                        </div>
-                                                        <div className="bg-white rounded-lg border p-4">
-                                                            <div className="text-2xl font-bold text-orange-500 mb-1">{totalDraws}</div>
-                                                            <div className="text-sm text-gray-500">Draws</div>
-                                                            <div className="text-xs text-gray-400 mt-1">
-                                                                {((totalDraws / totalMatches) * 100).toFixed(1)}% of matches
-                                                            </div>
-                                                        </div>
-                                                        <div className="bg-white rounded-lg border p-4">
-                                                            <div className="text-2xl font-bold text-red-600 mb-1">{totalLosses}</div>
-                                                            <div className="text-sm text-gray-500">Losses</div>
-                                                            <div className="text-xs text-gray-400 mt-1">
-                                                                {((totalLosses / totalMatches) * 100).toFixed(1)}% of matches
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="bg-white rounded-lg border p-6">
-                                                        <h3 className="text-sm font-medium text-gray-900 mb-4">Score Frequency</h3>
-                                                        <div className="space-y-3">
-                                                            {sortedScores.map(([score, count]) => {
-                                                                const percentage = (count / scores.length) * 100;
-                                                                return (
-                                                                    <div key={score} className="relative">
-                                                                        <div className="flex items-center gap-4">
-                                                                            <span className={`w-20 text-lg font-semibold ${getScoreColor(score)} px-3 py-1 rounded-lg text-center`}>
-                                                                                {score}
-                                                                            </span>
-                                                                            <div className="flex-1 h-8 bg-gray-50 rounded-lg overflow-hidden">
-                                                                                <div 
-                                                                                    className="h-full bg-blue-100"
-                                                                                    style={{ width: `${percentage}%` }}
-                                                                                />
-                                                                            </div>
-                                                                            <div className="w-32 text-sm">
-                                                                                <span className="font-medium">{count}×</span>
-                                                                                <span className="text-gray-500 ml-1">({percentage.toFixed(1)}%)</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
+                                    {/* Chart */}
+                                    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                                        <div className="h-1 w-full bg-gradient-to-r from-blue-400/40 to-blue-500/40" />
+                                        <div className="p-5">
+                                            {/* Add Legend */}
+                                            <div className="flex flex-wrap gap-4 mb-4 text-sm text-gray-500">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-4 h-0.5 bg-[#22c55e]"></div>
+                                                    <span>Running Average</span>
                                                 </div>
-                                            );
-                                        })()}
-                                    </CardContent>
-                                </Card>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex gap-1">
+                                                        <div className="w-4 h-4 text-[#22c55e]">✕</div>
+                                                        <div className="w-4 h-4 text-[#f59e0b]">✕</div>
+                                                        <div className="w-4 h-4 text-[#ef4444]">✕</div>
+                                                    </div>
+                                                    <span>Match Average (Win/Draw/Loss)</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-4 h-0.5 bg-[#3b82f6] border-t-2 border-dashed"></div>
+                                                    <span>Current Average</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="h-[300px] sm:h-[400px] -ml-2 sm:ml-0">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <LineChart data={runningAverages} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                        <XAxis 
+                                                            dataKey="matchday" 
+                                                            axisLine={false}
+                                                            tickLine={false}
+                                                            tick={{ fontSize: 12 }}
+                                                            dy={10}
+                                                        />
+                                                        <YAxis 
+                                                            axisLine={false}
+                                                            tickLine={false}
+                                                            tick={{ fontSize: 12 }}
+                                                            dx={-10}
+                                                            domain={getChartDomain()}
+                                                            ticks={Array.from(
+                                                                { length: (getChartDomain()[1] - getChartDomain()[0]) / 5 + 1 },
+                                                                (_, i) => getChartDomain()[0] + i * 5
+                                                            )}
+                                                        />
+                                                        <Tooltip content={<CustomTooltip />} />
+                                                        {/* Add key props to Line components */}
+                                                        <Line
+                                                            key="match-average"
+                                                            type="monotone"
+                                                            dataKey="average"
+                                                            stroke="none"
+                                                            dot={renderDot}
+                                                            isAnimationActive={false}
+                                                        />
+                                                        <Line
+                                                            key="running-average"
+                                                            type="monotone"
+                                                            dataKey="runningAverage"
+                                                            stroke="#22c55e"
+                                                            strokeWidth={2}
+                                                            dot={false}
+                                                            activeDot={{ r: 6, fill: "#22c55e" }}
+                                                        />
+                                                        {/* Move reference lines outside of render condition */}
+                                                        <ReferenceLine 
+                                                            key="last-average"
+                                                            y={runningAverages[runningAverages.length - 1]?.runningAverage}
+                                                            stroke="#3b82f6"
+                                                            strokeDasharray="3 3"
+                                                            strokeWidth={2}
+                                                        />
+                                                    </LineChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </TabsContent>
 
                             <TabsContent value="schedule">
-                                <Card>
+                                <div className="space-y-6">
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h2 className="text-lg font-semibold text-gray-800">Upcoming Matches</h2>
+                                        <div className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium border border-blue-100">
+                                            Season 2024/25
+                                        </div>
+                                    </div>
+
                                     {selectedTeam === 'DC Patron' ? (
-                                        <>
-                                            <CardHeader>
-                                                <CardTitle className="flex items-center gap-2">
-                                                    <Calendar className="h-6 w-6 text-blue-500" />
-                                                    Match Schedule
-                                                </CardTitle>
-                                            </CardHeader>
-                                            <CardContent>
-                                                {(() => {
-                                                    const today = new Date();
-                                                    const upcomingMatches = scheduleData
-                                                        .filter(match => new Date(match.date) >= today)
-                                                        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                                        (() => {
+                                            const today = new Date();
+                                            today.setHours(0, 0, 0, 0); // Set to start of day
 
-                                                    // Group matches by month
-                                                    const matchesByMonth = upcomingMatches.reduce((acc, match) => {
-                                                        const monthYear = new Date(match.date).toLocaleDateString('de-AT', {
-                                                            month: 'long',
-                                                            year: 'numeric'
-                                                        });
-                                                        if (!acc[monthYear]) acc[monthYear] = [];
-                                                        acc[monthYear].push(match);
-                                                        return acc;
-                                                    }, {} as Record<string, typeof upcomingMatches>);
+                                            const upcomingMatches = scheduleData
+                                                .filter(match => {
+                                                    const matchDate = new Date(match.date);
+                                                    matchDate.setHours(0, 0, 0, 0); // Set to start of day
+                                                    return matchDate >= today;
+                                                })
+                                                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-                                                    return (
-                                                        <div className="space-y-8">
-                                                            {Object.entries(matchesByMonth).map(([monthYear, matches]) => (
-                                                                <div key={monthYear} className="space-y-4">
-                                                                    <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">{monthYear}</h3>
-                                                                    <div className="grid gap-4">
-                                                                        {matches.map((match) => (
-                                                                            <div key={match.round} 
-                                                                                className="bg-white rounded-lg border border-gray-200 hover:border-blue-500 transition-colors duration-200"
-                                                                            >
-                                                                                <div className="p-4">
-                                                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4">
-                                                                                        <div className="flex items-center gap-3">
-                                                                                            <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center">
-                                                                                                <span className="text-lg font-bold text-blue-600">
-                                                                                                    {new Date(match.date).getDate()}
-                                                                                                </span>
-                                                                                            </div>
-                                                                                            <div className="flex-grow">
-                                                                                                <div className="flex items-center justify-between text-sm text-gray-500 sm:block">
-                                                                                                    <span>Round {match.round}</span>
-                                                                                                    <div className="flex-shrink-0 sm:hidden">
-                                                                                                        {comparisonData.find(d => d.opponent === match.opponent)?.firstRound && (
-                                                                                                            <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
-                                                                                                                getScoreColor(comparisonData.find(d => d.opponent === match.opponent)?.firstRound || '')
-                                                                                                            }`}>
-                                                                                                                {comparisonData.find(d => d.opponent === match.opponent)?.firstRound}
-                                                                                                            </span>
-                                                                                                        )}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                                <div className="font-semibold text-gray-900 break-words pr-2" style={{ wordBreak: 'break-word' }}>
-                                                                                                    {match.opponent}
-                                                                                                </div>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                        <div className="hidden sm:block">
-                                                                                            {comparisonData.find(d => d.opponent === match.opponent)?.firstRound && (
-                                                                                                <div className="text-right">
-                                                                                                    <span className={`inline-block px-4 py-2 rounded-lg text-lg font-bold ${
-                                                                                                        getScoreColor(comparisonData.find(d => d.opponent === match.opponent)?.firstRound || '')
-                                                                                                    }`}>
-                                                                                                        {comparisonData.find(d => d.opponent === match.opponent)?.firstRound}
-                                                                                                    </span>
-                                                                                                    <div className="text-xs text-gray-500 mt-1">Previous Match</div>
-                                                                                                </div>
-                                                                                            )}
-                                                                                        </div>
+                                            const matchesByMonth = upcomingMatches.reduce((acc, match) => {
+                                                const monthYear = new Date(match.date).toLocaleDateString('de-AT', {
+                                                    month: 'long',
+                                                    year: 'numeric'
+                                                });
+                                                if (!acc[monthYear]) acc[monthYear] = [];
+                                                acc[monthYear].push(match);
+                                                return acc;
+                                            }, {} as Record<string, typeof upcomingMatches>);
+
+                                            return (
+                                                <div className="space-y-8">
+                                                    {Object.entries(matchesByMonth).map(([monthYear, matches]) => (
+                                                        <div key={monthYear} className="space-y-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="h-10 w-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center">
+                                                                    <Calendar className="h-5 w-5 text-blue-500" />
+                                                                </div>
+                                                                <h3 className="text-lg font-semibold text-gray-900">{monthYear}</h3>
+                                                            </div>
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                                {matches.map((match) => (
+                                                                    <div key={match.round} 
+                                                                        className="group relative bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-visible border border-gray-100"
+                                                                    >
+                                                                        <div className="h-1 w-full bg-gradient-to-r from-blue-400/40 to-blue-500/40" />
+                                                                        <div className="p-4">
+                                                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center">
+                                                                                        <span className="text-base font-bold text-blue-600">
+                                                                                            {new Date(match.date).getDate()}
+                                                                                        </span>
                                                                                     </div>
-                                                                                    
-                                                                                    <div className="flex items-center gap-2 text-gray-600 mb-3">
-                                                                                        <MapPin className="h-4 w-4 text-gray-400" />
-                                                                                        <span className="font-medium">{match.venue}</span>
-                                                                                    </div>
-                                                                                    
-                                                                                    <div className="flex items-center justify-between">
-                                                                                        <div className="text-sm text-gray-500">
-                                                                                            {match.address}, {match.location}
-                                                                                        </div>
-                                                                                        <a 
-                                                                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                                                                                                `${match.venue} ${match.address} ${match.location}`
-                                                                                            )}`}
-                                                                                            target="_blank"
-                                                                                            rel="noopener noreferrer"
-                                                                                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 focus:outline-none"
-                                                                                        >
-                                                                                            <Navigation className="h-4 w-4 mr-1" />
-                                                                                            Get Directions
-                                                                                        </a>
+                                                                                    <div className="flex-grow">
+                                                                                        <div className="text-xs text-gray-500">Round {match.round}</div>
+                                                                                        <div className="font-medium text-gray-900">{match.opponent}</div>
                                                                                     </div>
                                                                                 </div>
+                                                                                {comparisonData.find(d => d.opponent === match.opponent)?.firstRound && (
+                                                                                    <div className="mt-2 sm:mt-0">
+                                                                                        <span className={`inline-block px-2 py-1 rounded text-sm font-medium ${
+                                                                                            getScoreColor(comparisonData.find(d => d.opponent === match.opponent)?.firstRound || '')
+                                                                                        }`}>
+                                                                                            {comparisonData.find(d => d.opponent === match.opponent)?.firstRound}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                )}
                                                                             </div>
-                                                                        ))}
+                                                                            
+                                                                            <div className="flex items-center gap-2 text-gray-600 mb-2">
+                                                                                <MapPin className="h-4 w-4 text-gray-400" />
+                                                                                <span className="text-sm font-medium">{match.venue}</span>
+                                                                            </div>
+                                                                            
+                                                                            <div className="flex items-center justify-between">
+                                                                                <div className="text-xs text-gray-500">
+                                                                                    {match.address}, {match.location}
+                                                                                </div>
+                                                                                <a 
+                                                                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                                                                        `${match.address}, ${match.location}`
+                                                                                    )}`}
+                                                                                    target="_blank"
+                                                                                    rel="noopener noreferrer"
+                                                                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 focus:outline-none"
+                                                                                >
+                                                                                    <Navigation className="h-3 w-3 mr-1" />
+                                                                                    Directions
+                                                                                </a>
+                                                                            </div>
+                                                                        </div>
                                                                     </div>
-                                                                </div>
-                                                            ))}
+                                                                ))}
+                                                            </div>
                                                         </div>
-                                                    );
-                                                })()}
-                                    </CardContent>
-                                        </>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()
                                     ) : (
-                                        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                                        <div className="flex flex-col items-center justify-center py-12 text-center">
                                             <Calendar className="h-12 w-12 text-gray-400 mb-4" />
                                             <h3 className="text-lg font-semibold text-gray-900 mb-2">Schedule Limited</h3>
                                             <p className="text-gray-500 max-w-md">
                                                 This feature is currently only available for DC Patron. Select DC Patron to view the match schedule.
                                             </p>
-                                        </CardContent>
+                                        </div>
                                     )}
-                                </Card>
+                                </div>
                             </TabsContent>
 
                             <TabsContent value="pairs">
