@@ -1656,7 +1656,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 <div className="flex items-baseline gap-1">
                                                                         {data?.firstRound ? (
                                                                         <span className={`px-2 py-1 text-sm font-medium rounded-md ${
-                                                                            parseInt(data.firstRound) >= 2  // Parse string to number
+                                                                            parseInt(data.firstRound) > 4
                                                                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                                                                                 : parseInt(data.firstRound) === 4
                                                                                     ? 'bg-amber-50 text-amber-700 border border-amber-100'
@@ -1674,15 +1674,16 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 <div className="flex items-baseline gap-1">
                                                                         {data?.secondRound ? (
                                                                         <span className={`px-2 py-1 text-sm font-medium rounded-md ${
-                                                                            data?.secondRound ? (
-                                                                                ['7-1', '6-2', '5-3', '8-0'].includes(data.secondRound)
+                                                                            (() => {
+                                                                                const [wins] = data.secondRound.split('-').map(Number);
+                                                                                return wins > 4
                                                                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                                                                                    : data.secondRound === '4-4'
+                                                                                    : wins === 4
                                                                                         ? 'bg-amber-50 text-amber-700 border border-amber-100'
-                                                                                        : 'bg-rose-50 text-rose-700 border border-rose-100'
-                                                                            ) : 'text-sm text-slate-400'
+                                                                                        : 'bg-rose-50 text-rose-700 border border-rose-100';
+                                                                            })()
                                                                         }`}>
-                                                                            {data.secondRound || 'Pending'}
+                                                                            {data.secondRound}
                                                                             </span>
                                                                         ) : (
                                                                         <span className="text-sm text-slate-400">Pending</span>
