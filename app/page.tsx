@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { ClipLoader } from 'react-spinners';
 import { 
   Trophy, 
@@ -14,11 +15,15 @@ import {
   TrendingUp,
   Award,
   BarChart3,
-  Search,
   ChevronDown,
   Star,
   Zap,
-  Activity
+  Activity,
+  Menu,
+  X,
+  Home,
+  Settings,
+  Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -243,12 +248,8 @@ export default function DartsDashboard() {
   const [selectedTeam, setSelectedTeam] = useState<string>('DC Patron');
   const [teamData, setTeamData] = useState<TeamData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
-
-  const filteredTeams = teams.filter(team =>
-    team.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<string>('overview');
 
   const fetchTeamData = async (teamName: string) => {
     setLoading(true);
@@ -334,8 +335,7 @@ export default function DartsDashboard() {
 
   const handleTeamSelect = (team: string) => {
     setSelectedTeam(team);
-    setSearchTerm('');
-    setIsDropdownOpen(false);
+    setSidebarOpen(false);
   };
 
   const getTopPerformers = () => {
@@ -396,208 +396,447 @@ export default function DartsDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      {/* Header */}
-      <motion.header 
-        initial={{ y: -50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="bg-white/80 backdrop-blur-md border-b border-slate-200/50 sticky top-0 z-50"
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl">
-                <Target className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-                  WDV Landesliga
-                </h1>
-                <p className="text-sm text-slate-600">Statistics Dashboard</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex">
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:flex lg:w-80 lg:flex-col lg:fixed lg:inset-y-0">
+        <div className="flex flex-col flex-grow bg-white/80 backdrop-blur-md border-r border-slate-200/50 overflow-y-auto">
+          {/* Sidebar Header */}
+          <div className="flex items-center gap-3 p-6 border-b border-slate-200/50">
+            <div className="p-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl">
+              <Target className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
+                WDV Landesliga
+              </h1>
+              <p className="text-sm text-slate-600">Statistics Dashboard</p>
+            </div>
+          </div>
+
+          {/* Navigation Menu */}
+          <nav className="flex-1 px-4 py-6 space-y-2">
+            <div className="mb-6">
+              <h3 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                Navigation
+              </h3>
+              <div className="space-y-1">
+                <button
+                  onClick={() => setActiveTab('overview')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                    activeTab === 'overview'
+                      ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <Home className="h-4 w-4" />
+                  Overview
+                </button>
+                <button
+                  onClick={() => setActiveTab('players')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                    activeTab === 'players'
+                      ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <Users className="h-4 w-4" />
+                  Players
+                </button>
+                <button
+                  onClick={() => setActiveTab('matches')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                    activeTab === 'matches'
+                      ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <Calendar className="h-4 w-4" />
+                  Matches
+                </button>
+                <button
+                  onClick={() => setActiveTab('venue')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                    activeTab === 'venue'
+                      ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <MapPin className="h-4 w-4" />
+                  Venue
+                </button>
+                <button
+                  onClick={() => setActiveTab('comparison')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                    activeTab === 'comparison'
+                      ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Results
+                </button>
+                <button
+                  onClick={() => setActiveTab('averages')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                    activeTab === 'averages'
+                      ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <Activity className="h-4 w-4" />
+                  Averages
+                </button>
+                <button
+                  onClick={() => setActiveTab('special')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                    activeTab === 'special'
+                      ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <Zap className="h-4 w-4" />
+                  Special Stats
+                </button>
               </div>
             </div>
-            
-            {/* Team Selector */}
-            <div className="relative">
-              <div className="relative">
-                <button
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 min-w-[200px] justify-between group"
+
+            {/* Teams List */}
+            <div>
+              <h3 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                Teams
+              </h3>
+              <div className="space-y-1 max-h-96 overflow-y-auto">
+                {teams.map((team) => (
+                  <button
+                    key={team}
+                    onClick={() => handleTeamSelect(team)}
+                    className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors duration-200 ${
+                      team === selectedTeam
+                        ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 font-medium border border-blue-200'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    {team}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </nav>
+        </div>
+      </div>
+
+      {/* Mobile Sidebar Overlay */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+            <motion.div
+              initial={{ x: -300 }}
+              animate={{ x: 0 }}
+              exit={{ x: -300 }}
+              className="fixed inset-y-0 left-0 w-80 bg-white/95 backdrop-blur-md border-r border-slate-200/50 z-50 lg:hidden overflow-y-auto"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-slate-200/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl">
+                    <Target className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
+                      WDV Landesliga
+                    </h1>
+                    <p className="text-sm text-slate-600">Statistics Dashboard</p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSidebarOpen(false)}
                 >
-                  <span className="font-medium text-slate-900">{selectedTeam}</span>
-                  <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-                
-                <AnimatePresence>
-                  {isDropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg z-50"
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+
+              <nav className="px-4 py-6 space-y-2">
+                <div className="mb-6">
+                  <h3 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                    Navigation
+                  </h3>
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => {
+                        setActiveTab('overview');
+                        setSidebarOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeTab === 'overview'
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
                     >
-                      <div className="p-3 border-b border-slate-100">
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                          <input
-                            type="text"
-                            placeholder="Search teams..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                      </div>
-                      <div className="max-h-60 overflow-y-auto">
-                        {filteredTeams.map((team) => (
-                          <button
-                            key={team}
-                            onClick={() => handleTeamSelect(team)}
-                            className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors duration-150 ${
-                              team === selectedTeam ? 'bg-blue-50 text-blue-700 font-medium' : 'text-slate-700'
-                            }`}
-                          >
-                            {team}
-                          </button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                      <Home className="h-4 w-4" />
+                      Overview
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('players');
+                        setSidebarOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeTab === 'players'
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Users className="h-4 w-4" />
+                      Players
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('matches');
+                        setSidebarOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeTab === 'matches'
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Calendar className="h-4 w-4" />
+                      Matches
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('venue');
+                        setSidebarOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeTab === 'venue'
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <MapPin className="h-4 w-4" />
+                      Venue
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('comparison');
+                        setSidebarOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeTab === 'comparison'
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      Results
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('averages');
+                        setSidebarOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeTab === 'averages'
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Activity className="h-4 w-4" />
+                      Averages
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('special');
+                        setSidebarOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                        activeTab === 'special'
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Zap className="h-4 w-4" />
+                      Special Stats
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                    Teams
+                  </h3>
+                  <div className="space-y-1 max-h-96 overflow-y-auto">
+                    {teams.map((team) => (
+                      <button
+                        key={team}
+                        onClick={() => handleTeamSelect(team)}
+                        className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors duration-200 ${
+                          team === selectedTeam
+                            ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 font-medium border border-blue-200'
+                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                        }`}
+                      >
+                        {team}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </nav>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Main Content */}
+      <div className="flex-1 lg:ml-80">
+        {/* Mobile Header */}
+        <header className="lg:hidden bg-white/80 backdrop-blur-md border-b border-slate-200/50 sticky top-0 z-30">
+          <div className="flex items-center justify-between px-4 py-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <div className="text-center">
+              <h1 className="text-lg font-bold text-slate-900">{selectedTeam}</h1>
+              <p className="text-xs text-slate-600">WDV Landesliga</p>
+            </div>
+            <div className="w-10" /> {/* Spacer for centering */}
+          </div>
+        </header>
+
+        {/* Desktop Header */}
+        <header className="hidden lg:block bg-white/80 backdrop-blur-md border-b border-slate-200/50 sticky top-0 z-30">
+          <div className="px-8 py-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">{selectedTeam}</h1>
+                <p className="text-sm text-slate-600">Team Statistics & Performance</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                  Position #{teamData?.leaguePosition || 'N/A'}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </motion.header>
+        </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="space-y-8"
-        >
-          {/* Stats Overview */}
-          <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-blue-100 text-sm font-medium">League Position</p>
-                    <p className="text-3xl font-bold">{teamData?.leaguePosition || 'N/A'}</p>
-                  </div>
-                  <Trophy className="h-8 w-8 text-blue-200" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-emerald-100 text-sm font-medium">Team Average</p>
-                    <p className="text-3xl font-bold">{getTeamAverage()}</p>
-                  </div>
-                  <Target className="h-8 w-8 text-emerald-200" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-purple-100 text-sm font-medium">Win Rate</p>
-                    <p className="text-3xl font-bold">{getWinRate()}%</p>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-purple-200" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-orange-100 text-sm font-medium">Total Players</p>
-                    <p className="text-3xl font-bold">{teamData?.players?.length || 0}</p>
-                  </div>
-                  <Users className="h-8 w-8 text-orange-200" />
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Top Performers */}
-          <motion.div variants={itemVariants}>
-            <Card className="bg-white/70 backdrop-blur-sm border-slate-200/50 shadow-lg">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center gap-2 text-slate-900">
-                  <Star className="h-5 w-5 text-yellow-500" />
-                  Top Performers
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {getTopPerformers().map((player, index) => (
-                    <motion.div
-                      key={player.playerName}
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 border border-slate-200/50"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm ${
-                          index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-slate-400' : 'bg-amber-600'
-                        }`}>
-                          {index + 1}
+        {/* Main Content Area */}
+        <main className="p-4 lg:p-8">
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="space-y-8"
+          >
+            {/* Overview Tab */}
+            {activeTab === 'overview' && (
+              <>
+                {/* Stats Overview */}
+                <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-blue-100 text-sm font-medium">League Position</p>
+                          <p className="text-3xl font-bold">{teamData?.leaguePosition || 'N/A'}</p>
                         </div>
-                        <div className="flex-1">
-                          <p className="font-semibold text-slate-900">{player.playerName}</p>
-                          <p className="text-2xl font-bold text-slate-700">{player.adjustedAverage}</p>
-                        </div>
+                        <Trophy className="h-8 w-8 text-blue-200" />
                       </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+                    </CardContent>
+                  </Card>
 
-          {/* Main Tabs */}
-          <motion.div variants={itemVariants}>
-            <Tabs defaultValue="players" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6 bg-white/70 backdrop-blur-sm border border-slate-200/50 p-1 rounded-xl">
-                <TabsTrigger value="players" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <Users className="h-4 w-4" />
-                  <span className="hidden sm:inline">Players</span>
-                </TabsTrigger>
-                <TabsTrigger value="matches" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <Calendar className="h-4 w-4" />
-                  <span className="hidden sm:inline">Matches</span>
-                </TabsTrigger>
-                <TabsTrigger value="venue" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <MapPin className="h-4 w-4" />
-                  <span className="hidden sm:inline">Venue</span>
-                </TabsTrigger>
-                <TabsTrigger value="comparison" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <BarChart3 className="h-4 w-4" />
-                  <span className="hidden sm:inline">Results</span>
-                </TabsTrigger>
-                <TabsTrigger value="averages" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <Activity className="h-4 w-4" />
-                  <span className="hidden sm:inline">Averages</span>
-                </TabsTrigger>
-                <TabsTrigger value="special" className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <Zap className="h-4 w-4" />
-                  <span className="hidden sm:inline">Special</span>
-                </TabsTrigger>
-              </TabsList>
+                  <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-emerald-100 text-sm font-medium">Team Average</p>
+                          <p className="text-3xl font-bold">{getTeamAverage()}</p>
+                        </div>
+                        <Target className="h-8 w-8 text-emerald-200" />
+                      </div>
+                    </CardContent>
+                  </Card>
 
-              {/* Players Tab */}
-              <TabsContent value="players">
+                  <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-purple-100 text-sm font-medium">Win Rate</p>
+                          <p className="text-3xl font-bold">{getWinRate()}%</p>
+                        </div>
+                        <TrendingUp className="h-8 w-8 text-purple-200" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-orange-100 text-sm font-medium">Total Players</p>
+                          <p className="text-3xl font-bold">{teamData?.players?.length || 0}</p>
+                        </div>
+                        <Users className="h-8 w-8 text-orange-200" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                {/* Top Performers */}
+                <motion.div variants={itemVariants}>
+                  <Card className="bg-white/70 backdrop-blur-sm border-slate-200/50 shadow-lg">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-slate-900">
+                        <Star className="h-5 w-5 text-yellow-500" />
+                        Top Performers
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {getTopPerformers().map((player, index) => (
+                          <motion.div
+                            key={player.playerName}
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ delay: index * 0.1 }}
+                            className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 border border-slate-200/50"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm ${
+                                index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-slate-400' : 'bg-amber-600'
+                              }`}>
+                                {index + 1}
+                              </div>
+                              <div className="flex-1">
+                                <p className="font-semibold text-slate-900">{player.playerName}</p>
+                                <p className="text-2xl font-bold text-slate-700">{player.adjustedAverage}</p>
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </>
+            )}
+
+            {/* Players Tab */}
+            {activeTab === 'players' && (
+              <motion.div variants={itemVariants}>
                 <Card className="bg-white/70 backdrop-blur-sm border-slate-200/50 shadow-lg">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-slate-900">
@@ -646,10 +885,12 @@ export default function DartsDashboard() {
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
+              </motion.div>
+            )}
 
-              {/* Match Reports Tab */}
-              <TabsContent value="matches">
+            {/* Match Reports Tab */}
+            {activeTab === 'matches' && (
+              <motion.div variants={itemVariants}>
                 <Card className="bg-white/70 backdrop-blur-sm border-slate-200/50 shadow-lg">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-slate-900">
@@ -713,10 +954,12 @@ export default function DartsDashboard() {
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
+              </motion.div>
+            )}
 
-              {/* Club Venue Tab */}
-              <TabsContent value="venue">
+            {/* Club Venue Tab */}
+            {activeTab === 'venue' && (
+              <motion.div variants={itemVariants}>
                 <Card className="bg-white/70 backdrop-blur-sm border-slate-200/50 shadow-lg">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-slate-900">
@@ -764,10 +1007,12 @@ export default function DartsDashboard() {
                     )}
                   </CardContent>
                 </Card>
-              </TabsContent>
+              </motion.div>
+            )}
 
-              {/* Comparison Tab */}
-              <TabsContent value="comparison">
+            {/* Comparison Tab */}
+            {activeTab === 'comparison' && (
+              <motion.div variants={itemVariants}>
                 <Card className="bg-white/70 backdrop-blur-sm border-slate-200/50 shadow-lg">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-slate-900">
@@ -804,10 +1049,12 @@ export default function DartsDashboard() {
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
+              </motion.div>
+            )}
 
-              {/* Match Averages Tab */}
-              <TabsContent value="averages">
+            {/* Match Averages Tab */}
+            {activeTab === 'averages' && (
+              <motion.div variants={itemVariants}>
                 <Card className="bg-white/70 backdrop-blur-sm border-slate-200/50 shadow-lg">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-slate-900">
@@ -855,10 +1102,12 @@ export default function DartsDashboard() {
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
+              </motion.div>
+            )}
 
-              {/* Special Stats Tab */}
-              <TabsContent value="special">
+            {/* Special Stats Tab */}
+            {activeTab === 'special' && (
+              <motion.div variants={itemVariants}>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* 180s */}
                   <Card className="bg-white/70 backdrop-blur-sm border-slate-200/50 shadow-lg">
@@ -926,11 +1175,64 @@ export default function DartsDashboard() {
                     </CardContent>
                   </Card>
                 </div>
-              </TabsContent>
-            </Tabs>
+              </motion.div>
+            )}
           </motion.div>
-        </motion.div>
-      </main>
+        </main>
+
+        {/* Mobile Bottom Navigation */}
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200/50 z-30">
+          <div className="grid grid-cols-4 gap-1 p-2">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`flex flex-col items-center gap-1 p-3 rounded-lg transition-colors duration-200 ${
+                activeTab === 'overview'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Home className="h-5 w-5" />
+              <span className="text-xs font-medium">Overview</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('players')}
+              className={`flex flex-col items-center gap-1 p-3 rounded-lg transition-colors duration-200 ${
+                activeTab === 'players'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Users className="h-5 w-5" />
+              <span className="text-xs font-medium">Players</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('matches')}
+              className={`flex flex-col items-center gap-1 p-3 rounded-lg transition-colors duration-200 ${
+                activeTab === 'matches'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Calendar className="h-5 w-5" />
+              <span className="text-xs font-medium">Matches</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('special')}
+              className={`flex flex-col items-center gap-1 p-3 rounded-lg transition-colors duration-200 ${
+                activeTab === 'special'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Zap className="h-5 w-5" />
+              <span className="text-xs font-medium">Special</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Bottom padding for mobile navigation */}
+        <div className="lg:hidden h-20" />
+      </div>
     </div>
   );
 }
