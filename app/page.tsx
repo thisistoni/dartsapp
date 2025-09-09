@@ -119,20 +119,13 @@ const DartsStatisticsDashboard: React.FC = () => {
 
     // Update the teams array with all teams including DC Patron
     const teams: string[] = [
-        'Vienna Devils 3',
-        'Babylon Triple 1',
+        'Dartclub Twentytwo 4',
+        'PSV Wien Darts 1',
+        'TC Aspern 1',
+        'Temmel Fundraising Darts Lions 2',
         'AS The Dart Side of the Moon II',
-        'DSV NaNog Zinsfabrik',
-        'DC Voltadolis Steel',
-        'Snakes II',
-        'Bad Boys LUMBERJACKS',
-        'Dartclub Twentytwo 1',
-        'LDC Martial Darts 4ward',
-        'An Sporran 404 Double Not Found',
-        'The Plumbatas',
-        'Temmel Dart Lions',
-        'Relax One Steel 5',
-        'DC Patron'
+        'BSW Zwara Panier',
+        'DC Patron',
     ];
 
     // Filter teams for search dropdown (include all teams)
@@ -1053,12 +1046,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     <Users className="h-5 w-5 text-green-500 mr-1" />
                                     Pairs
                                 </TabsTrigger>
-                                {selectedTeam === 'DC Patron' && (
-                                <TabsTrigger value="comparison" className="flex items-center">
-                                    <ArrowLeftRight className="h-5 w-5 text-green-500 mr-1" />
-                                        Points +/-
-                                </TabsTrigger>
-                                )}
+                               
                                 <TabsTrigger value="charts" className="flex items-center">
                                     <BarChart className="h-5 w-5 text-green-500 mr-1" />
                                     Charts

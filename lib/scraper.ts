@@ -18,13 +18,13 @@ axiosRetry(axios, {
 
 // Fetch Spielberichte-Link
 export async function fetchSpielberichteLink(): Promise<string | null> {
-    const url = 'https://www.wdv-dart.at/_landesliga/_statistik/index.php?saison=2024/25&div=all';
+    const url = 'https://www.wdv-dart.at/_landesliga/_statistik/index.php?saison=2025/26&div=all';
 
     try {
         const { data } = await axios.get(url);
         const $ = cheerio.load(data);
 
-        const targetLi = $('li').filter((_, el) => $(el).text().includes('Sonstiges 1/2 (2024/25):'));
+        const targetLi = $('li').filter((_, el) => $(el).text().includes('Sonstiges 1/2 (2025/26):'));
         if (targetLi.length === 0) {
             console.error('Das Ziel <li> wurde nicht gefunden.');
             return null;
@@ -75,7 +75,7 @@ export async function fetchDartIds(url: string, teamName: string): Promise<strin
 
 // Fetch Team Players Average
 export async function fetchTeamPlayersAverage(teamName: string): Promise<Player[]> {
-    const url = `https://www.wdv-dart.at/_landesliga/_statistik/mannschaft.php?start=1722506400&ende=1754042400&saison=2024/25&dartsldg=18&mannschaft=${teamName}`;
+    const url = `https://www.wdv-dart.at/_landesliga/_statistik/mannschaft.php?start=1754042400&ende=1785578400&saison=2025/26&dartsldg=18&mannschaft=${teamName}`;
 
     try {
         const { data } = await axios.get(url);
@@ -141,7 +141,7 @@ export async function fetchTeamPlayersAverage(teamName: string): Promise<Player[
 
 // Fetch Match Report
 export async function fetchMatchReport(id: string, teamName: string): Promise<MatchReport> {
-    const url = `https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${id}&saison=2024/25`;
+    const url = `https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${id}&saison=2025/26`;
     
     try {
         console.log(`Fetching match report for ID: ${id}`);
@@ -293,7 +293,7 @@ export async function fetchMatchReport(id: string, teamName: string): Promise<Ma
 
 // Fetch League Position
 export async function fetchLeaguePosition(teamName: string): Promise<number> {
-    const url = `https://www.wdv-dart.at/_landesliga/_liga/tabakt.php?div=5&saison=2024/25`;
+    const url = `https://www.wdv-dart.at/_landesliga/_liga/tabakt.php?div=5&saison=2025/26`;
 
     try {
         const { data } = await axios.get(url);
@@ -316,7 +316,7 @@ export async function fetchLeaguePosition(teamName: string): Promise<number> {
 
 // Fetch Club Venue
 export async function fetchClubVenue(teamName: string): Promise<ClubVenue | null> {
-    const url = `https://www.wdv-dart.at/_landesliga/_liga/teams.php?div=5&saison=2024/25`;
+    const url = `https://www.wdv-dart.at/_landesliga/_liga/teams.php?div=5&saison=2025/26`;
 
     try {
         const { data } = await axios.get(url);
@@ -349,7 +349,7 @@ export async function fetchClubVenue(teamName: string): Promise<ClubVenue | null
 }
 
 export async function fetchComparisonData(teamName: string): Promise<ComparisonData[]> {
-    const url = `https://www.wdv-dart.at/_landesliga/_liga/ergmann1.php?div=5&saison=2024/25&id=2015&mannschaft=${encodeURIComponent(teamName)}`;
+    const url = `https://www.wdv-dart.at/_landesliga/_liga/ergmann1.php?div=5&saison=2025/26&id=2142&mannschaft=${encodeURIComponent(teamName)}`;
     
     const response = await fetch(url);
     const html = await response.text();
@@ -387,7 +387,7 @@ export async function fetchComparisonData(teamName: string): Promise<ComparisonD
 }
 
 export async function fetchTeamStandings(teamName: string): Promise<TeamStandings | null> {
-    const url = 'https://www.wdv-dart.at/_landesliga/_liga/tabakt.php?div=5&saison=2024/25';
+    const url = 'https://www.wdv-dart.at/_landesliga/_liga/tabakt.php?div=5&saison=2025/26';
     
     try {
         const { data } = await axios.get(url);
@@ -536,7 +536,7 @@ export async function fetchMatchAverages(url: string, teamName: string): Promise
 }
 
 export async function fetch180sAndHighFinishes(team: string): Promise<{oneEightys: OneEighty[], highFinishes: HighFinish[]}> {
-  const url = `https://www.wdv-dart.at/_landesliga/_statistik/mannschaft.php?start=1722506400&ende=1754042400&saison=2024/25&dartsldg=18&mannschaft=${encodeURIComponent(team)}`;
+  const url = `https://www.wdv-dart.at/_landesliga/_statistik/mannschaft.php?start=1754042400&ende=1785578400&saison=2025/26&dartsldg=18&mannschaft=${encodeURIComponent(team)}`;
   const response = await fetch(url);
   const html = await response.text();
   const $ = cheerio.load(html);

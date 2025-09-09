@@ -137,7 +137,7 @@ async function updateTeamData(teamName: string) {
     const matchAverages = await Promise.all(
       validMatchReports.map((report, index) => 
         fetchMatchAverages(
-          `https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${dartIds[index]}&saison=2024/25`,
+          `https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${dartIds[index]}&saison=2025/26`,
           teamName
         ).then(avg => ({
           ...avg,

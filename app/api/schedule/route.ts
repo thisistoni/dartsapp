@@ -13,7 +13,7 @@ interface ScheduleMatch {
 export async function GET() {
     try {
         // Fetch the HTML content
-        const response = await axios.get('https://www.wdv-dart.at/_landesliga/_liga/termmann1.php?div=5&saison=2024/25&id=2015&mannschaft=DC+Patron');
+        const response = await axios.get('https://www.wdv-dart.at/_landesliga/_liga/termmann1.php?div=5&saison=2025/26&id=2142&mannschaft=DC+Patron');
         const html = response.data;
 
         // Load HTML into cheerio
