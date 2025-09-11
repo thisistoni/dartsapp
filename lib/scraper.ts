@@ -57,13 +57,14 @@ export async function fetchDartIds(url: string, teamName: string): Promise<strin
             const matchDate = new Date(year, month - 1, day);
 
             if (matchDate <= today) {
-                if (teamName1.includes(teamName) || teamName2.includes(teamName)) {
+                if (teamName1 === teamName || teamName2 === teamName) {
                     const match = idMatch?.match(/id=(\d+)/);
                     if (match) {
                         ids.push(match[1]);
                     }
                 }
             }
+            
         });
 
         return ids;
