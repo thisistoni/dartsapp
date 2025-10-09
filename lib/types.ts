@@ -50,6 +50,7 @@ export interface MatchReport {
     opponent: string;
     score: string;
     details: DetailedMatchReport;
+    isHomeMatch?: boolean;
 }
 
 // Define the interface for Club Venue

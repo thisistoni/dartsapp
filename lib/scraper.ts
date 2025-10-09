@@ -102,13 +102,16 @@ export async function fetchTeamPlayersAverage(teamName: string): Promise<Player[
         });
 
         // Process player averages and combine with singles/doubles data
+        const processedPlayers = new Set<string>();
         const firstTableRows = $('table.ranking').first().find('tbody tr');
+        
         firstTableRows.each((_, element) => {
             const playerName = $(element).find('td:nth-child(2) a').text().trim();
             const averageText = $(element).find('td:nth-child(7)').text().trim();
             const average = parseFloat(averageText);
 
             if (playerName && !isNaN(average)) {
+                processedPlayers.add(playerName);
                 const singlesRecord = singlesData.get(playerName);
                 const doublesRecord = doublesData.get(playerName);
                 
@@ -128,6 +131,25 @@ export async function fetchTeamPlayersAverage(teamName: string): Promise<Player[
                     adjustedAverage,
                     singles,
                     doubles,
+                    winRate
+                });
+            }
+        });
+
+        // Add players who only played doubles (not in first table)
+        doublesData.forEach((record, playerName) => {
+            if (!processedPlayers.has(playerName)) {
+                const totalWins = record.wins;
+                const totalLosses = record.losses;
+                const winRate = totalWins + totalLosses > 0 
+                    ? Number(((totalWins / (totalWins + totalLosses)) * 100).toFixed(1))
+                    : 0;
+
+                players.push({
+                    playerName,
+                    adjustedAverage: 0, // No average available for doubles-only players
+                    singles: '0-0',
+                    doubles: `${record.wins}-${record.losses}`,
                     winRate
                 });
             }
@@ -158,7 +180,8 @@ export async function fetchMatchReport(id: string, teamName: string): Promise<Ma
                 doubles: [],
                 totalLegs: { home: 0, away: 0 },
                 totalSets: { home: 0, away: 0 }
-            }
+            },
+            isHomeMatch: false
         };
 
         const headerRow = $('table.spielbericht thead tr');
@@ -173,6 +196,7 @@ export async function fetchMatchReport(id: string, teamName: string): Promise<Ma
         }
 
         matchReport.opponent = opponentTeam;
+        matchReport.isHomeMatch = isHomeTeam;
 
         // Process each match row
         $('table.spielbericht tbody tr.spielbericht').each((index, element) => {
@@ -242,14 +266,43 @@ export async function fetchMatchReport(id: string, teamName: string): Promise<Ma
                 return `${player}: ${performance.length > 0 ? `${performance}` : '-'}`;
             };
 
-            if (isHomeTeam && homeDarts.length > 0) {
-                const playerName = matchReport.lineup[matchReport.lineup.length - 1];
-                const playerPerformance = formatPlayerPerformance(playerName, homeDarts, homeRest);
-                matchReport.checkouts.push({ scores: playerPerformance });
-            } else if (isAwayTeam && awayDarts.length > 0) {
-                const playerName = matchReport.lineup[matchReport.lineup.length - 1];
-                const playerPerformance = formatPlayerPerformance(playerName, awayDarts, awayRest);
-                matchReport.checkouts.push({ scores: playerPerformance });
+            // Save checkouts for both home and away teams
+            if (homeDarts.length > 0) {
+                let homePlayerName = '';
+                if ([1,2,5,6].includes(setNumber)) {
+                    // Singles match - get home player name
+                    homePlayerName = $(element).find('td:nth-child(2) table.set tr:first-child td.t2:first-child b').text();
+                } else {
+                    // Doubles match - get home players
+                    const homePlayers = [
+                        $(element).find('td:nth-child(2) table.set tr td:nth-child(1) b').text(),
+                        $(element).find('td:nth-child(2) table.set tr td:nth-child(2) b').text()
+                    ];
+                    homePlayerName = homePlayers.join(', ');
+                }
+                if (homePlayerName) {
+                    const homePerformance = formatPlayerPerformance(homePlayerName, homeDarts, homeRest);
+                    matchReport.checkouts.push({ scores: homePerformance });
+                }
+            }
+            
+            if (awayDarts.length > 0) {
+                let awayPlayerName = '';
+                if ([1,2,5,6].includes(setNumber)) {
+                    // Singles match - get away player name
+                    awayPlayerName = $(element).find('td:nth-child(4) table.set tr:first-child td.t2:last-child b').text();
+                } else {
+                    // Doubles match - get away players
+                    const awayPlayers = [
+                        $(element).find('td:nth-child(4) table.set tr td:nth-child(2) b').text(),
+                        $(element).find('td:nth-child(4) table.set tr td:nth-child(3) b').text()
+                    ];
+                    awayPlayerName = awayPlayers.join(', ');
+                }
+                if (awayPlayerName) {
+                    const awayPerformance = formatPlayerPerformance(awayPlayerName, awayDarts, awayRest);
+                    matchReport.checkouts.push({ scores: awayPerformance });
+                }
             }
         });
 

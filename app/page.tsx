@@ -189,12 +189,12 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                                 <table className="w-full">
                                     <thead>
                                         <tr className="border-b border-gray-200">
-                                            <th className="text-left py-3 px-2 text-sm font-semibold text-gray-600">Pos</th>
-                                            <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Team</th>
-                                            <th className="text-center py-3 px-2 text-sm font-semibold text-gray-600">P</th>
-                                            <th className="text-center py-3 px-2 text-sm font-semibold text-gray-600">Pts</th>
-                                            <th className="text-center py-3 px-2 text-sm font-semibold text-gray-600">+/-</th>
-                                            <th className="text-center py-3 px-2 text-sm font-semibold text-gray-600">Avg</th>
+                                            <th className="text-left py-3 px-2 text-xs sm:text-sm font-semibold text-gray-600">Pos</th>
+                                            <th className="text-left py-3 px-2 sm:px-4 text-xs sm:text-sm font-semibold text-gray-600">Team</th>
+                                            <th className="text-center py-3 px-2 text-xs sm:text-sm font-semibold text-gray-600">P</th>
+                                            <th className="text-center py-3 px-2 text-xs sm:text-sm font-semibold text-gray-600">Pts</th>
+                                            <th className="text-center py-3 px-2 text-xs sm:text-sm font-semibold text-gray-600">+/-</th>
+                                            <th className="text-center py-3 px-2 text-xs sm:text-sm font-semibold text-gray-600">Avg</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -213,7 +213,7 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                                                 <tr key={team.position} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${rowBg}`}>
                                                     <td className="py-3 px-2">
                                                         <div className="flex items-center gap-1">
-                                                            <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-sm font-bold ${
+                                                            <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-lg text-xs sm:text-sm font-bold ${
                                                                 team.position === 1
                                                                     ? 'bg-green-100 text-green-700 border-2 border-green-300' 
                                                                     : team.position === 2
@@ -225,25 +225,25 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                                                            
                                                         </div>
                                                     </td>
-                                                    <td className="py-3 px-4">
+                                                    <td className="py-3 px-2 sm:px-4">
                                                         <button
                                                             onClick={() => onTeamSelect(team.team)}
-                                                            className="group flex items-center gap-2 font-medium text-gray-900 hover:text-blue-600 cursor-pointer text-left transition-all w-full"
+                                                            className="group flex items-center gap-1 sm:gap-2 font-medium text-gray-900 hover:text-blue-600 cursor-pointer text-left transition-all w-full"
                                                         >
-                                                            <span className="group-hover:translate-x-1 transition-transform">
+                                                            <span className="group-hover:translate-x-1 transition-transform text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none" title={team.team}>
                                                                 {team.team}
                                                             </span>
-                                                            <ArrowUp className="h-4 w-4 rotate-90 opacity-0 group-hover:opacity-100 transition-opacity text-blue-600" />
+                                                            <ArrowUp className="h-3 w-3 sm:h-4 sm:w-4 rotate-90 opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 flex-shrink-0" />
                                                         </button>
                                                     </td>
-                                                    <td className="py-3 px-2 text-center text-gray-600">{team.played}</td>
-                                                    <td className="py-3 px-2 text-center font-bold text-gray-900">{team.points}</td>
-                                                    <td className={`py-3 px-2 text-center font-medium ${
+                                                    <td className="py-3 px-2 text-center text-gray-600 text-xs sm:text-sm">{team.played}</td>
+                                                    <td className="py-3 px-2 text-center font-bold text-gray-900 text-xs sm:text-sm">{team.points}</td>
+                                                    <td className={`py-3 px-2 text-center font-medium text-xs sm:text-sm ${
                                                         team.goalDiff > 0 ? 'text-green-600' : team.goalDiff < 0 ? 'text-red-600' : 'text-gray-600'
                                                     }`}>
                                                         {team.goalDiff > 0 ? '+' : ''}{team.goalDiff}
                                                     </td>
-                                                    <td className="py-3 px-2 text-center text-blue-600 font-medium">
+                                                    <td className="py-3 px-2 text-center text-blue-600 font-medium text-xs sm:text-sm">
                                                         {team.average === 99.0 ? '-' : team.average.toFixed(1)}
                                                     </td>
                                                 </tr>
@@ -281,15 +281,15 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                                         return (
                                             <div key={index} className="bg-gray-50 rounded-lg p-3 border">
                                                 <div className="space-y-1">
-                                                    <div className="flex items-center justify-between text-sm">
-                                                        <span className="font-medium text-gray-900">{game.homeTeam}</span>
-                                                        <span className={`font-bold ${isDraw ? 'text-orange-600' : 'text-green-700'}`}>
+                                                    <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
+                                                        <span className="font-medium text-gray-900 truncate" title={game.homeTeam}>{game.homeTeam}</span>
+                                                        <span className={`font-bold flex-shrink-0 ${isDraw ? 'text-orange-600' : 'text-green-700'}`}>
                                                             {homeScore}
                                                         </span>
                                                     </div>
-                                                    <div className="flex items-center justify-between text-sm">
-                                                        <span className="font-medium text-gray-900">{game.awayTeam}</span>
-                                                        <span className={`font-bold ${isDraw ? 'text-orange-600' : 'text-red-700'}`}>
+                                                    <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
+                                                        <span className="font-medium text-gray-900 truncate" title={game.awayTeam}>{game.awayTeam}</span>
+                                                        <span className={`font-bold flex-shrink-0 ${isDraw ? 'text-orange-600' : 'text-red-700'}`}>
                                                             {awayScore}
                                                         </span>
                                                     </div>
@@ -340,10 +340,10 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                                 <div className="space-y-2">
                                     {(games as any[]).map((game: any, index: number) => (
                                         <div key={index} className="bg-gray-50 rounded-lg p-3 border">
-                                            <div className="flex items-center justify-between">
-                                                <span className="font-medium text-gray-900 flex-1 text-sm">{game.homeTeam}</span>
-                                                <span className="px-3 py-1 bg-green-100 text-green-700 rounded font-bold text-sm mx-4">{game.score}</span>
-                                                <span className="font-medium text-gray-900 flex-1 text-right text-sm">{game.awayTeam}</span>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="font-medium text-gray-900 flex-1 text-xs sm:text-sm truncate" title={game.homeTeam}>{game.homeTeam}</span>
+                                                <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-700 rounded font-bold text-xs sm:text-sm flex-shrink-0">{game.score}</span>
+                                                <span className="font-medium text-gray-900 flex-1 text-right text-xs sm:text-sm truncate" title={game.awayTeam}>{game.awayTeam}</span>
                                             </div>
                                         </div>
                                     ))}
@@ -388,6 +388,11 @@ const DartsStatisticsDashboard: React.FC = () => {
     const retryTimeoutRef = useRef<NodeJS.Timeout>();
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     // First, add a state for showing/hiding secondary tabs
+    
+    // Performance comparison states
+    const [comparisonTeam, setComparisonTeam] = useState<string>('');
+    const [comparisonTeamData, setComparisonTeamData] = useState<TeamData | null>(null);
+    const [comparisonLoading, setComparisonLoading] = useState(false);
 
     // Add this at the top level
     const playerImages: { [key: string]: string } = {
@@ -442,6 +447,8 @@ const DartsStatisticsDashboard: React.FC = () => {
         'AS The Dart Side of the Moon II',
         'BSW Zwara Panier',
         'DC Patron',
+        'Fortunas Wölfe',
+        'DC Patron II',
     ];
 
     // Filter teams for search dropdown (include all teams + League Overview)
@@ -578,6 +585,22 @@ const DartsStatisticsDashboard: React.FC = () => {
             }
             return total;
         }, 0);
+    };
+
+    // Fetch comparison team data
+    const fetchComparisonTeam = async (teamName: string) => {
+        if (!teamName) return;
+        
+        setComparisonLoading(true);
+        try {
+            const response = await axios.get(`/api/teamData?team=${encodeURIComponent(teamName)}`);
+            setComparisonTeamData(response.data.data);
+        } catch (error) {
+            console.error('Error fetching comparison team:', error);
+            setComparisonTeamData(null);
+        } finally {
+            setComparisonLoading(false);
+        }
     };
 
     // Add this helper function
@@ -911,31 +934,6 @@ const DartsStatisticsDashboard: React.FC = () => {
         }
     });
 
-    const getPointDifference = (matchday: number) => {
-        if (matchday < 14) return null;
-        
-        // Get corresponding first round matchday (13 matchdays before)
-        const firstRoundMatch = matchReports[matchday - 14];
-        const secondRoundMatch = matchReports[matchday - 1];
-        
-        if (!firstRoundMatch || !secondRoundMatch) return null;
-
-        // Get the home scores (first number) from both matches
-        const firstRoundScore = parseInt(firstRoundMatch.score.split('-')[0]);
-        const secondRoundScore = parseInt(secondRoundMatch.score.split('-')[0]);
-        
-        // Return the difference between second round and first round scores
-        return secondRoundScore - firstRoundScore;
-    };
-
-    const getAverageDifference = (matchday: number) => {
-        if (matchday < 14) return 0;
-        
-        const currentAvg = matchAverages[matchday - 1]?.teamAverage ?? 0;
-        const previousAvg = matchAverages[matchday - 14]?.teamAverage ?? 0;
-        
-        return currentAvg - previousAvg;
-    };
 
     // Add this before the return statement
     const pairStats = matchReports.reduce((stats: { 
@@ -1202,43 +1200,75 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     <span className="text-base font-medium text-gray-900">Top Performers</span>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     {teamData && teamData.players.slice(0, 3).map((player: Player, index: number) => (
                                         <div key={player.playerName} 
-                                            className="group relative bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-visible border border-gray-100"
+                                            className="group relative bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border border-gray-100"
                                         >
-                                            <div className={`h-1 w-full bg-gradient-to-r ${medalColors[index]}`} />
-                                            <div className="p-4">
+                                            <div className={`h-1.5 w-full bg-gradient-to-r ${medalColors[index]}`} />
+                                            <div className="p-5">
                                                 <div className="flex items-center gap-3">
                                                     {/* Player Avatar */}
-                                                    <div className="h-12 w-12 rounded-full bg-violet-50 border-2 border-white overflow-hidden flex items-center justify-center flex-shrink-0">
-                                                        {selectedTeam === 'DC Patron' && playerImages[player.playerName] ? (
-                                                            <img 
-                                                                src={playerImages[player.playerName]} 
-                                                                alt={player.playerName}
-                                                                className="h-full w-full object-cover"
-                                                            />
-                                                        ) : (
-                                                            <span className="text-sm font-medium text-violet-700">
-                                                                {getInitials(player.playerName)}
-                                                            </span>
-                                                        )}
+                                                    <div className="relative">
+                                                        <div className="h-20 w-20 rounded-full bg-gradient-to-br from-violet-50 to-blue-50 border-3 border-white shadow-md overflow-hidden flex items-center justify-center flex-shrink-0">
+                                                            {selectedTeam === 'DC Patron' && playerImages[player.playerName] ? (
+                                                                <img 
+                                                                    src={playerImages[player.playerName]} 
+                                                                    alt={player.playerName}
+                                                                    className="h-full w-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                <span className="text-2xl font-bold text-violet-700">
+                                                                    {getInitials(player.playerName)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {/* Medal Badge on Avatar */}
+                                                        <div className={`absolute -top-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center shadow-sm ${
+                                                            index === 0 
+                                                                ? 'bg-amber-400 text-white'
+                                                                : index === 1
+                                                                    ? 'bg-slate-400 text-white'
+                                                                    : 'bg-orange-400 text-white'
+                                                        }`}>
+                                                            <span className="text-xs font-bold">{index + 1}</span>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <h3 className="font-semibold text-gray-900">{player.playerName}</h3>
-                                                        <div className="flex items-center gap-1.5 mt-1">
-                                                            <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded border ${
-                                                                index === 0 
-                                                                    ? 'bg-amber-50 text-amber-700 border-amber-100'  // Gold
-                                                                    : index === 1
-                                                                        ? 'bg-slate-50 text-slate-700 border-slate-100'  // Silver
-                                                                        : 'bg-orange-50 text-orange-700 border-orange-100'  // Bronze
-                                                            }`}>
-                                                                #{index + 1}
-                                                            </span>
+                                                    
+                                                    {/* Player Info */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="font-semibold text-gray-900 truncate">{player.playerName}</h3>
+                                                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                                                             <span className="px-2 py-0.5 text-xs font-medium bg-violet-50 text-violet-700 rounded-md border border-violet-100">
-                                                                {player.adjustedAverage.toFixed(2)} avg
+                                                                {player.adjustedAverage === 0 ? '-' : `${player.adjustedAverage.toFixed(2)}`}
                                                             </span>
+                                                            {player.singles && player.singles !== '0-0' && (
+                                                                <span className="px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-md border border-blue-100">
+                                                                    {player.singles}
+                                                                </span>
+                                                            )}
+                                                            {(() => {
+                                                                const player180 = oneEightys.find(x => x.playerName === player.playerName);
+                                                                const playerHiFi = highFinishes.find(x => x.playerName === player.playerName);
+                                                                const hifiList = playerHiFi?.finishes && playerHiFi.finishes.length > 0 
+                                                                    ? playerHiFi.finishes.join(', ')
+                                                                    : null;
+                                                                
+                                                                return (
+                                                                    <>
+                                                                        {player180 && player180.count > 0 && (
+                                                                            <span className="px-2 py-0.5 text-[10px] font-medium bg-yellow-50 text-yellow-700 rounded-md border border-yellow-100">
+                                                                                {player180.count}x180
+                                                                            </span>
+                                                                        )}
+                                                                        {hifiList && (
+                                                                            <span className="px-2 py-0.5 text-[10px] font-medium bg-red-50 text-red-700 rounded-md border border-red-100">
+                                                                                {hifiList}
+                                                                            </span>
+                                                                        )}
+                                                                    </>
+                                                                );
+                                                            })()}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1255,11 +1285,35 @@ const DartsStatisticsDashboard: React.FC = () => {
                             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                                 <div className="h-1 w-full bg-gradient-to-r from-violet-400/40 to-violet-500/40" />
                                 <div className="p-5">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="h-10 w-10 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center">
-                                            <BarChart className="h-5 w-5 text-violet-500" />
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-10 w-10 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center">
+                                                <BarChart className="h-5 w-5 text-violet-500" />
+                                            </div>
+                                            <span className="text-base font-medium text-gray-900">Performance</span>
                                         </div>
-                                        <span className="text-base font-medium text-gray-900">Performance</span>
+                                        
+                                        {/* Comparison Team Selector */}
+                                        <div className="relative">
+                                            <select
+                                                value={comparisonTeam}
+                                                onChange={(e) => {
+                                                    setComparisonTeam(e.target.value);
+                                                    if (e.target.value) {
+                                                        fetchComparisonTeam(e.target.value);
+                                                    } else {
+                                                        setComparisonTeamData(null);
+                                                    }
+                                                }}
+                                                className="appearance-none text-xs font-medium bg-white border border-violet-200 rounded-lg pl-3 pr-8 py-2 text-gray-700 hover:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all cursor-pointer"
+                                            >
+                                                <option value="">Compare team...</option>
+                                                {teams.filter(t => t !== selectedTeam).map(team => (
+                                                    <option key={team} value={team}>{team}</option>
+                                                ))}
+                                            </select>
+                                            <ArrowUp className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-violet-400 pointer-events-none rotate-180" />
+                                        </div>
                                     </div>
                                     
                                     {/* Singles and Doubles Stats */}
@@ -1301,6 +1355,142 @@ const DartsStatisticsDashboard: React.FC = () => {
                                             <Users className="absolute bottom-1 right-1 h-8 w-8 text-violet-200" />
                                         </div>
                                     </div>
+                                    
+                                    {/* Comparison Section */}
+                                    {comparisonTeam && (
+                                        <div className="mt-4 pt-4 border-t border-gray-200">
+                                            {comparisonLoading ? (
+                                                <div className="flex items-center justify-center py-8">
+                                                    <div className="flex flex-col items-center gap-3">
+                                                        <ClipLoader color="#8B5CF6" size={35} />
+                                                        <p className="text-sm text-gray-500">Loading {comparisonTeam}...</p>
+                                                    </div>
+                                                </div>
+                                            ) : comparisonTeamData ? (
+                                                <div className="space-y-3">
+                                                    <div className="text-xs font-medium text-gray-500 mb-2">vs {comparisonTeam}</div>
+                                                    
+                                                    {/* Singles Comparison */}
+                                                    <div className="space-y-1">
+                                                        <div className="flex items-center justify-between text-xs text-gray-600">
+                                                            <span>Singles</span>
+                                                            <span>
+                                                                {(() => {
+                                                                    const yourSingles = (teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0);
+                                                                    const yourSinglesTotal = (teamData?.players ?? []).reduce((sum, player) => {
+                                                                        const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                        return sum + wins + losses;
+                                                                    }, 0);
+                                                                    const theirSingles = (comparisonTeamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0);
+                                                                    const theirSinglesTotal = (comparisonTeamData?.players ?? []).reduce((sum, player) => {
+                                                                        const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                        return sum + wins + losses;
+                                                                    }, 0);
+                                                                    
+                                                                    const yourRate = yourSinglesTotal > 0 ? (yourSingles / yourSinglesTotal * 100).toFixed(0) : 0;
+                                                                    const theirRate = theirSinglesTotal > 0 ? (theirSingles / theirSinglesTotal * 100).toFixed(0) : 0;
+                                                                    
+                                                                    return `${yourRate}% vs ${theirRate}%`;
+                                                                })()}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex gap-1 h-2">
+                                                            {(() => {
+                                                                const yourSingles = (teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0);
+                                                                const yourSinglesTotal = (teamData?.players ?? []).reduce((sum, player) => {
+                                                                    const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                    return sum + wins + losses;
+                                                                }, 0);
+                                                                const theirSingles = (comparisonTeamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0);
+                                                                const theirSinglesTotal = (comparisonTeamData?.players ?? []).reduce((sum, player) => {
+                                                                    const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                    return sum + wins + losses;
+                                                                }, 0);
+                                                                
+                                                                const yourRate = yourSinglesTotal > 0 ? (yourSingles / yourSinglesTotal * 100) : 0;
+                                                                const theirRate = theirSinglesTotal > 0 ? (theirSingles / theirSinglesTotal * 100) : 0;
+                                                                const total = yourRate + theirRate;
+                                                                const yourWidth = total > 0 ? (yourRate / total * 100) : 50;
+                                                                
+                                                                return (
+                                                                    <>
+                                                                        <div 
+                                                                            className={`rounded-l transition-all ${yourRate > theirRate ? 'bg-blue-500' : 'bg-blue-300'}`}
+                                                                            style={{ width: `${yourWidth}%` }}
+                                                                        />
+                                                                        <div 
+                                                                            className={`rounded-r transition-all ${theirRate > yourRate ? 'bg-red-500' : 'bg-red-300'}`}
+                                                                            style={{ width: `${100 - yourWidth}%` }}
+                                                                        />
+                                                                    </>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Doubles Comparison */}
+                                                    <div className="space-y-1">
+                                                        <div className="flex items-center justify-between text-xs text-gray-600">
+                                                            <span>Doubles</span>
+                                                            <span>
+                                                                {(() => {
+                                                                    const yourDoubles = Math.round((teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2);
+                                                                    const yourDoublesTotal = Math.round((teamData?.players ?? []).reduce((sum, player) => {
+                                                                        const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                        return sum + wins + losses;
+                                                                    }, 0) / 2);
+                                                                    const theirDoubles = Math.round((comparisonTeamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2);
+                                                                    const theirDoublesTotal = Math.round((comparisonTeamData?.players ?? []).reduce((sum, player) => {
+                                                                        const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                        return sum + wins + losses;
+                                                                    }, 0) / 2);
+                                                                    
+                                                                    const yourRate = yourDoublesTotal > 0 ? (yourDoubles / yourDoublesTotal * 100).toFixed(0) : 0;
+                                                                    const theirRate = theirDoublesTotal > 0 ? (theirDoubles / theirDoublesTotal * 100).toFixed(0) : 0;
+                                                                    
+                                                                    return `${yourRate}% vs ${theirRate}%`;
+                                                                })()}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex gap-1 h-2">
+                                                            {(() => {
+                                                                const yourDoubles = Math.round((teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2);
+                                                                const yourDoublesTotal = Math.round((teamData?.players ?? []).reduce((sum, player) => {
+                                                                    const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                    return sum + wins + losses;
+                                                                }, 0) / 2);
+                                                                const theirDoubles = Math.round((comparisonTeamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2);
+                                                                const theirDoublesTotal = Math.round((comparisonTeamData?.players ?? []).reduce((sum, player) => {
+                                                                    const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                    return sum + wins + losses;
+                                                                }, 0) / 2);
+                                                                
+                                                                const yourRate = yourDoublesTotal > 0 ? (yourDoubles / yourDoublesTotal * 100) : 0;
+                                                                const theirRate = theirDoublesTotal > 0 ? (theirDoubles / theirDoublesTotal * 100) : 0;
+                                                                const total = yourRate + theirRate;
+                                                                const yourWidth = total > 0 ? (yourRate / total * 100) : 50;
+                                                                
+                                                                return (
+                                                                    <>
+                                                                        <div 
+                                                                            className={`rounded-l transition-all ${yourRate > theirRate ? 'bg-violet-500' : 'bg-violet-300'}`}
+                                                                            style={{ width: `${yourWidth}%` }}
+                                                                        />
+                                                                        <div 
+                                                                            className={`rounded-r transition-all ${theirRate > yourRate ? 'bg-red-500' : 'bg-red-300'}`}
+                                                                            style={{ width: `${100 - yourWidth}%` }}
+                                                                        />
+                                                                    </>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-gray-500 text-center py-4">Failed to load comparison data</p>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -1314,7 +1504,14 @@ const DartsStatisticsDashboard: React.FC = () => {
                                         </div>
                                         <span className="text-base font-medium text-gray-900">Record</span>
                                     </div>
-                                    {teamStandings && (
+                                    {(selectedTeam === 'Fortunas Wölfe' || selectedTeam === 'DC Patron II') ? (
+                                        <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                                            <svg className="h-5 w-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                            </svg>
+                                            <span className="text-sm text-blue-700">Only visible for 5. Division A</span>
+                                        </div>
+                                    ) : teamStandings && (
                                         <>
                                             <div className="flex items-baseline gap-2 mb-3">
                                                 <span className="text-2xl font-bold text-gray-900">
@@ -1350,6 +1547,14 @@ const DartsStatisticsDashboard: React.FC = () => {
                                         </div>
                                         <span className="text-base font-medium text-gray-900">{clubVenue?.venue}</span>
                                     </div>
+                                    {(selectedTeam === 'Fortunas Wölfe' || selectedTeam === 'DC Patron II') ? (
+                                        <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                                            <svg className="h-5 w-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                            </svg>
+                                            <span className="text-sm text-blue-700">Only visible for 5. Division A</span>
+                                        </div>
+                                    ) : (
                                         <div className="space-y-2">
                                         <div className="flex items-center gap-2 text-sm text-gray-600">
                                             <MapPin className="h-4 w-4 text-gray-400" />
@@ -1360,6 +1565,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                             <span>{clubVenue?.phone}</span>
                                     </div>
                                 </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1407,8 +1613,13 @@ const DartsStatisticsDashboard: React.FC = () => {
                             <TabsContent value="matches">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {[...matchReports].reverse().map((matchday: MatchReport, index: number) => {
-                                        // First determine if we're the home team by checking first player
-                                        const isHomeTeam = matchday.details.singles[0].homePlayer === matchday.lineup[0];
+                                        // Debug: Log the isHomeMatch value
+                                        console.log('Match', index + 1, 'isHomeMatch:', matchday.isHomeMatch, 'opponent:', matchday.opponent);
+                                        
+                                        // Use the isHomeMatch property from scraper, fallback to old logic if undefined
+                                        const isHomeTeam = matchday.isHomeMatch !== undefined 
+                                            ? matchday.isHomeMatch 
+                                            : matchday.details.singles[0].homePlayer === matchday.lineup[0];
                                         
                                         return (
                                             <div 
@@ -1437,61 +1648,33 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 <h3 className="text-lg sm:text-lg text-sm font-semibold text-gray-800 truncate">
                                                             {matchday.opponent}
                                                         </h3>
+                                                                <div className="flex items-center gap-1.5 mt-1">
+                                                                    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-md ${
+                                                                        matchday.isHomeMatch 
+                                                                            ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                                                            : 'bg-orange-50 text-orange-700 border border-orange-200'
+                                                                    }`}>
+                                                                        {matchday.isHomeMatch ? 'Home' : 'Away'}
+                                                                    </span>
+                                                                </div>
                                                     </div>
                                                             <div className="flex items-center gap-1.5">
-                                                                {/* Match Score Badge with connected boxes */}
-                                                                <div className="flex items-center">
-                                                                    <div className={`px-2.5 py-1 text-xs font-medium rounded-l-md border-y border-l ${
-                                                                        matchday.score.split('-')[0] > matchday.score.split('-')[1]
-                                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                                                                            : matchday.score.split('-')[0] === matchday.score.split('-')[1]
-                                                                                ? 'bg-amber-50 text-amber-700 border-amber-100'
-                                                                                : 'bg-rose-50 text-rose-700 border-rose-100'
-                                                                    }`}>
-                                                            {matchday.score}
-                                                                    </div>
-                                                                    {matchReports.length - index >= 14 ? (
-                                                                        <div className={`px-2.5 py-1 text-xs font-medium border border-l-0 flex items-center gap-1 ${
-                                                                            (getPointDifference(matchReports.length - index) ?? 0) > 0 
-                                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                                                                                : (getPointDifference(matchReports.length - index) ?? 0) === 0
-                                                                                    ? 'bg-amber-50 text-amber-700 border-amber-100'
-                                                                                    : 'bg-rose-50 text-rose-700 border-rose-100'
-                                                                        }`}>
-                                                                            <span className="text-[10px] opacity-60"><i>vs MD{matchReports.length - index - 13}</i></span>
-                                                                            <span>
-                                                                                {(getPointDifference(matchReports.length - index) ?? 0) > 0 ? '+' : ''}
-                                                                                {getPointDifference(matchReports.length - index) ?? 0}
-                                                        </span>
-                                                    </div>
-                                                                    ) : (
-                                                                        <div className="px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-600 border border-blue-100 rounded-r-md -ml-[1px] flex items-center gap-1">
-                                                                            <span className="text-blue-400 text-[10px]">AVG</span>
-                                                                            <span>{matchAverages[matchReports.length - index - 1]?.teamAverage.toFixed(2)}</span>
-                                                                        </div>
-                                                                    )}
-                                                </div>
+                                                                {/* Match Score Badge */}
+                                                                <div className={`px-2.5 py-1 text-xs font-medium rounded-md border ${
+                                                                    matchday.score.split('-')[0] > matchday.score.split('-')[1]
+                                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                                                        : matchday.score.split('-')[0] === matchday.score.split('-')[1]
+                                                                            ? 'bg-amber-50 text-amber-700 border-amber-100'
+                                                                            : 'bg-rose-50 text-rose-700 border-rose-100'
+                                                                }`}>
+                                                                    {matchday.score}
+                                                                </div>
 
-                                                                {/* Average Badge with comparison for matchday 14+ */}
-                                                                {matchReports.length - index >= 14 && (
-                                                                    <div className="flex items-center">
-                                                                        <div className="px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-600 border border-blue-100 rounded-l-md flex items-center gap-1">
-                                                                            <span className="text-blue-400 text-[10px]">AVG</span>
-                                                                            <span>{matchAverages[matchReports.length - index - 1]?.teamAverage.toFixed(2)}</span>
-                                                                        </div>
-                                                                        <div className={`px-2 py-1 text-xs font-medium border border-l-0 rounded-r-md flex items-center gap-0.5 ${
-                                                                            getAverageDifference(matchReports.length - index) > 0
-                                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                                                                                : 'bg-rose-50 text-rose-700 border-rose-100'
-                                                                        }`}>
-                                                                            <span className="text-[10px] opacity-60"><i>vs MD{matchReports.length - index - 13}</i></span>
-                                                                            <span>
-                                                                                {getAverageDifference(matchReports.length - index) > 0 ? '+' : ''}
-                                                                                {getAverageDifference(matchReports.length - index).toFixed(2)}
-                                                                            </span>
-                                                                        </div>
-                                                                    </div>
-                                                                )}
+                                                                {/* Average Badge */}
+                                                                <div className="px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-600 border border-blue-100 rounded-md flex items-center gap-1">
+                                                                    <span className="text-blue-400 text-[10px]">AVG</span>
+                                                                    <span>{matchAverages[matchReports.length - index - 1]?.teamAverage.toFixed(2)}</span>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1524,7 +1707,20 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                     ? matchday.checkouts
                                                                         .filter(c => c.scores.startsWith(player))
                                                                         .map(c => c.scores.split(': ')[1])
+                                                                        .filter(c => c && c !== '-') // Filter out "-" and empty values
                                                                     : [];
+                                                                
+                                                                // Get opponent checkouts for singles matches
+                                                                let opponentCheckouts: string[] = [];
+                                                                if (isSinglesMatch) {
+                                                                    const matchIndex = idx > 3 ? idx - 2 : idx;
+                                                                    const match = matchday.details.singles[matchIndex];
+                                                                    const opponentName = isHomeTeam ? match.awayPlayer : match.homePlayer;
+                                                                    opponentCheckouts = matchday.checkouts
+                                                                        .filter(c => c.scores.startsWith(opponentName))
+                                                                        .map(c => c.scores.split(': ')[1])
+                                                                        .filter(c => c && c !== '-'); // Filter out "-" and empty values
+                                                                }
 
                                                                     // Get player's matchday average and running average for singles matches
                                                                     const matchdayAvg = isSinglesMatch ? 
@@ -1582,13 +1778,34 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                                         w/o
                                                                             </span>
                                                                                 ) : (
-                                                                                    playerCheckouts.map((checkout, cidx) => (
-                                                                                        <span key={cidx} 
-                                                                                            className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-50 text-blue-600 rounded border border-blue-100"
-                                                                                        >
-                                                                                            {checkout}
-                                                                                        </span>
-                                                                                    ))
+                                                                                    <>
+                                                                                        {playerCheckouts.length > 0 && (
+                                                                                            <div className="flex">
+                                                                                                {playerCheckouts.map((checkout, cidx) => (
+                                                                                                    <span key={`player-${cidx}`} 
+                                                                                                        className={`px-1.5 py-0.5 text-[10px] font-medium bg-blue-50 text-blue-600 border-y border-l ${
+                                                                                                            cidx === 0 ? 'rounded-l' : ''
+                                                                                                        } ${
+                                                                                                            cidx === playerCheckouts.length - 1 && opponentCheckouts.length === 0 ? 'rounded-r border-r' : ''
+                                                                                                        } ${
+                                                                                                            cidx < playerCheckouts.length - 1 ? 'border-r' : ''
+                                                                                                        } border-blue-100`}
+                                                                                                    >
+                                                                                                        {checkout}
+                                                                                                    </span>
+                                                                                                ))}
+                                                                                                {opponentCheckouts.length > 0 && opponentCheckouts.map((checkout, cidx) => (
+                                                                                                    <span key={`opp-${cidx}`} 
+                                                                                                        className={`px-1.5 py-0.5 text-[10px] font-medium bg-red-50 text-red-600 border-y border-red-100 ${
+                                                                                                            cidx === opponentCheckouts.length - 1 ? 'rounded-r border-r' : 'border-r'
+                                                                                                        }`}
+                                                                                                    >
+                                                                                                        {checkout}
+                                                                                                    </span>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </>
                                                                                 )}
                                                                             </div>
                                                                     </div>
@@ -1629,9 +1846,11 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                     <div className="p-4">
                                                         <div className="flex items-center justify-between mb-4">
                                                             <h3 className="text-lg font-semibold text-gray-900">{player.playerName}</h3>
-                                                            <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-50 text-blue-700">
-                                                                {player.adjustedAverage.toFixed(2)} Avg
-                                                            </span>
+                                                            {player.adjustedAverage > 0 && (
+                                                                <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-50 text-blue-700">
+                                                                    {player.adjustedAverage.toFixed(2)} Avg
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         
                                                         <div className="space-y-4">
@@ -2467,7 +2686,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 <div className="flex items-center gap-1.5">
                                                                     <div className="flex items-center gap-1.5 flex-shrink-0">
                                                                         <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-gray-50 text-gray-700 rounded-md border border-gray-100 whitespace-nowrap">
-                                                                            {player.adjustedAverage.toFixed(2)} avg
+                                                                            {player.adjustedAverage === 0 ? '-' : `${player.adjustedAverage.toFixed(2)} avg`}
                                                                             </span>
                                                                         {difference > 0 && (
                                                                             <div className="group/peak relative">
@@ -2842,19 +3061,35 @@ const DartsStatisticsDashboard: React.FC = () => {
                         {/* Match Flow Section */}
                         <div className="grid gap-4">
                             {/* First Singles (0-1) */}
-                        {matchReports[selectedMatchId].details.singles.slice(0, 2).map((match, idx) => (
+                        {matchReports[selectedMatchId].details.singles.slice(0, 2).map((match, idx) => {
+                            // Get checkouts for both players
+                            const homeCheckouts = matchReports[selectedMatchId].checkouts
+                                .filter(c => c.scores.startsWith(match.homePlayer + ':'))
+                                .map(c => c.scores.split(': ')[1])
+                                .join(', ');
+                            const awayCheckouts = matchReports[selectedMatchId].checkouts
+                                .filter(c => c.scores.startsWith(match.awayPlayer + ':'))
+                                .map(c => c.scores.split(': ')[1])
+                                .join(', ');
+                            
+                            return (
                                 <div key={`single1-${idx}`} 
                                     className="flex items-center bg-slate-50/50 rounded-lg border border-slate-100 overflow-hidden"
                                 >
-                                    <div className={`w-[42%] flex items-center justify-end gap-2 p-3 ${
+                                    <div className={`w-[42%] flex flex-col items-end gap-1 p-3 ${
                                         match.homeScore > match.awayScore ? 'text-emerald-600' : 'text-slate-600'
                                     }`}>
-                                        <span className="text-sm font-medium">{match.homePlayer}</span>
-                                        {match.homeScore > match.awayScore && (
-                                            <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
-                                                <CheckCircle className="h-3 w-3" />
-                                                W
-                                    </span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium">{match.homePlayer}</span>
+                                            {match.homeScore > match.awayScore && (
+                                                <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                    <CheckCircle className="h-3 w-3" />
+                                                    W
+                                        </span>
+                                            )}
+                                        </div>
+                                        {homeCheckouts && (
+                                            <span className="text-[10px] text-gray-500 italic">{homeCheckouts}</span>
                                         )}
                                     </div>
                                     <div className="w-[16%] flex items-center justify-center px-2 py-2 bg-white border-x border-slate-100">
@@ -2862,19 +3097,25 @@ const DartsStatisticsDashboard: React.FC = () => {
                                             {match.homeScore}-{match.awayScore}
                                 </span>
                                     </div>
-                                    <div className={`w-[42%] flex items-center gap-2 p-3 ${
+                                    <div className={`w-[42%] flex flex-col items-start gap-1 p-3 ${
                                         match.awayScore > match.homeScore ? 'text-emerald-600' : 'text-slate-600'
                                     }`}>
-                                        <span className="text-sm font-medium">{match.awayPlayer}</span>
-                                        {match.awayScore > match.homeScore && (
-                                            <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
-                                                <CheckCircle className="h-3 w-3" />
-                                                W
-                                            </span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium">{match.awayPlayer}</span>
+                                            {match.awayScore > match.homeScore && (
+                                                <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                    <CheckCircle className="h-3 w-3" />
+                                                    W
+                                                </span>
+                                            )}
+                                        </div>
+                                        {awayCheckouts && (
+                                            <span className="text-[10px] text-gray-500 italic">{awayCheckouts}</span>
                                         )}
                                     </div>
                             </div>
-                        ))}
+                            );
+                        })}
                         
                             {/* First Doubles (0-1) */}
                         {matchReports[selectedMatchId].details.doubles.slice(0, 2).map((match, idx) => (
@@ -2912,20 +3153,35 @@ const DartsStatisticsDashboard: React.FC = () => {
                         ))}
                         
                             {/* Second Singles (2-3) */}
-                            {matchReports[selectedMatchId].details.singles.slice(2).map((match, idx) => (
+                            {matchReports[selectedMatchId].details.singles.slice(2).map((match, idx) => {
+                                // Get checkouts for both players
+                                const homeCheckouts = matchReports[selectedMatchId].checkouts
+                                    .filter(c => c.scores.startsWith(match.homePlayer + ':'))
+                                    .map(c => c.scores.split(': ')[1])
+                                    .join(', ');
+                                const awayCheckouts = matchReports[selectedMatchId].checkouts
+                                    .filter(c => c.scores.startsWith(match.awayPlayer + ':'))
+                                    .map(c => c.scores.split(': ')[1])
+                                    .join(', ');
+                                
+                                return (
                                 <div key={`single2-${idx}`} 
                                     className="flex items-center bg-slate-50/50 rounded-lg border border-slate-100 overflow-hidden"
                                 >
-                                    {/* Same structure as First Singles */}
-                                    <div className={`w-[42%] flex items-center justify-end gap-2 p-3 ${
+                                    <div className={`w-[42%] flex flex-col items-end gap-1 p-3 ${
                                         match.homeScore > match.awayScore ? 'text-emerald-600' : 'text-slate-600'
                                     }`}>
-                                        <span className="text-sm font-medium">{match.homePlayer}</span>
-                                        {match.homeScore > match.awayScore && (
-                                            <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
-                                                <CheckCircle className="h-3 w-3" />
-                                                W
-                                    </span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium">{match.homePlayer}</span>
+                                            {match.homeScore > match.awayScore && (
+                                                <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                    <CheckCircle className="h-3 w-3" />
+                                                    W
+                                        </span>
+                                            )}
+                                        </div>
+                                        {homeCheckouts && (
+                                            <span className="text-[10px] text-gray-500 italic">{homeCheckouts}</span>
                                         )}
                                     </div>
                                     <div className="w-[16%] flex items-center justify-center px-2 py-2 bg-white border-x border-slate-100">
@@ -2933,19 +3189,25 @@ const DartsStatisticsDashboard: React.FC = () => {
                                             {match.homeScore}-{match.awayScore}
                                 </span>
                                     </div>
-                                    <div className={`w-[42%] flex items-center gap-2 p-3 ${
+                                    <div className={`w-[42%] flex flex-col items-start gap-1 p-3 ${
                                         match.awayScore > match.homeScore ? 'text-emerald-600' : 'text-slate-600'
                                     }`}>
-                                        <span className="text-sm font-medium">{match.awayPlayer}</span>
-                                        {match.awayScore > match.homeScore && (
-                                            <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
-                                                <CheckCircle className="h-3 w-3" />
-                                                W
-                                            </span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium">{match.awayPlayer}</span>
+                                            {match.awayScore > match.homeScore && (
+                                                <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                    <CheckCircle className="h-3 w-3" />
+                                                    W
+                                                </span>
+                                            )}
+                                        </div>
+                                        {awayCheckouts && (
+                                            <span className="text-[10px] text-gray-500 italic">{awayCheckouts}</span>
                                         )}
                                     </div>
                             </div>
-                        ))}
+                                );
+                            })}
                         
                             {/* Second Doubles (2-3) */}
                             {matchReports[selectedMatchId].details.doubles.slice(2).map((match, idx) => (
