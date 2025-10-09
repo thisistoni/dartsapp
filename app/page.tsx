@@ -53,11 +53,10 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
             try {
                 setLoading(true);
                 const response = await axios.get('/api/leagueOverview');
-                const { results } = response.data;
-                
+                const { results, futureSchedule, teamAverages } = response.data;
                 // Calculate standings from results
                 const standings = calculateStandings(results.matchdays);
-                setLeagueData({ results, standings });
+                setLeagueData({ results, standings, futureSchedule, teamAverages });
             } catch (error) {
                 console.error('Error fetching league overview:', error);
             } finally {
@@ -137,6 +136,7 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
     }
 
     const leagueStandings = leagueData.standings;
+    const teamAverages: Record<string, number> = leagueData.teamAverages || {};
     const finishedGames = leagueData.results.matchdays.flatMap((md: any) =>
         md.matches.map((match: any) => ({
             matchday: md.round,
@@ -144,9 +144,11 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
             homeTeam: match.homeTeam,
             awayTeam: match.awayTeam,
             score: `${match.homeSets}-${match.awaySets}`,
-            status: 'finished'
-        }))
-    );
+        })));
+
+    // Filter future schedule to only show games not in finishedGames
+    const finishedSet = new Set(finishedGames.map((g: { matchday: string | number; homeTeam: string; awayTeam: string }) => `${g.matchday}|${g.homeTeam}|${g.awayTeam}`));
+    const futureSchedule = (leagueData.futureSchedule || []).filter((g: any) => !finishedSet.has(`${g.round}|${g.homeTeam}|${g.awayTeam}`));
 
     // Group finished games by matchday
     const groupedFinishedGames = finishedGames.reduce((acc: any, game: any) => {
@@ -244,7 +246,16 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                                                         {team.goalDiff > 0 ? '+' : ''}{team.goalDiff}
                                                     </td>
                                                     <td className="py-3 px-2 text-center text-blue-600 font-medium text-xs sm:text-sm">
-                                                        {team.average === 99.0 ? '-' : team.average.toFixed(1)}
+                                                    {(() => {
+                                                        function normalizeTeamName(name: string) {
+                                                            return name.replace(/\s+/g, ' ').trim().toLowerCase();
+                                                        }
+                                                        const avg = Object.entries(teamAverages).find(
+                                                            ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
+                                                        )?.[1];
+                                                        return typeof avg === 'number' && !isNaN(avg) ? avg.toFixed(2) : '-';
+                                                    })()}
+                                                    
                                                     </td>
                                                 </tr>
                                             );
@@ -317,42 +328,106 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                 </div>
             </div>
 
-            {/* All Results */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <CheckCircle className="h-6 w-6 text-green-500" />
-                        All Results
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-6">
-                        {Object.entries(groupedFinishedGames)
-                            .sort(([a], [b]) => Number(b) - Number(a))
-                            .map(([matchday, games]) => (
-                            <div key={matchday} className="space-y-3">
-                                <div className="flex items-center gap-2 pb-2 border-b">
-                                    <span className="text-sm font-bold text-green-600">Matchday {matchday}</span>
-                                    {(games as any[])[0] && (
-                                        <span className="text-xs text-gray-500">({(games as any[])[0].date})</span>
-                                    )}
-                                </div>
-                                <div className="space-y-2">
-                                    {(games as any[]).map((game: any, index: number) => (
-                                        <div key={index} className="bg-gray-50 rounded-lg p-3 border">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span className="font-medium text-gray-900 flex-1 text-xs sm:text-sm truncate" title={game.homeTeam}>{game.homeTeam}</span>
-                                                <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-700 rounded font-bold text-xs sm:text-sm flex-shrink-0">{game.score}</span>
-                                                <span className="font-medium text-gray-900 flex-1 text-right text-xs sm:text-sm truncate" title={game.awayTeam}>{game.awayTeam}</span>
+            {/* Results & Schedule Tabs */}
+            <Card className="mt-8">
+                <Tabs defaultValue="results" className="w-full">
+                    <CardHeader>
+                        <TabsList className="flex gap-2 mb-0">
+                            <TabsTrigger value="results" className="flex items-center gap-2">
+                                <CheckCircle className="h-5 w-5 text-green-500" /> Results
+                            </TabsTrigger>
+                            <TabsTrigger value="schedule" className="flex items-center gap-2">
+                                <Calendar className="h-5 w-5 text-blue-500" /> Schedule
+                            </TabsTrigger>
+                        </TabsList>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                        <TabsContent value="results">
+                            <div className="space-y-6">
+                                {Object.entries(groupedFinishedGames)
+                                    .sort(([a], [b]) => Number(b) - Number(a))
+                                    .map(([matchday, games]) => (
+                                        <div key={matchday} className="space-y-3">
+                                            <div className="flex items-center gap-2 pb-2 border-b">
+                                                <span className="text-sm font-bold text-green-600">Matchday {matchday}</span>
+                                                {(games as any[])[0] && (
+                                                    <span className="text-xs text-gray-500">({(games as any[])[0].date})</span>
+                                                )}
+                                            </div>
+                                            <div className="space-y-2">
+                                                {(games as any[]).map((game: any, index: number) => (
+                                                    <div key={index} className="bg-gray-50 rounded-lg p-3 border">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <span className="font-medium text-gray-900 flex-1 text-xs sm:text-sm truncate" title={game.homeTeam}>{game.homeTeam}</span>
+                                                            <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-700 rounded font-bold text-xs sm:text-sm flex-shrink-0">{game.score}</span>
+                                                            <span className="font-medium text-gray-900 flex-1 text-right text-xs sm:text-sm truncate" title={game.awayTeam}>{game.awayTeam}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
-                </CardContent>
+                        </TabsContent>
+                        <TabsContent value="schedule">
+                            <div className="space-y-6">
+                                {futureSchedule.length === 0 && (
+                                    <div className="text-sm text-gray-500 p-4">No future games scheduled.</div>
+                                )}
+                                {(() => {
+                                    // Group by round, then inject Cup round 2 between 6 and 7
+                                    const grouped = futureSchedule.reduce((acc: any, game: any) => {
+                                        if (!acc[game.round]) acc[game.round] = [];
+                                        acc[game.round].push(game);
+                                        return acc;
+                                    }, {});
+                                    // Insert Cup round 2 after round 6
+                                    const rounds = Object.keys(grouped).map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
+                                    const output: Array<[string, any[]]> = [];
+                                    for (let i = 0; i < rounds.length; ++i) {
+                                        output.push([rounds[i].toString(), grouped[rounds[i]]]);
+                                        if (rounds[i] === 6) {
+                                            output.push([
+                                                'Cup Round 2',
+                                                [{
+                                                    round: 'Cup Round 2',
+                                                    date: '06.11.2025',
+                                                    homeTeam: 'DC Patron',
+                                                    awayTeam: 'Fortunas Wölfe',
+                                                }]
+                                            ]);
+                                        }
+                                    }
+                                    return output.map(([round, games]) => (
+                                        <div key={round} className="space-y-3">
+                                            <div className="flex items-center gap-2 pb-2 border-b">
+                                                <span className={`font-extrabold ${round === 'Cup Round 2' ? 'text-pink-700 text-xl sm:text-2xl' : 'text-blue-700 text-sm'}`}>{round === 'Cup round 2' ? 'Cup round 2' : `Matchday ${round}`}</span>
+                                                {(games as any[])[0] && (
+                                                    <span className="text-xs text-gray-500">({(games as any[])[0].date})</span>
+                                                )}
+                                            </div>
+                                            <div className="space-y-2">
+                                                {(games as any[]).map((game: any, idx: number) => (
+                                                    <div key={idx} className="bg-gray-50 rounded-lg p-3 border">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <span className="font-medium text-gray-900 flex-1 text-xs sm:text-sm truncate" title={game.homeTeam}>{game.homeTeam}</span>
+                                                            <span className={`px-2 sm:px-3 py-1 ${round === 'Cup round 2' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'} rounded font-bold text-xs sm:text-sm flex-shrink-0`}>{round === 'Cup round 2' ? 'Cup' : 'vs'}</span>
+                                                            <span className="font-medium text-gray-900 flex-1 text-right text-xs sm:text-sm truncate" title={game.awayTeam}>{game.awayTeam}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ));
+                                })()}
+
+                            </div>
+                        </TabsContent>
+                    </CardContent>
+                </Tabs>
             </Card>
+
+               
         </div>
     );
 };
