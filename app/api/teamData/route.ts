@@ -1,9 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import { TeamData } from '@/lib/models/types';
 import { fetchSpielberichteLink, fetchDartIds, fetchTeamPlayersAverage, fetchMatchReport, fetchLeaguePosition, fetchClubVenue, fetchComparisonData, fetchTeamStandings, fetchMatchAverages, fetch180sAndHighFinishes } from '@/lib/scraper';
-import { Schema } from 'mongoose';
-import axios from 'axios';
 
 // Add these interfaces at the top of the file after the imports
 interface SingleMatch {
@@ -35,17 +31,6 @@ interface MatchReport {
   details: MatchDetails;
 }
 
-// Add schedule to TeamData model if not already there
- // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const scheduleSchema = new Schema({
-    round: String,
-    date: String,
-    opponent: String,
-    venue: String,
-    address: String,
-    location: String,
-    lastUpdated: Date
-});
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -56,9 +41,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    await connectToDatabase();
-    
-    // Always fetch new data
+    // Fetch fresh data directly
     const updatedData = await updateTeamData(teamName);
     
     return NextResponse.json({
@@ -161,13 +144,6 @@ async function updateTeamData(teamName: string) {
       highFinishes: specialStats.highFinishes
     };
 
-    // Update database
-    await TeamData.findOneAndUpdate(
-      { teamName }, 
-      updatedData,
-      { upsert: true }
-    );
-
     return updatedData;
   } catch (error) {
     console.error('Error in updateTeamData:', error);
@@ -175,43 +151,4 @@ async function updateTeamData(teamName: string) {
   }
 }
 
-// In your fetch function
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function getSchedule(teamName: string) {
-    try {
-        // Check if we have recent schedule data (less than a month old)
-        const existingData = await TeamData.findOne({
-            teamName,
-            'schedule.lastUpdated': { 
-                $gt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) 
-            }
-        });
-
-        if (existingData?.schedule) {
-            return existingData.schedule;
-        }
-
-        // If not in DB or too old, fetch new data
-        const response = await axios.get(`/api/schedule?team=${teamName}`);
-        const schedule = response.data;
-
-        // Update DB with new schedule
-        await TeamData.findOneAndUpdate(
-            { teamName },
-            { 
-                $set: { 
-                    schedule: {
-                        ...schedule,
-                        lastUpdated: new Date()
-                    }
-                }
-            },
-            { upsert: true }
-        );
-
-        return schedule;
-    } catch (error) {
-        console.error('Error fetching schedule:', error);
-        return null;
-    }
-} 
+ 

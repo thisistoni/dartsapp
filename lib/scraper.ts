@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import axiosRetry from 'axios-retry';
-import { ClubVenue, MatchReport, Player, ComparisonData, TeamStandings, OneEighty, HighFinish } from './types';
+import { ClubVenue, MatchReport, Player, ComparisonData, TeamStandings, OneEighty, HighFinish, LeagueResults, LeagueMatchday, LeagueMatch } from './types';
 
 // Configure axios with retry logic
 axiosRetry(axios, { 
@@ -564,4 +564,62 @@ export async function fetch180sAndHighFinishes(team: string): Promise<{oneEighty
   });
 
   return { oneEightys, highFinishes };
+}
+
+// Fetch League Results for Overview
+export async function fetchLeagueResults(): Promise<LeagueResults> {
+  const url = 'https://www.wdv-dart.at/_landesliga/_liga/ergebnisse.php?div=5&saison=2025/26';
+  
+  try {
+    const { data } = await axios.get(url);
+    const $ = cheerio.load(data);
+    const matchdays: LeagueMatchday[] = [];
+
+    // Find all h4 elements that contain "Runde" (Round)
+    $('h4').each((_, elem) => {
+      const headerText = $(elem).text().trim();
+      const roundMatch = headerText.match(/Runde (\d+) - (\d{2}\.\d{2}\.\d{4})/);
+      
+      if (roundMatch) {
+        const round = parseInt(roundMatch[1]);
+        const date = roundMatch[2];
+        
+        // Get the next div.ranking table
+        const table = $(elem).next('div.ranking').find('table.ranking');
+        const matches: LeagueMatch[] = [];
+        
+        // Parse each match row
+        table.find('tbody tr.ranking').each((_, row) => {
+          const cells = $(row).find('td');
+          
+          const homeTeam = $(cells[0]).text().trim();
+          const awayTeam = $(cells[1]).text().trim();
+          const homeLegs = parseInt($(cells[2]).text().trim());
+          const awayLegs = parseInt($(cells[4]).text().trim());
+          const homeSets = parseInt($(cells[5]).find('b').text().trim());
+          const awaySets = parseInt($(cells[7]).find('b').text().trim());
+          
+          if (homeTeam && awayTeam && !isNaN(homeLegs) && !isNaN(awayLegs) && !isNaN(homeSets) && !isNaN(awaySets)) {
+            matches.push({
+              homeTeam,
+              awayTeam,
+              homeLegs,
+              awayLegs,
+              homeSets,
+              awaySets
+            });
+          }
+        });
+        
+        if (matches.length > 0) {
+          matchdays.push({ round, date, matches });
+        }
+      }
+    });
+
+    return { matchdays };
+  } catch (error) {
+    console.error('❌ Error fetching league results:', error);
+    return { matchdays: [] };
+  }
 }

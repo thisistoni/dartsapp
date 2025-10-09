@@ -108,3 +108,23 @@ export interface HighFinish {
   finishes: number[];
 }
 
+// League Overview Types
+export interface LeagueMatch {
+  homeTeam: string;
+  awayTeam: string;
+  homeLegs: number;
+  awayLegs: number;
+  homeSets: number;
+  awaySets: number;
+}
+
+export interface LeagueMatchday {
+  round: number;
+  date: string;
+  matches: LeagueMatch[];
+}
+
+export interface LeagueResults {
+  matchdays: LeagueMatchday[];
+}
+

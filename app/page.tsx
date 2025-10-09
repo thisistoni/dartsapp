@@ -1,5 +1,5 @@
 "use client";
-
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -42,9 +42,323 @@ interface PlayerPerformance {
     opponent: string;
 }
 
+// League Overview Component with real data
+const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ onTeamSelect }) => {
+    const [loading, setLoading] = useState(true);
+    const [leagueData, setLeagueData] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchLeagueData = async () => {
+            try {
+                setLoading(true);
+                const response = await axios.get('/api/leagueOverview');
+                const { results } = response.data;
+                
+                // Calculate standings from results
+                const standings = calculateStandings(results.matchdays);
+                setLeagueData({ results, standings });
+            } catch (error) {
+                console.error('Error fetching league overview:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchLeagueData();
+    }, []);
+
+    // Calculate standings from match results
+    const calculateStandings = (matchdays: any[]) => {
+        const teamStats: Record<string, { played: number; points: number; legsFor: number; legsAgainst: number }> = {};
+        
+        matchdays.forEach(matchday => {
+            matchday.matches.forEach((match: any) => {
+                // Initialize teams if not exists
+                if (!teamStats[match.homeTeam]) {
+                    teamStats[match.homeTeam] = { played: 0, points: 0, legsFor: 0, legsAgainst: 0 };
+                }
+                if (!teamStats[match.awayTeam]) {
+                    teamStats[match.awayTeam] = { played: 0, points: 0, legsFor: 0, legsAgainst: 0 };
+                }
+
+                // Update played
+                teamStats[match.homeTeam].played++;
+                teamStats[match.awayTeam].played++;
+
+                // Update legs (for goal difference)
+                teamStats[match.homeTeam].legsFor += match.homeLegs;
+                teamStats[match.homeTeam].legsAgainst += match.awayLegs;
+                teamStats[match.awayTeam].legsFor += match.awayLegs;
+                teamStats[match.awayTeam].legsAgainst += match.homeLegs;
+
+                // Update points - sum of all SETS collected
+                teamStats[match.homeTeam].points += match.homeSets;
+                teamStats[match.awayTeam].points += match.awaySets;
+            });
+        });
+
+        // Sample averages for teams (will be replaced with real data later)
+        const sampleAverages: Record<string, number> = {
+            'Dartclub Twentytwo 4': 99.0,
+            'PSV Wien Darts 1': 99.0,
+            'TC Aspern 1': 99.0,
+            'DC Patron': 99.0,
+            'AS The Dart Side of the Moon II': 99.0,
+            'BSW Zwara Panier': 99.0,
+            'Temmel Fundraising Darts Lions 2': 99.0
+        };
+
+        // Convert to array and sort
+        return Object.entries(teamStats)
+            .map(([team, stats]) => ({
+                team,
+                played: stats.played,
+                points: stats.points,
+                goalDiff: stats.legsFor - stats.legsAgainst,
+                average: sampleAverages[team] || 35.0
+            }))
+            .sort((a, b) => {
+                if (b.points !== a.points) return b.points - a.points;
+                return b.goalDiff - a.goalDiff;
+            })
+            .map((team, index) => ({ ...team, position: index + 1 }));
+    };
+
+    if (loading || !leagueData) {
+        return (
+            <div className="flex justify-center items-center min-h-[50vh]">
+                <div className="flex flex-col items-center gap-4">
+                    <ClipLoader color="#3B82F6" size={50} />
+                    <p className="text-gray-600">Loading league data...</p>
+                </div>
+            </div>
+        );
+    }
+
+    const leagueStandings = leagueData.standings;
+    const finishedGames = leagueData.results.matchdays.flatMap((md: any) =>
+        md.matches.map((match: any) => ({
+            matchday: md.round,
+            date: md.date,
+            homeTeam: match.homeTeam,
+            awayTeam: match.awayTeam,
+            score: `${match.homeSets}-${match.awaySets}`,
+            status: 'finished'
+        }))
+    );
+
+    // Group finished games by matchday
+    const groupedFinishedGames = finishedGames.reduce((acc: any, game: any) => {
+        if (!acc[game.matchday]) {
+            acc[game.matchday] = [];
+        }
+        acc[game.matchday].push(game);
+        return acc;
+    }, {});
+
+    // Get the latest matchday
+    const latestMatchday = Math.max(...finishedGames.map((game: any) => game.matchday));
+    const latestMatchdayGames = finishedGames.filter((game: any) => game.matchday === latestMatchday);
+
+    // Find the team with a bye (not playing) in the latest matchday
+    const allTeams = leagueStandings.map((team: any) => team.team);
+    const playingTeams = new Set<string>();
+    latestMatchdayGames.forEach((game: any) => {
+        playingTeams.add(game.homeTeam);
+        playingTeams.add(game.awayTeam);
+    });
+    const byeTeam = allTeams.find((team: string) => !playingTeams.has(team));
+
+    return (
+        <div className="space-y-6">
+
+            {/* League Table and Latest Results Side by Side on Desktop */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* League Table - 2/3 width on desktop */}
+                <div className="lg:col-span-2">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Trophy className="h-6 w-6 text-yellow-500" />
+                                League Standings
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="border-b border-gray-200">
+                                            <th className="text-left py-3 px-2 text-sm font-semibold text-gray-600">Pos</th>
+                                            <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Team</th>
+                                            <th className="text-center py-3 px-2 text-sm font-semibold text-gray-600">P</th>
+                                            <th className="text-center py-3 px-2 text-sm font-semibold text-gray-600">Pts</th>
+                                            <th className="text-center py-3 px-2 text-sm font-semibold text-gray-600">+/-</th>
+                                            <th className="text-center py-3 px-2 text-sm font-semibold text-gray-600">Avg</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    {leagueStandings.map((team: { team: string; position: number; played: number; points: number; goalDiff: number; average: number }) => {
+                                            let rowBg = '';
+                                            
+                                            if (team.position === 1) {
+                                              
+                                                rowBg = 'bg-green-50/50';
+                                            } else if (team.position === 2) {
+                                               
+                                                rowBg = 'bg-blue-50/50';
+                                            }
+                                            
+                                            return (
+                                                <tr key={team.position} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${rowBg}`}>
+                                                    <td className="py-3 px-2">
+                                                        <div className="flex items-center gap-1">
+                                                            <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-sm font-bold ${
+                                                                team.position === 1
+                                                                    ? 'bg-green-100 text-green-700 border-2 border-green-300' 
+                                                                    : team.position === 2
+                                                                    ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
+                                                                    : 'bg-gray-100 text-gray-700'
+                                                            }`}>
+                                                                {team.position}
+                                                            </span>
+                                                           
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <button
+                                                            onClick={() => onTeamSelect(team.team)}
+                                                            className="group flex items-center gap-2 font-medium text-gray-900 hover:text-blue-600 cursor-pointer text-left transition-all w-full"
+                                                        >
+                                                            <span className="group-hover:translate-x-1 transition-transform">
+                                                                {team.team}
+                                                            </span>
+                                                            <ArrowUp className="h-4 w-4 rotate-90 opacity-0 group-hover:opacity-100 transition-opacity text-blue-600" />
+                                                        </button>
+                                                    </td>
+                                                    <td className="py-3 px-2 text-center text-gray-600">{team.played}</td>
+                                                    <td className="py-3 px-2 text-center font-bold text-gray-900">{team.points}</td>
+                                                    <td className={`py-3 px-2 text-center font-medium ${
+                                                        team.goalDiff > 0 ? 'text-green-600' : team.goalDiff < 0 ? 'text-red-600' : 'text-gray-600'
+                                                    }`}>
+                                                        {team.goalDiff > 0 ? '+' : ''}{team.goalDiff}
+                                                    </td>
+                                                    <td className="py-3 px-2 text-center text-blue-600 font-medium">
+                                                        {team.average === 99.0 ? '-' : team.average.toFixed(1)}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Latest Matchday Results - 1/3 width on desktop */}
+                <div className="lg:col-span-1">
+                    <Card className="h-full">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-base">
+                                <CheckCircle className="h-5 w-5 text-green-500" />
+                                Latest Results
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 pb-2 border-b">
+                                    <span className="text-sm font-bold text-green-600">Matchday {latestMatchday}</span>
+                                    {latestMatchdayGames.length > 0 && (
+                                        <span className="text-xs text-gray-500">({latestMatchdayGames[0].date})</span>
+                                    )}
+                                </div>
+                                <div className="space-y-2">
+                                    {latestMatchdayGames.map((game: any, index: number) => {
+                                        const [homeScore, awayScore] = game.score.split('-');
+                                        const isDraw = homeScore === awayScore;
+                                        
+                                        return (
+                                            <div key={index} className="bg-gray-50 rounded-lg p-3 border">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center justify-between text-sm">
+                                                        <span className="font-medium text-gray-900">{game.homeTeam}</span>
+                                                        <span className={`font-bold ${isDraw ? 'text-orange-600' : 'text-green-700'}`}>
+                                                            {homeScore}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between text-sm">
+                                                        <span className="font-medium text-gray-900">{game.awayTeam}</span>
+                                                        <span className={`font-bold ${isDraw ? 'text-orange-600' : 'text-red-700'}`}>
+                                                            {awayScore}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    
+                                    {/* Show bye team if exists */}
+                                    {byeTeam && (
+                                        <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-200">
+                                            <div className="flex items-center gap-2">
+                                                <Calendar className="h-4 w-4 text-blue-600" />
+                                                <div className="flex-1">
+                                                    <span className="text-sm font-medium text-gray-900">{byeTeam}</span>
+                                                    <p className="text-xs text-gray-500 mt-0.5">Free this matchday</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+
+            {/* All Results */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <CheckCircle className="h-6 w-6 text-green-500" />
+                        All Results
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-6">
+                        {Object.entries(groupedFinishedGames)
+                            .sort(([a], [b]) => Number(b) - Number(a))
+                            .map(([matchday, games]) => (
+                            <div key={matchday} className="space-y-3">
+                                <div className="flex items-center gap-2 pb-2 border-b">
+                                    <span className="text-sm font-bold text-green-600">Matchday {matchday}</span>
+                                    {(games as any[])[0] && (
+                                        <span className="text-xs text-gray-500">({(games as any[])[0].date})</span>
+                                    )}
+                                </div>
+                                <div className="space-y-2">
+                                    {(games as any[]).map((game: any, index: number) => (
+                                        <div key={index} className="bg-gray-50 rounded-lg p-3 border">
+                                            <div className="flex items-center justify-between">
+                                                <span className="font-medium text-gray-900 flex-1 text-sm">{game.homeTeam}</span>
+                                                <span className="px-3 py-1 bg-green-100 text-green-700 rounded font-bold text-sm mx-4">{game.score}</span>
+                                                <span className="font-medium text-gray-900 flex-1 text-right text-sm">{game.awayTeam}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+};
+
 const DartsStatisticsDashboard: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState<string>('');
-    const [selectedTeam, setSelectedTeam] = useState<string>('DC Patron');
+    const [selectedTeam, setSelectedTeam] = useState<string>('League Overview');
     const [teamData, setTeamData] = useState<TeamData | null>(null);
     const [matchReports, setMatchReports] = useState<MatchReport[]>([]);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -76,16 +390,17 @@ const DartsStatisticsDashboard: React.FC = () => {
 
     // Add this at the top level
     const playerImages: { [key: string]: string } = {
-        'Luca Schuckert': 'https://www.oefb.at/oefb2/images/1278650591628556536_b0b441e826bc548aa7fc-1,0-320x320.png',
-        'Marko Cvejic': 'https://www.oefb.at/oefb2/images/1278650591628556536_e1e6df7df2184ef1349b-1,0-320x320.png',
+        'Luca Schuckert': 'schucki.jpg',
+        'Marko Cvejic': '/cvejic-marko.jpg',
         'Josip Matijevic': 'https://www.oefb.at/oefb2/images/1278650591628556536_4dcb084bb2c30e1395ee-1,0-320x320.png',
-        'Muhamet Mahmutaj': 'https://www.oefb.at/oefb2/images/1278650591628556536_f740f25ac9da09af2246-1,0-320x320.png',
+        'Muhamet Mahmutaj': 'muki-m.jpg',
         'Marvin De Chavez': 'https://www.oefb.at/oefb2/images/1278650591628556536_49e17c18c1d6921a7870-1,0-320x320.png',
-        'Christoph Hafner': 'https://www.oefb.at/oefb2/images/1278650591628556536_7ccdd5ee9c5e8e2a0c22-1,0-320x320.png',
+        'Christoph Hafner': 'chris-h.jpg',
         'Michael Frühwirth': 'https://www.oefb.at/oefb2/images/1278650591628556536_ba89cc5af9585cffb11c-1,0-320x320.png',
         'Ermin Kokic': 'https://www.oefb.at/oefb2/images/1278650591628556536_e807ce175060c2e86db6-1,0-320x320.png',
         'Dominik Kubiak': 'https://www.oefb.at/oefb2/images/1278650591628556536_77be3e9035fdc75e8cff-1,0-320x320.png',
-        'Markus Hafner': 'https://www.oefb.at/oefb2/images/1278650591628556536_762e3056bd0e1a82d61c-1,0-320x320.png'
+        'Markus Hafner': 'markus.jpg',
+        'Dejan Stojadinovic': 'dejan.jpg'
     };
 
     // First, add a ref for the search container
@@ -128,16 +443,27 @@ const DartsStatisticsDashboard: React.FC = () => {
         'DC Patron',
     ];
 
-    // Filter teams for search dropdown (include all teams)
-    const filteredTeams = teams.filter(team =>
-        team.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Filter teams for search dropdown (include all teams + League Overview)
+    const allOptions = ['League Overview', ...teams];
+    const filteredTeams = searchTerm.trim() === '' 
+        ? allOptions 
+        : allOptions.filter(option => {
+            const searchLower = searchTerm.toLowerCase();
+            const optionLower = option.toLowerCase();
+            return optionLower.includes(searchLower);
+        });
 
     // Filter teams for comparison table (exclude selected team)
     const comparisonTeams = teams.filter(team => team !== selectedTeam);
     
     useEffect(() => {
         if (selectedTeam) {
+            // Skip data fetching for League Overview
+            if (selectedTeam === 'League Overview') {
+                setIsInitialLoad(false);
+                return;
+            }
+            
             setLoading(true);
             setIsInitialLoad(true); // Set initial load state
             currentTeamRef.current = selectedTeam;
@@ -762,6 +1088,11 @@ const DartsStatisticsDashboard: React.FC = () => {
                 {/* Hide content during initial load */}
                 {!isInitialLoad ? (
                     <>
+                        {/* League Overview - Completely different page */}
+                        {selectedTeam === 'League Overview' ? (
+                            <LeagueOverview onTeamSelect={setSelectedTeam} />
+                        ) : (
+                        <>
                         {/* Display Selected Team */}
                         <div className="mb-6 bg-white rounded-xl shadow-sm border overflow-visible">
                             <div className="h-1 w-full bg-gradient-to-r from-blue-400/40 to-blue-500/40" />
@@ -2465,6 +2796,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                                             </div>
                             </TabsContent>
                         </Tabs>
+                        </>
+                        )}
                     </>
                 ) : (
                     <div className="flex justify-center items-center min-h-[50vh]">
