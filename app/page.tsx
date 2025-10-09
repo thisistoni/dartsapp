@@ -150,6 +150,7 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
     const finishedSet = new Set(finishedGames.map((g: { matchday: string | number; homeTeam: string; awayTeam: string }) => `${g.matchday}|${g.homeTeam}|${g.awayTeam}`));
     const futureSchedule = (leagueData.futureSchedule || []).filter((g: any) => !finishedSet.has(`${g.round}|${g.homeTeam}|${g.awayTeam}`));
 
+    
     // Group finished games by matchday
     const groupedFinishedGames = finishedGames.reduce((acc: any, game: any) => {
         if (!acc[game.matchday]) {
