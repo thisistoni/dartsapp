@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Search, Users, User,  MapPin, Martini, Phone, BarChart, ArrowUp,  Calendar, Navigation, Target, Zap, CheckCircle } from 'lucide-react';
+import { Trophy, Search, Users, User,  MapPin, Martini, Phone, BarChart, ArrowUp,  Calendar, Navigation, Target, Zap, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
 import { ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings, MatchAverages, OneEighty, HighFinish } from '@/lib/types';
@@ -43,6 +43,75 @@ interface PlayerPerformance {
     opponent: string;
 }
 
+// Player images mapping
+const playerImages: { [key: string]: string } = {
+    'Luca Schuckert': '/schucki.jpg',
+    'Marko Cvejic': '/cvejic-marko.jpg',
+    'Josip Matijevic': 'https://www.oefb.at/oefb2/images/1278650591628556536_4dcb084bb2c30e1395ee-1,0-320x320.png',
+    'Muhamet Mahmutaj': '/muki-m.jpg',
+    'Marvin De Chavez': 'https://www.oefb.at/oefb2/images/1278650591628556536_49e17c18c1d6921a7870-1,0-320x320.png',
+    'Christoph Hafner': '/chris-h.jpg',
+    'Michael Frühwirth': 'https://www.oefb.at/oefb2/images/1278650591628556536_ba89cc5af9585cffb11c-1,0-320x320.png',
+    'Ermin Kokic': 'https://www.oefb.at/oefb2/images/1278650591628556536_e807ce175060c2e86db6-1,0-320x320.png',
+    'Dominik Kubiak': 'https://www.oefb.at/oefb2/images/1278650591628556536_77be3e9035fdc75e8cff-1,0-320x320.png',
+    'Markus Hafner': '/markus.jpg',
+    'Dejan Stojadinovic': '/dejan.jpg'
+};
+
+// Helper function to get player initials
+const getPlayerInitials = (name: string): string => {
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+};
+
+// Player Avatar Component
+const PlayerAvatar: React.FC<{ name: string; imageUrl?: string; size?: 'sm' | 'md' }> = ({ name, imageUrl, size = 'sm' }) => {
+    const sizeClasses = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm';
+    const initials = getPlayerInitials(name);
+    
+    // Generate a consistent color based on name
+    const getColorFromName = (str: string) => {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const colors = [
+            'bg-blue-500',
+            'bg-green-500',
+            'bg-purple-500',
+            'bg-pink-500',
+            'bg-indigo-500',
+            'bg-red-500',
+            'bg-orange-500',
+            'bg-teal-500',
+        ];
+        return colors[Math.abs(hash) % colors.length];
+    };
+    
+    if (imageUrl) {
+        return (
+            <img 
+                src={imageUrl} 
+                alt={name}
+                className={`${sizeClasses} rounded-full object-cover flex-shrink-0`}
+                onError={(e) => {
+                    // Fallback to initials if image fails to load
+                    e.currentTarget.style.display = 'none';
+                }}
+            />
+        );
+    }
+    
+    return (
+        <div className={`${sizeClasses} rounded-full ${getColorFromName(name)} text-white font-bold flex items-center justify-center flex-shrink-0`}>
+            {initials}
+        </div>
+    );
+};
+
 // League Overview Component with real data
 const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ onTeamSelect }) => {
     const [loading, setLoading] = useState(true);
@@ -52,11 +121,14 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
         const fetchLeagueData = async () => {
             try {
                 setLoading(true);
-                const response = await axios.get('/api/leagueOverview');
-                const { results, futureSchedule, teamAverages } = response.data;
+                const response = await axios.get('/api/leagueOverview', {
+                    headers: { 'Cache-Control': 'no-cache' }
+                });
+                const { results, futureSchedule, teamAverages, playerStats } = response.data;
+                console.log('API response playerStats:', playerStats?.length);
                 // Calculate standings from results
                 const standings = calculateStandings(results.matchdays);
-                setLeagueData({ results, standings, futureSchedule, teamAverages });
+                setLeagueData({ results, standings, futureSchedule, teamAverages, playerStats });
             } catch (error) {
                 console.error('Error fetching league overview:', error);
             } finally {
@@ -136,7 +208,8 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
     }
 
     const leagueStandings = leagueData.standings;
-    const teamAverages: Record<string, number> = leagueData.teamAverages || {};
+    const teamAverages: Record<string, { average: number; singles: string; doubles: string }> = leagueData.teamAverages || {};
+    const playerStats: any[] = leagueData.playerStats || [];
     const finishedGames = leagueData.results.matchdays.flatMap((md: any) =>
         md.matches.map((match: any) => ({
             matchday: md.round,
@@ -164,6 +237,9 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
     const latestMatchday = Math.max(...finishedGames.map((game: any) => game.matchday));
     const latestMatchdayGames = finishedGames.filter((game: any) => game.matchday === latestMatchday);
 
+    // Check for pending games from the latest matchday in futureSchedule
+    const pendingLatestMatchdayGames = futureSchedule.filter((g: any) => g.round === latestMatchday);
+
     // Find the team with a bye (not playing) in the latest matchday
     const allTeams = leagueStandings.map((team: any) => team.team);
     const playingTeams = new Set<string>();
@@ -171,6 +247,32 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
         playingTeams.add(game.homeTeam);
         playingTeams.add(game.awayTeam);
     });
+    pendingLatestMatchdayGames.forEach((game: any) => {
+        playingTeams.add(game.homeTeam);
+        playingTeams.add(game.awayTeam);
+    });
+    
+    // Helper function to normalize team names for comparison
+    function normalizeTeamName(name: string) {
+        return name.replace(/\s+/g, ' ').trim().toLowerCase();
+    }
+    
+    // Check for teams with missing game details based on singles data
+    const teamsWithMissingData = new Set<string>();
+    leagueStandings.forEach((team: { team: string; played: number }) => {
+        const stats = Object.entries(teamAverages).find(
+            ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
+        )?.[1];
+
+        if (stats?.singles) {
+            const [won, lost] = stats.singles.split('-').map(Number);
+            const totalSinglesGames = won + lost;
+            if (totalSinglesGames !== team.played) {
+                teamsWithMissingData.add(team.team);
+            }
+        }
+    });
+
     const byeTeam = allTeams.find((team: string) => !playingTeams.has(team));
 
     return (
@@ -197,6 +299,8 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                                             <th className="text-center py-3 px-2 text-xs sm:text-sm font-semibold text-gray-600">P</th>
                                             <th className="text-center py-3 px-2 text-xs sm:text-sm font-semibold text-gray-600">Pts</th>
                                             <th className="text-center py-3 px-2 text-xs sm:text-sm font-semibold text-gray-600">+/-</th>
+                                            <th className="text-center py-3 px-2 text-xs sm:text-sm font-semibold text-gray-600">Singles</th>
+                                            <th className="text-center py-3 px-2 text-xs sm:text-sm font-semibold text-gray-600">Doubles</th>
                                             <th className="text-center py-3 px-2 text-xs sm:text-sm font-semibold text-gray-600">Avg</th>
                                         </tr>
                                     </thead>
@@ -246,15 +350,37 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                                                     }`}>
                                                         {team.goalDiff > 0 ? '+' : ''}{team.goalDiff}
                                                     </td>
+                                                    <td className="py-3 px-2 text-center text-gray-700 font-medium text-xs sm:text-sm">
+                                                    {(() => {
+                                                        function normalizeTeamName(name: string) {
+                                                            return name.replace(/\s+/g, ' ').trim().toLowerCase();
+                                                        }
+                                                        const stats = Object.entries(teamAverages).find(
+                                                            ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
+                                                        )?.[1];
+                                                        return stats?.singles || '-';
+                                                    })()}
+                                                    </td>
+                                                    <td className="py-3 px-2 text-center text-gray-700 font-medium text-xs sm:text-sm">
+                                                    {(() => {
+                                                        function normalizeTeamName(name: string) {
+                                                            return name.replace(/\s+/g, ' ').trim().toLowerCase();
+                                                        }
+                                                        const stats = Object.entries(teamAverages).find(
+                                                            ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
+                                                        )?.[1];
+                                                        return stats?.doubles || '-';
+                                                    })()}
+                                                    </td>
                                                     <td className="py-3 px-2 text-center text-blue-600 font-medium text-xs sm:text-sm">
                                                     {(() => {
                                                         function normalizeTeamName(name: string) {
                                                             return name.replace(/\s+/g, ' ').trim().toLowerCase();
                                                         }
-                                                        const avg = Object.entries(teamAverages).find(
+                                                        const stats = Object.entries(teamAverages).find(
                                                             ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
                                                         )?.[1];
-                                                        return typeof avg === 'number' && !isNaN(avg) ? avg.toFixed(2) : '-';
+                                                        return stats?.average && !isNaN(stats.average) ? stats.average.toFixed(2) : '-';
                                                     })()}
                                                     
                                                     </td>
@@ -289,9 +415,16 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                                     {latestMatchdayGames.map((game: any, index: number) => {
                                         const [homeScore, awayScore] = game.score.split('-');
                                         const isDraw = homeScore === awayScore;
+                                        const hasMissingData = teamsWithMissingData.has(game.homeTeam) || teamsWithMissingData.has(game.awayTeam);
                                         
                                         return (
-                                            <div key={index} className="bg-gray-50 rounded-lg p-3 border">
+                                            <div key={index} className={`bg-gray-50 rounded-lg p-3 border ${hasMissingData ? 'border-red-300 bg-red-50/50' : ''}`}>
+                                                {hasMissingData && (
+                                                    <div className="flex items-center gap-1 mb-2">
+                                                        <AlertTriangle className="h-3 w-3 text-red-600" />
+                                                        <span className="text-xs text-red-700 font-medium">Game details pending</span>
+                                                    </div>
+                                                )}
                                                 <div className="space-y-1">
                                                     <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
                                                         <span className="font-medium text-gray-900 truncate" title={game.homeTeam}>{game.homeTeam}</span>
@@ -309,6 +442,25 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                                             </div>
                                         );
                                     })}
+                                    
+                                    {/* Show pending games from the latest matchday */}
+                                    {pendingLatestMatchdayGames.map((game: any, index: number) => (
+                                        <div key={`pending-${index}`} className="bg-amber-50/50 rounded-lg p-3 border border-amber-200 border-dashed">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <Clock className="h-3 w-3 text-amber-600" />
+                                                    <span className="text-xs text-amber-700 font-medium">Result pending</span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
+                                                    <span className="font-medium text-gray-700 truncate" title={game.homeTeam}>{game.homeTeam}</span>
+                                                    <span className="text-xs text-gray-500 flex-shrink-0">vs</span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
+                                                    <span className="font-medium text-gray-700 truncate" title={game.awayTeam}>{game.awayTeam}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
                                     
                                     {/* Show bye team if exists */}
                                     {byeTeam && (
@@ -402,7 +554,7 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                                     return output.map(([round, games]) => (
                                         <div key={round} className="space-y-3">
                                             <div className="flex items-center gap-2 pb-2 border-b">
-                                                <span className={`font-extrabold ${round === 'Cup Round 2' ? 'text-pink-700 text-xl sm:text-2xl' : 'text-blue-700 text-sm'}`}>{round === 'Cup round 2' ? 'Cup round 2' : `Matchday ${round}`}</span>
+                                                <span className={`text-sm font-bold ${round === 'Cup Round 2' ? 'text-pink-700' : 'text-blue-700'}`}>{round === 'Cup Round 2' ? 'Cup Round 2' : `Matchday ${round}`}</span>
                                                 {(games as any[])[0] && (
                                                     <span className="text-xs text-gray-500">({(games as any[])[0].date})</span>
                                                 )}
@@ -412,7 +564,7 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                                                     <div key={idx} className="bg-gray-50 rounded-lg p-3 border">
                                                         <div className="flex items-center justify-between gap-2">
                                                             <span className="font-medium text-gray-900 flex-1 text-xs sm:text-sm truncate" title={game.homeTeam}>{game.homeTeam}</span>
-                                                            <span className={`px-2 sm:px-3 py-1 ${round === 'Cup round 2' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'} rounded font-bold text-xs sm:text-sm flex-shrink-0`}>{round === 'Cup round 2' ? 'Cup' : 'vs'}</span>
+                                                            <span className={`px-2 sm:px-3 py-1 ${round === 'Cup Round 2' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'} rounded font-bold text-xs sm:text-sm flex-shrink-0`}>{round === 'Cup Round 2' ? 'Cup' : 'vs'}</span>
                                                             <span className="font-medium text-gray-900 flex-1 text-right text-xs sm:text-sm truncate" title={game.awayTeam}>{game.awayTeam}</span>
                                                         </div>
                                                     </div>
@@ -426,6 +578,353 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                         </TabsContent>
                     </CardContent>
                 </Tabs>
+            </Card>
+
+            {/* Player Leaderboard Card */}
+            <Card className="mt-8">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <User className="h-6 w-6 text-indigo-500" />
+                        Player Leaderboard
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {/* Top 5 Average */}
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                <Zap className="h-4 w-4 text-purple-600" />
+                                Top Average
+                            </h3>
+                            <div className="space-y-2">
+                                {playerStats && playerStats.length > 0 ? (
+                                    playerStats
+                                        .filter(p => p.average > 0)
+                                        .sort((a, b) => b.average - a.average)
+                                        .slice(0, 5)
+                                        .map((player, idx) => {
+                                        const singlesGames = player.singlesWon + player.singlesLost;
+                                        return (
+                                            <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                    <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold flex-shrink-0 ${
+                                                        idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                        idx === 1 ? 'bg-gray-200 text-gray-700' :
+                                                        idx === 2 ? 'bg-orange-100 text-orange-700' :
+                                                        'bg-gray-100 text-gray-600'
+                                                    }`}>
+                                                        {idx + 1}
+                                                    </span>
+                                                    <PlayerAvatar name={player.name} imageUrl={playerImages[player.name]} size="sm" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-medium text-gray-900 truncate" title={player.name}>{player.name}</div>
+                                                        <div className="text-xs text-gray-500 truncate" title={player.team}>{player.team}</div>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right ml-2">
+                                                    <div className="text-sm font-bold text-purple-600">{player.average.toFixed(2)}</div>
+                                                    <div className="text-xs text-gray-500">{singlesGames} games</div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="text-xs text-gray-500 p-2">No data available</div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Top 5 Singles % */}
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                <Target className="h-4 w-4 text-blue-600" />
+                                Top Singles %
+                            </h3>
+                            <div className="space-y-2">
+                                {playerStats
+                                    .filter(p => (p.singlesWon + p.singlesLost) >= 1) // At least 1 game
+                                    .sort((a, b) => {
+                                        // Sort by percentage first
+                                        if (b.singlesPercentage !== a.singlesPercentage) {
+                                            return b.singlesPercentage - a.singlesPercentage;
+                                        }
+                                        // If same percentage, sort by total games played (more games = higher rank)
+                                        return (b.singlesWon + b.singlesLost) - (a.singlesWon + a.singlesLost);
+                                    })
+                                    .slice(0, 5)
+                                    .map((player, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold flex-shrink-0 ${
+                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
+                                                    idx === 2 ? 'bg-orange-100 text-orange-700' :
+                                                    'bg-gray-100 text-gray-600'
+                                                }`}>
+                                                    {idx + 1}
+                                                </span>
+                                                <PlayerAvatar name={player.name} imageUrl={playerImages[player.name]} size="sm" />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-medium text-gray-900 truncate" title={player.name}>{player.name}</div>
+                                                    <div className="text-xs text-gray-500 truncate" title={player.team}>{player.team}</div>
+                                                </div>
+                                            </div>
+                                            <div className="text-right ml-2">
+                                                <div className="text-sm font-bold text-blue-600">{player.singlesPercentage.toFixed(1)}%</div>
+                                                <div className="text-xs text-gray-500">{player.singlesWon}-{player.singlesLost}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+
+                        {/* Top 5 Doubles % */}
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                <Users className="h-4 w-4 text-green-600" />
+                                Top Doubles %
+                            </h3>
+                            <div className="space-y-2">
+                                {playerStats
+                                    .filter(p => (p.doublesWon + p.doublesLost) >= 1) // At least 1 game
+                                    .sort((a, b) => {
+                                        // Sort by percentage first
+                                        if (b.doublesPercentage !== a.doublesPercentage) {
+                                            return b.doublesPercentage - a.doublesPercentage;
+                                        }
+                                        // If same percentage, sort by total games played (more games = higher rank)
+                                        return (b.doublesWon + b.doublesLost) - (a.doublesWon + a.doublesLost);
+                                    })
+                                    .slice(0, 5)
+                                    .map((player, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold flex-shrink-0 ${
+                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
+                                                    idx === 2 ? 'bg-orange-100 text-orange-700' :
+                                                    'bg-gray-100 text-gray-600'
+                                                }`}>
+                                                    {idx + 1}
+                                                </span>
+                                                <PlayerAvatar name={player.name} imageUrl={playerImages[player.name]} size="sm" />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-medium text-gray-900 truncate" title={player.name}>{player.name}</div>
+                                                    <div className="text-xs text-gray-500 truncate" title={player.team}>{player.team}</div>
+                                                </div>
+                                            </div>
+                                            <div className="text-right ml-2">
+                                                <div className="text-sm font-bold text-green-600">{player.doublesPercentage.toFixed(1)}%</div>
+                                                <div className="text-xs text-gray-500">{player.doublesWon}-{player.doublesLost}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+
+                        {/* Top 5 Combined % */}
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                <Trophy className="h-4 w-4 text-amber-600" />
+                                Top Combined %
+                            </h3>
+                            <div className="space-y-2">
+                                {playerStats
+                                    .filter(p => (p.singlesWon + p.singlesLost + p.doublesWon + p.doublesLost) >= 3) // At least 3 total games
+                                    .sort((a, b) => {
+                                        // Sort by percentage first
+                                        if (b.combinedPercentage !== a.combinedPercentage) {
+                                            return b.combinedPercentage - a.combinedPercentage;
+                                        }
+                                        // If same percentage, sort by total games played (more games = higher rank)
+                                        const aTotalGames = a.singlesWon + a.singlesLost + a.doublesWon + a.doublesLost;
+                                        const bTotalGames = b.singlesWon + b.singlesLost + b.doublesWon + b.doublesLost;
+                                        return bTotalGames - aTotalGames;
+                                    })
+                                    .slice(0, 5)
+                                    .map((player, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold flex-shrink-0 ${
+                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
+                                                    idx === 2 ? 'bg-orange-100 text-orange-700' :
+                                                    'bg-gray-100 text-gray-600'
+                                                }`}>
+                                                    {idx + 1}
+                                                </span>
+                                                <PlayerAvatar name={player.name} imageUrl={playerImages[player.name]} size="sm" />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-medium text-gray-900 truncate" title={player.name}>{player.name}</div>
+                                                    <div className="text-xs text-gray-500 truncate" title={player.team}>{player.team}</div>
+                                                </div>
+                                            </div>
+                                            <div className="text-right ml-2">
+                                                <div className="text-sm font-bold text-amber-600">{player.combinedPercentage.toFixed(1)}%</div>
+                                                <div className="text-xs text-gray-500">{player.singlesWon + player.doublesWon}-{player.singlesLost + player.doublesLost}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Team Rankings Card */}
+            <Card className="mt-8">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Trophy className="h-6 w-6 text-yellow-500" />
+                        Team Rankings
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Top 3 Singles % */}
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                <Target className="h-4 w-4 text-blue-600" />
+                                Top Singles %
+                            </h3>
+                            <div className="space-y-2">
+                                {(() => {
+                                    const singlesRankings = leagueStandings
+                                        .map((team: any) => {
+                                            const stats = Object.entries(teamAverages).find(
+                                                ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
+                                            )?.[1];
+                                            if (stats?.singles) {
+                                                const [won, lost] = stats.singles.split('-').map(Number);
+                                                const total = won + lost;
+                                                const percentage = total > 0 ? (won / total) * 100 : 0;
+                                                return { team: team.team, percentage, record: stats.singles };
+                                            }
+                                            return null;
+                                        })
+                                        .filter(Boolean)
+                                        .sort((a: any, b: any) => b.percentage - a.percentage)
+                                        .slice(0, 3);
+
+                                    return singlesRankings.map((item: any, idx: number) => (
+                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
+                                                    'bg-orange-100 text-orange-700'
+                                                }`}>
+                                                    {idx + 1}
+                                                </span>
+                                                <span className="text-sm font-medium text-gray-900 truncate max-w-[120px]" title={item.team}>
+                                                    {item.team}
+                                                </span>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-sm font-bold text-blue-600">{item.percentage.toFixed(1)}%</div>
+                                                <div className="text-xs text-gray-500">{item.record}</div>
+                                            </div>
+                                        </div>
+                                    ));
+                                })()}
+                            </div>
+                        </div>
+
+                        {/* Top 3 Doubles % */}
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                <Users className="h-4 w-4 text-green-600" />
+                                Top Doubles %
+                            </h3>
+                            <div className="space-y-2">
+                                {(() => {
+                                    const doublesRankings = leagueStandings
+                                        .map((team: any) => {
+                                            const stats = Object.entries(teamAverages).find(
+                                                ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
+                                            )?.[1];
+                                            if (stats?.doubles) {
+                                                const [won, lost] = stats.doubles.split('-').map(Number);
+                                                const total = won + lost;
+                                                const percentage = total > 0 ? (won / total) * 100 : 0;
+                                                return { team: team.team, percentage, record: stats.doubles };
+                                            }
+                                            return null;
+                                        })
+                                        .filter(Boolean)
+                                        .sort((a: any, b: any) => b.percentage - a.percentage)
+                                        .slice(0, 3);
+
+                                    return doublesRankings.map((item: any, idx: number) => (
+                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
+                                                    'bg-orange-100 text-orange-700'
+                                                }`}>
+                                                    {idx + 1}
+                                                </span>
+                                                <span className="text-sm font-medium text-gray-900 truncate max-w-[120px]" title={item.team}>
+                                                    {item.team}
+                                                </span>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-sm font-bold text-green-600">{item.percentage.toFixed(1)}%</div>
+                                                <div className="text-xs text-gray-500">{item.record}</div>
+                                            </div>
+                                        </div>
+                                    ));
+                                })()}
+                            </div>
+                        </div>
+
+                        {/* Top 3 Average */}
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                <Zap className="h-4 w-4 text-purple-600" />
+                                Top Average
+                            </h3>
+                            <div className="space-y-2">
+                                {(() => {
+                                    const averageRankings = leagueStandings
+                                        .map((team: any) => {
+                                            const stats = Object.entries(teamAverages).find(
+                                                ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
+                                            )?.[1];
+                                            if (stats?.average && stats.average > 0) {
+                                                return { team: team.team, average: stats.average };
+                                            }
+                                            return null;
+                                        })
+                                        .filter(Boolean)
+                                        .sort((a: any, b: any) => b.average - a.average)
+                                        .slice(0, 3);
+
+                                    return averageRankings.map((item: any, idx: number) => (
+                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
+                                                    'bg-orange-100 text-orange-700'
+                                                }`}>
+                                                    {idx + 1}
+                                                </span>
+                                                <span className="text-sm font-medium text-gray-900 truncate max-w-[120px]" title={item.team}>
+                                                    {item.team}
+                                                </span>
+                                            </div>
+                                            <div className="text-sm font-bold text-purple-600">
+                                                {item.average.toFixed(2)}
+                                            </div>
+                                        </div>
+                                    ));
+                                })()}
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
             </Card>
 
                

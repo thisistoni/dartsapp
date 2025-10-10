@@ -11,14 +11,29 @@ export async function GET() {
     const leagueResults = await fetchLeagueResults();
     // Fetch league future schedule
     const leagueSchedule = await fetchLeagueSchedule();
-    // Fetch team averages
-    const teamAverages = await fetchTeamAverages();
+    // Fetch team averages and player stats
+    const scraperResult = await fetchTeamAverages();
     
-    return NextResponse.json({
+    console.log('Scraper result:', {
+      hasTeamStats: !!scraperResult.teamStats,
+      hasPlayerStats: !!scraperResult.playerStats,
+      playerStatsCount: scraperResult.playerStats?.length || 0
+    });
+    
+    const response = {
       results: leagueResults,
       futureSchedule: leagueSchedule,
-      teamAverages,
+      teamAverages: scraperResult.teamStats,
+      playerStats: scraperResult.playerStats,
       source: 'scraped'
+    };
+    
+    console.log('API Response has playerStats:', !!response.playerStats, 'Count:', response.playerStats?.length);
+    
+    return NextResponse.json(response, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      },
     });
 
   } catch (error) {
