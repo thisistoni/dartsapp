@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -43,20 +44,6 @@ interface PlayerPerformance {
     opponent: string;
 }
 
-// Player images mapping
-const playerImages: { [key: string]: string } = {
-    'Luca Schuckert': '/schucki.jpg',
-    'Marko Cvejic': '/cvejic-marko.jpg',
-    'Josip Matijevic': 'https://www.oefb.at/oefb2/images/1278650591628556536_4dcb084bb2c30e1395ee-1,0-320x320.png',
-    'Muhamet Mahmutaj': '/muki-m.jpg',
-    'Marvin De Chavez': 'https://www.oefb.at/oefb2/images/1278650591628556536_49e17c18c1d6921a7870-1,0-320x320.png',
-    'Christoph Hafner': '/chris-h.jpg',
-    'Michael Frühwirth': 'https://www.oefb.at/oefb2/images/1278650591628556536_ba89cc5af9585cffb11c-1,0-320x320.png',
-    'Ermin Kokic': 'https://www.oefb.at/oefb2/images/1278650591628556536_e807ce175060c2e86db6-1,0-320x320.png',
-    'Dominik Kubiak': 'https://www.oefb.at/oefb2/images/1278650591628556536_77be3e9035fdc75e8cff-1,0-320x320.png',
-    'Markus Hafner': '/markus.jpg',
-    'Dejan Stojadinovic': '/dejan.jpg'
-};
 
 // Helper function to get player initials
 const getPlayerInitials = (name: string): string => {
@@ -116,19 +103,35 @@ const PlayerAvatar: React.FC<{ name: string; imageUrl?: string; size?: 'sm' | 'm
 const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ onTeamSelect }) => {
     const [loading, setLoading] = useState(true);
     const [leagueData, setLeagueData] = useState<any>(null);
-
+    
+    // Player images mapping
+    const playerImages: { [key: string]: string } = {
+        'Luca Schuckert': 'schucki.jpg',
+        'Marko Cvejic': '/cvejic-marko.jpg',
+        'Josip Matijevic': 'https://www.oefb.at/oefb2/images/1278650591628556536_4dcb084bb2c30e1395ee-1,0-320x320.png',
+        'Muhamet Mahmutaj': 'muki-m.jpg',
+        'Marvin De Chavez': 'https://www.oefb.at/oefb2/images/1278650591628556536_49e17c18c1d6921a7870-1,0-320x320.png',
+        'Christoph Hafner': 'chris-h.jpg',
+        'Michael Frühwirth': 'https://www.oefb.at/oefb2/images/1278650591628556536_ba89cc5af9585cffb11c-1,0-320x320.png',
+        'Ermin Kokic': 'https://www.oefb.at/oefb2/images/1278650591628556536_e807ce175060c2e86db6-1,0-320x320.png',
+        'Dominik Kubiak': 'https://www.oefb.at/oefb2/images/1278650591628556536_77be3e9035fdc75e8cff-1,0-320x320.png',
+        'Markus Hafner': 'markus.jpg',
+        'Dejan Stojadinovic': 'dejan.jpg'
+    };
+    
     useEffect(() => {
         const fetchLeagueData = async () => {
             try {
-                setLoading(true);
-                const response = await axios.get('/api/leagueOverview', {
-                    headers: { 'Cache-Control': 'no-cache' }
-                });
-                const { results, futureSchedule, teamAverages, playerStats } = response.data;
+                const response = await axios.get('/api/leagueOverview');
+                const { results, futureSchedule, cupMatches, teamAverages, playerStats, latestMatches } = response.data;
                 console.log('API response playerStats:', playerStats?.length);
+                console.log('API response latestMatches:', latestMatches);
+                console.log('latestMatches length:', latestMatches?.length);
+                console.log('latestMatches data:', JSON.stringify(latestMatches, null, 2));
+                console.log('cupMatches:', cupMatches);
                 // Calculate standings from results
                 const standings = calculateStandings(results.matchdays);
-                setLeagueData({ results, standings, futureSchedule, teamAverages, playerStats });
+                setLeagueData({ results, standings, futureSchedule, cupMatches, teamAverages, playerStats, latestMatches });
             } catch (error) {
                 console.error('Error fetching league overview:', error);
             } finally {
@@ -257,6 +260,14 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
         return name.replace(/\s+/g, ' ').trim().toLowerCase();
     }
     
+    // Helper function to calculate forfeit losses needed based on played matchdays
+    const calculateForfeitLosses = (won: number, lost: number, played: number): number => {
+        const currentTotal = won + lost;
+        const expectedTotal = played * 4; // 4 games per matchday
+        const forfeitLosses = expectedTotal - currentTotal;
+        return forfeitLosses > 0 ? forfeitLosses : 0;
+    };
+
     // Check for teams with missing game details based on singles data
     const teamsWithMissingData = new Set<string>();
     leagueStandings.forEach((team: { team: string; played: number }) => {
@@ -266,14 +277,56 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
 
         if (stats?.singles) {
             const [won, lost] = stats.singles.split('-').map(Number);
-            const totalSinglesGames = won + lost;
-            if (totalSinglesGames !== team.played) {
+            const forfeitLosses = calculateForfeitLosses(won, lost, team.played);
+            const totalSinglesGames = won + lost + forfeitLosses;
+            const gamesPerMatchday = totalSinglesGames / team.played;
+            
+            // Each matchday should have 4 singles games
+            if (gamesPerMatchday !== 4) {
                 teamsWithMissingData.add(team.team);
             }
         }
     });
 
     const byeTeam = allTeams.find((team: string) => !playingTeams.has(team));
+
+    // Calculate league statistics
+    const validTeamAverages = leagueStandings
+        .map((team: any) => {
+            const stats = Object.entries(teamAverages).find(
+                ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
+            )?.[1];
+            return stats?.average && !isNaN(stats.average) ? stats.average : null;
+        })
+        .filter((avg: number | null) => avg !== null);
+    
+    const leagueTeamAverage = validTeamAverages.length > 0
+        ? (validTeamAverages.reduce((sum: number, avg: number) => sum + avg, 0) / validTeamAverages.length)
+        : 0;
+
+    // Calculate team average median
+    const sortedTeamAverages = [...validTeamAverages].sort((a, b) => a - b);
+    const teamMedian = sortedTeamAverages.length > 0
+        ? sortedTeamAverages.length % 2 === 0
+            ? (sortedTeamAverages[sortedTeamAverages.length / 2 - 1] + sortedTeamAverages[sortedTeamAverages.length / 2]) / 2
+            : sortedTeamAverages[Math.floor(sortedTeamAverages.length / 2)]
+        : 0;
+
+    // Calculate player statistics
+    const validPlayerAverages = playerStats
+        .map((p: any) => p.average)
+        .filter((avg: number) => avg && !isNaN(avg));
+    
+    const leaguePlayerAverage = validPlayerAverages.length > 0
+        ? (validPlayerAverages.reduce((sum: number, avg: number) => sum + avg, 0) / validPlayerAverages.length)
+        : 0;
+
+    const sortedPlayerAverages = [...validPlayerAverages].sort((a, b) => a - b);
+    const playerMedian = sortedPlayerAverages.length > 0
+        ? sortedPlayerAverages.length % 2 === 0
+            ? (sortedPlayerAverages[sortedPlayerAverages.length / 2 - 1] + sortedPlayerAverages[sortedPlayerAverages.length / 2]) / 2
+            : sortedPlayerAverages[Math.floor(sortedPlayerAverages.length / 2)]
+        : 0;
 
     return (
         <div className="space-y-6">
@@ -284,10 +337,16 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                 <div className="lg:col-span-2">
                     <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Trophy className="h-6 w-6 text-yellow-500" />
-                                League Standings
-                            </CardTitle>
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="flex items-center gap-2">
+                                    <Trophy className="h-6 w-6 text-yellow-500" />
+                                    League Standings
+                                </CardTitle>
+                                <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200">
+                                    <span className="text-xs font-medium text-gray-600">League Avg:</span>
+                                    <span className="text-sm font-bold text-blue-600">{leagueTeamAverage.toFixed(2)}</span>
+                                </div>
+                            </div>
                         </CardHeader>
                         <CardContent>
                             <div className="overflow-x-auto">
@@ -358,7 +417,25 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                                                         const stats = Object.entries(teamAverages).find(
                                                             ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
                                                         )?.[1];
-                                                        return stats?.singles || '-';
+                                                        
+                                                        if (!stats?.singles) return '-';
+                                                        
+                                                        const [won, lost] = stats.singles.split('-').map(Number);
+                                                        const forfeitLosses = calculateForfeitLosses(won, lost, team.played);
+                                                        
+                                                        if (forfeitLosses > 0) {
+                                                            const adjustedRecord = `${won}-${lost + forfeitLosses}`;
+                                                            return (
+                                                                <span className="relative group cursor-help">
+                                                                    {adjustedRecord}
+                                                                    <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                                                        +{forfeitLosses} forfeit loss{forfeitLosses > 1 ? 'es' : ''}
+                                                                    </span>
+                                                                </span>
+                                                            );
+                                                        }
+                                                        
+                                                        return stats.singles;
                                                     })()}
                                                     </td>
                                                     <td className="py-3 px-2 text-center text-gray-700 font-medium text-xs sm:text-sm">
@@ -369,7 +446,25 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
                                                         const stats = Object.entries(teamAverages).find(
                                                             ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
                                                         )?.[1];
-                                                        return stats?.doubles || '-';
+                                                        
+                                                        if (!stats?.doubles) return '-';
+                                                        
+                                                        const [won, lost] = stats.doubles.split('-').map(Number);
+                                                        const forfeitLosses = calculateForfeitLosses(won, lost, team.played);
+                                                        
+                                                        if (forfeitLosses > 0) {
+                                                            const adjustedRecord = `${won}-${lost + forfeitLosses}`;
+                                                            return (
+                                                                <span className="relative group cursor-help">
+                                                                    {adjustedRecord}
+                                                                    <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                                                        +{forfeitLosses} forfeit loss{forfeitLosses > 1 ? 'es' : ''}
+                                                                    </span>
+                                                                </span>
+                                                            );
+                                                        }
+                                                        
+                                                        return stats.doubles;
                                                     })()}
                                                     </td>
                                                     <td className="py-3 px-2 text-center text-blue-600 font-medium text-xs sm:text-sm">
@@ -483,451 +578,864 @@ const LeagueOverview: React.FC<{ onTeamSelect: (team: string) => void }> = ({ on
 
             {/* Results & Schedule Tabs */}
             <Card className="mt-8">
-                <Tabs defaultValue="results" className="w-full">
+                <Tabs defaultValue="weekly" className="w-full">
                     <CardHeader>
-                        <TabsList className="flex gap-2 mb-0">
-                            <TabsTrigger value="results" className="flex items-center gap-2">
-                                <CheckCircle className="h-5 w-5 text-green-500" /> Results
+                        <TabsList className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 mb-0">
+                            <TabsTrigger value="weekly" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                                <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" /> 
+                                <span className="hidden sm:inline">Latest</span>
+                                <span className="sm:hidden">Latest</span>
                             </TabsTrigger>
-                            <TabsTrigger value="schedule" className="flex items-center gap-2">
-                                <Calendar className="h-5 w-5 text-blue-500" /> Schedule
+                            <TabsTrigger value="statistics" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                                <BarChart className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" /> 
+                                <span className="hidden sm:inline">Statistics</span>
+                                <span className="sm:hidden">Stats</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="results" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                                <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" /> 
+                                <span>Results</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="schedule" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                                <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" /> 
+                                <span className="hidden sm:inline">Schedule</span>
+                                <span className="sm:hidden">Schedule</span>
                             </TabsTrigger>
                         </TabsList>
                     </CardHeader>
                     <CardContent className="pt-0">
-                        <TabsContent value="results">
+                        <TabsContent value="weekly">
                             <div className="space-y-6">
+                                {/* Latest Match Singles */}
+                                {leagueData?.latestMatches && leagueData.latestMatches.length > 0 ? (
+                                    <>
+                                        {/* Main Title */}
+                                        <div className="mb-4">
+                                            <h2 className="text-lg font-bold text-gray-800">
+                                                Matchday {leagueData.latestMatches[0].matchday} - {leagueData.latestMatches[0].date}
+                                            </h2>
+                                        </div>
+                                        
+                                        {leagueData.latestMatches.map((match: any, matchIndex: number) => (
+                                            <div key={matchIndex}>
+                                                <div className="mb-3">
+                                                    <h3 className="text-sm font-semibold text-gray-700">
+                                                        {match.homeTeam} <span className="text-blue-600 font-bold">{match.score}</span> {match.awayTeam}
+                                                    </h3>
+                                                </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                                {match.singles && match.singles.map((single: any, singleIndex: number) => {
+                                                    const homeWon = single.homeScore > single.awayScore;
+                                                    const awayWon = single.awayScore > single.homeScore;
+                                                    
+                                                    return (
+                                                        <div key={singleIndex} className={`rounded-lg p-3 border ${
+                                                            homeWon ? 'bg-gradient-to-br from-green-50 to-white border-green-200' :
+                                                            awayWon ? 'bg-gradient-to-br from-red-50 to-white border-red-200' :
+                                                            'bg-gray-50 border-gray-200'
+                                                        }`}>
+                                                            <div className="flex items-center justify-between mb-2">
+                                                                <div className="flex items-center gap-2 flex-1">
+                                                                    <PlayerAvatar name={single.homePlayer} imageUrl={playerImages[single.homePlayer]} size="sm" />
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className={`text-sm truncate ${homeWon ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
+                                                                            {single.homePlayer}
+                                                                        </div>
+                                                                        {single.homeAverage > 0 && (
+                                                                            <div className="text-xs text-gray-700 font-medium">
+                                                                                {single.homeAverage.toFixed(2)} • {single.homeCheckouts || '-'}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <div className={`text-lg font-bold ${homeWon ? 'text-green-600' : 'text-gray-400'}`}>
+                                                                        {single.homeScore}
+                                                                    </div>
+                                                                    {homeWon && <div className="text-xs text-gray-400">Win</div>}
+                                                                </div>
+                                                            </div>
+                                                            <div className={`flex items-center justify-between pt-2 border-t ${
+                                                                homeWon ? 'border-green-100' : awayWon ? 'border-red-100' : 'border-gray-100'
+                                                            }`}>
+                                                                <div className="flex items-center gap-2 flex-1">
+                                                                    <PlayerAvatar name={single.awayPlayer} imageUrl={playerImages[single.awayPlayer]} size="sm" />
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className={`text-sm truncate ${awayWon ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
+                                                                            {single.awayPlayer}
+                                                                        </div>
+                                                                        {single.awayAverage > 0 && (
+                                                                            <div className="text-xs text-gray-600">
+                                                                                {single.awayAverage.toFixed(2)} • {single.awayCheckouts || '-'}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <div className={`text-lg font-bold ${awayWon ? 'text-green-600' : 'text-gray-400'}`}>
+                                                                        {single.awayScore}
+                                                                    </div>
+                                                                    {awayWon && <div className="text-xs text-gray-400">Win</div>}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    
+                                    {/* Weekly Highlights - Best Average & Best Checkout */}
+                                    <div className="mt-8 pt-6 border-t border-gray-200">
+                                        <h3 className="text-base font-bold text-gray-800 mb-4">Weekly Highlights</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* Best Average */}
+                                            {(() => {
+                                                let bestAvg = { player: '', team: '', average: 0 };
+                                                leagueData.latestMatches.forEach((match: any) => {
+                                                    match.singles?.forEach((single: any) => {
+                                                        if (single.homeAverage > bestAvg.average) {
+                                                            bestAvg = { 
+                                                                player: single.homePlayer, 
+                                                                team: match.homeTeam, 
+                                                                average: single.homeAverage 
+                                                            };
+                                                        }
+                                                        if (single.awayAverage > bestAvg.average) {
+                                                            bestAvg = { 
+                                                                player: single.awayPlayer, 
+                                                                team: match.awayTeam, 
+                                                                average: single.awayAverage 
+                                                            };
+                                                        }
+                                                    });
+                                                });
+                                                
+                                                return bestAvg.average > 0 ? (
+                                                    <div className="bg-gradient-to-br from-yellow-50 to-white border-2 border-yellow-300 rounded-lg p-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <PlayerAvatar 
+                                                                name={bestAvg.player} 
+                                                                imageUrl={playerImages[bestAvg.player]} 
+                                                                
+                                                            />
+                                                            <div className="flex-1">
+                                                                <div className="text-xs font-medium text-yellow-600 uppercase tracking-wide mb-1">
+                                                                    🏆 Best Average
+                                                                </div>
+                                                                <div className="font-bold text-gray-900 text-lg">{bestAvg.player}</div>
+                                                                <div className="text-sm text-gray-600">{bestAvg.team}</div>
+                                                                <div className="text-2xl font-bold text-yellow-600 mt-1">
+                                                                    {bestAvg.average.toFixed(2)}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : null;
+                                            })()}
+                                            
+                                            {/* Best Leg */}
+                                            {(() => {
+                                                let bestLeg = { player: '', team: '', checkout: Infinity, checkouts: '' };
+                                                leagueData.latestMatches.forEach((match: any) => {
+                                                    match.singles?.forEach((single: any) => {
+                                                        // Parse home checkouts
+                                                        if (single.homeCheckouts && single.homeCheckouts !== '-') {
+                                                            const checkouts = single.homeCheckouts.split(',').map((c: string) => parseInt(c.trim())).filter((n: number) => !isNaN(n));
+                                                            const minCheckout = Math.min(...checkouts);
+                                                            if (minCheckout < bestLeg.checkout && minCheckout > 0) {
+                                                                bestLeg = {
+                                                                    player: single.homePlayer,
+                                                                    team: match.homeTeam,
+                                                                    checkout: minCheckout,
+                                                                    checkouts: single.homeCheckouts
+                                                                };
+                                                            }
+                                                        }
+                                                        // Parse away checkouts
+                                                        if (single.awayCheckouts && single.awayCheckouts !== '-') {
+                                                            const checkouts = single.awayCheckouts.split(',').map((c: string) => parseInt(c.trim())).filter((n: number) => !isNaN(n));
+                                                            const minCheckout = Math.min(...checkouts);
+                                                            if (minCheckout < bestLeg.checkout && minCheckout > 0) {
+                                                                bestLeg = {
+                                                                    player: single.awayPlayer,
+                                                                    team: match.awayTeam,
+                                                                    checkout: minCheckout,
+                                                                    checkouts: single.awayCheckouts
+                                                                };
+                                                            }
+                                                        }
+                                                    });
+                                                });
+                                                
+                                                return bestLeg.checkout !== Infinity ? (
+                                                    <div className="bg-gradient-to-br from-green-50 to-white border-2 border-green-300 rounded-lg p-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <PlayerAvatar 
+                                                                name={bestLeg.player} 
+                                                                imageUrl={playerImages[bestLeg.player]} 
+                                                             
+                                                            />
+                                                            <div className="flex-1">
+                                                                <div className="text-xs font-medium text-green-600 uppercase tracking-wide mb-1">
+                                                                    🎯 Best Leg
+                                                                </div>
+                                                                <div className="font-bold text-gray-900 text-lg">{bestLeg.player}</div>
+                                                                <div className="text-sm text-gray-600">{bestLeg.team}</div>
+                                                                <div className="text-2xl font-bold text-green-600 mt-1">
+                                                                    {bestLeg.checkout}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : null;
+                                            })()}
+                                        </div>
+                                    </div>
+                                    </>
+                                ) : (
+                                    <div className="text-sm text-gray-500 p-4">
+                                        {loading ? 'Loading latest matches...' : 'No recent match data available. Check console for details.'}
+                                        {!loading && (
+                                            <div className="mt-2 text-xs">
+                                                Debug: latestMatches = {JSON.stringify(leagueData?.latestMatches)}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </TabsContent>
+                        <TabsContent value="statistics">
+                            <div className="space-y-6">
+                                {/* Player Leaderboard */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    {/* Top 5 Average */}
+                                    <div>
+                                        <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                            <Zap className="h-4 w-4 text-purple-600" />
+                                            Top Average
+                                        </h3>
+                                        <div className="space-y-2">
+                                            {playerStats && playerStats.length > 0 ? (
+                                                playerStats
+                                                    .filter(p => p.average > 0)
+                                                    .sort((a, b) => b.average - a.average)
+                                                    .slice(0, 5)
+                                                    .map((player, idx) => {
+                                                    const singlesGames = player.singlesWon + player.singlesLost;
+                                                    return (
+                                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                                <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold flex-shrink-0 ${
+                                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
+                                                                    idx === 2 ? 'bg-orange-100 text-orange-700' :
+                                                                    'bg-gray-100 text-gray-600'
+                                                                }`}>
+                                                                    {idx + 1}
+                                                                </span>
+                                                                <PlayerAvatar name={player.name} imageUrl={playerImages[player.name]} size="sm" />
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="font-medium text-gray-900 truncate" title={player.name}>{player.name}</div>
+                                                                    <div className="text-xs text-gray-500 truncate" title={player.team}>{player.team}</div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right ml-2">
+                                                                <div className="text-sm font-bold text-purple-600">{player.average.toFixed(2)}</div>
+                                                                <div className="text-xs text-gray-500">{singlesGames} games</div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                            ) : (
+                                                <div className="text-xs text-gray-500 p-2">No data available</div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Top 5 Singles % */}
+                                    <div>
+                                        <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                            <Target className="h-4 w-4 text-blue-600" />
+                                            Top Singles %
+                                        </h3>
+                                        <div className="space-y-2">
+                                            {playerStats
+                                                .filter(p => (p.singlesWon + p.singlesLost) >= 1)
+                                                .sort((a, b) => {
+                                                    if (b.singlesPercentage !== a.singlesPercentage) {
+                                                        return b.singlesPercentage - a.singlesPercentage;
+                                                    }
+                                                    return (b.singlesWon + b.singlesLost) - (a.singlesWon + a.singlesLost);
+                                                })
+                                                .slice(0, 5)
+                                                .map((player, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                            <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold flex-shrink-0 ${
+                                                                idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                                idx === 1 ? 'bg-gray-200 text-gray-700' :
+                                                                idx === 2 ? 'bg-orange-100 text-orange-700' :
+                                                                'bg-gray-100 text-gray-600'
+                                                            }`}>
+                                                                {idx + 1}
+                                                            </span>
+                                                            <PlayerAvatar name={player.name} imageUrl={playerImages[player.name]} size="sm" />
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="font-medium text-gray-900 truncate" title={player.name}>{player.name}</div>
+                                                                <div className="text-xs text-gray-500 truncate" title={player.team}>{player.team}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right ml-2">
+                                                            <div className="text-sm font-bold text-blue-600">{player.singlesPercentage.toFixed(1)}%</div>
+                                                            <div className="text-xs text-gray-500">{player.singlesWon}-{player.singlesLost}</div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Top 5 Doubles % */}
+                                    <div>
+                                        <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                            <Users className="h-4 w-4 text-green-600" />
+                                            Top Doubles %
+                                        </h3>
+                                        <div className="space-y-2">
+                                            {playerStats
+                                                .filter(p => (p.doublesWon + p.doublesLost) >= 1)
+                                                .sort((a, b) => {
+                                                    if (b.doublesPercentage !== a.doublesPercentage) {
+                                                        return b.doublesPercentage - a.doublesPercentage;
+                                                    }
+                                                    return (b.doublesWon + b.doublesLost) - (a.doublesWon + a.doublesLost);
+                                                })
+                                                .slice(0, 5)
+                                                .map((player, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                            <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold flex-shrink-0 ${
+                                                                idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                                idx === 1 ? 'bg-gray-200 text-gray-700' :
+                                                                idx === 2 ? 'bg-orange-100 text-orange-700' :
+                                                                'bg-gray-100 text-gray-600'
+                                                            }`}>
+                                                                {idx + 1}
+                                                            </span>
+                                                            <PlayerAvatar name={player.name} imageUrl={playerImages[player.name]} size="sm" />
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="font-medium text-gray-900 truncate" title={player.name}>{player.name}</div>
+                                                                <div className="text-xs text-gray-500 truncate" title={player.team}>{player.team}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right ml-2">
+                                                            <div className="text-sm font-bold text-green-600">{player.doublesPercentage.toFixed(1)}%</div>
+                                                            <div className="text-xs text-gray-500">{player.doublesWon}-{player.doublesLost}</div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Top 5 Combined % */}
+                                    <div>
+                                        <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                            <Trophy className="h-4 w-4 text-amber-600" />
+                                            Top Combined %
+                                        </h3>
+                                        <div className="space-y-2">
+                                            {playerStats
+                                                .filter(p => (p.singlesWon + p.singlesLost + p.doublesWon + p.doublesLost) >= 3)
+                                                .sort((a, b) => {
+                                                    if (b.combinedPercentage !== a.combinedPercentage) {
+                                                        return b.combinedPercentage - a.combinedPercentage;
+                                                    }
+                                                    const aTotalGames = a.singlesWon + a.singlesLost + a.doublesWon + a.doublesLost;
+                                                    const bTotalGames = b.singlesWon + b.singlesLost + b.doublesWon + b.doublesLost;
+                                                    return bTotalGames - aTotalGames;
+                                                })
+                                                .slice(0, 5)
+                                                .map((player, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                            <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold flex-shrink-0 ${
+                                                                idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                                idx === 1 ? 'bg-gray-200 text-gray-700' :
+                                                                idx === 2 ? 'bg-orange-100 text-orange-700' :
+                                                                'bg-gray-100 text-gray-600'
+                                                            }`}>
+                                                                {idx + 1}
+                                                            </span>
+                                                            <PlayerAvatar name={player.name} imageUrl={playerImages[player.name]} size="sm" />
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="font-medium text-gray-900 truncate" title={player.name}>{player.name}</div>
+                                                                <div className="text-xs text-gray-500 truncate" title={player.team}>{player.team}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right ml-2">
+                                                            <div className="text-sm font-bold text-amber-600">{player.combinedPercentage.toFixed(1)}%</div>
+                                                            <div className="text-xs text-gray-500">{player.singlesWon + player.doublesWon}-{player.singlesLost + player.doublesLost}</div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 180s & High Finishes Section */}
+                                <div className="mt-8 pt-6 border-t border-gray-200">
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                        {/* Player 180s */}
+                                        <div>
+                                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                <Target className="h-4 w-4 text-red-500" />
+                                                Most 180s - Players
+                                            </h3>
+                                            <div className="flex items-center justify-center h-40 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                                                <div className="text-center">
+                                                    <Clock className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                                    <p className="text-sm font-medium text-gray-500">Coming Soon</p>
+                                                    <p className="text-xs text-gray-400 mt-1">Data not yet available</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Player HiFi */}
+                                        <div>
+                                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                <Trophy className="h-4 w-4 text-blue-500" />
+                                                High Finishes - Players
+                                            </h3>
+                                            <div className="flex items-center justify-center h-40 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                                                <div className="text-center">
+                                                    <Clock className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                                    <p className="text-sm font-medium text-gray-500">Coming Soon</p>
+                                                    <p className="text-xs text-gray-400 mt-1">Data not yet available</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Team 180s */}
+                                        <div>
+                                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                <Target className="h-4 w-4 text-red-500" />
+                                                Most 180s - Teams
+                                            </h3>
+                                            <div className="flex items-center justify-center h-40 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                                                <div className="text-center">
+                                                    <Clock className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                                    <p className="text-sm font-medium text-gray-500">Coming Soon</p>
+                                                    <p className="text-xs text-gray-400 mt-1">Data not yet available</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Team HiFi */}
+                                        <div>
+                                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                <Trophy className="h-4 w-4 text-blue-500" />
+                                                High Finishes - Teams
+                                            </h3>
+                                            <div className="flex items-center justify-center h-40 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                                                <div className="text-center">
+                                                    <Clock className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                                    <p className="text-sm font-medium text-gray-500">Coming Soon</p>
+                                                    <p className="text-xs text-gray-400 mt-1">Data not yet available</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Team Rankings Section */}
+                                <div className="mt-8 pt-6 border-t border-gray-200">
+                                    <h3 className="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                        <Trophy className="h-5 w-5 text-yellow-500" />
+                                        Team Rankings
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        {/* Top 3 Singles % */}
+                                        <div>
+                                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                <Target className="h-4 w-4 text-blue-600" />
+                                                Top Singles %
+                                            </h3>
+                                            <div className="space-y-2">
+                                                {(() => {
+                                                    const singlesRankings = leagueStandings
+                                                        .map((team: any) => {
+                                                            const stats = Object.entries(teamAverages).find(
+                                                                ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
+                                                            )?.[1];
+                                                            if (stats?.singles) {
+                                                                const [wonVal, lostVal] = stats.singles.split('-').map(Number);
+                                                                const won = wonVal;
+                                                                let lost = lostVal;
+                                                                let record = stats.singles;
+                                                                
+                                                                // Add forfeit loss for BSW Zwara Panier
+                                                                if (normalizeTeamName(team.team) === normalizeTeamName('BSW Zwara Panier')) {
+                                                                    lost += 1;
+                                                                    record = `${won}-${lost}`;
+                                                                }
+                                                                
+                                                                const total = won + lost;
+                                                                const percentage = total > 0 ? (won / total) * 100 : 0;
+                                                                return { team: team.team, percentage, record };
+                                                            }
+                                                            return null;
+                                                        })
+                                                        .filter(Boolean)
+                                                        .sort((a: any, b: any) => b.percentage - a.percentage)
+                                                        .slice(0, 3);
+
+                                                    return singlesRankings.map((item: any, idx: number) => (
+                                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
+                                                                    'bg-orange-100 text-orange-700'
+                                                                }`}>
+                                                                    {idx + 1}
+                                                                </span>
+                                                                <span className="text-sm font-medium text-gray-900 truncate max-w-[120px]" title={item.team}>
+                                                                    {item.team}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <div className="text-sm font-bold text-blue-600">{item.percentage.toFixed(1)}%</div>
+                                                                <div className="text-xs text-gray-500">{item.record}</div>
+                                                            </div>
+                                                        </div>
+                                                    ));
+                                                })()}
+                                            </div>
+                                        </div>
+
+                                        {/* Top 3 Doubles % */}
+                                        <div>
+                                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                <Users className="h-4 w-4 text-green-600" />
+                                                Top Doubles %
+                                            </h3>
+                                            <div className="space-y-2">
+                                                {(() => {
+                                                    const doublesRankings = leagueStandings
+                                                        .map((team: any) => {
+                                                            const stats = Object.entries(teamAverages).find(
+                                                                ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
+                                                            )?.[1];
+                                                            if (stats?.doubles) {
+                                                                const [won, lost] = stats.doubles.split('-').map(Number);
+                                                                const total = won + lost;
+                                                                const percentage = total > 0 ? (won / total) * 100 : 0;
+                                                                return { team: team.team, percentage, record: stats.doubles };
+                                                            }
+                                                            return null;
+                                                        })
+                                                        .filter(Boolean)
+                                                        .sort((a: any, b: any) => b.percentage - a.percentage)
+                                                        .slice(0, 3);
+
+                                                    return doublesRankings.map((item: any, idx: number) => (
+                                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
+                                                                    'bg-orange-100 text-orange-700'
+                                                                }`}>
+                                                                    {idx + 1}
+                                                                </span>
+                                                                <span className="text-sm font-medium text-gray-900 truncate max-w-[120px]" title={item.team}>
+                                                                    {item.team}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <div className="text-sm font-bold text-green-600">{item.percentage.toFixed(1)}%</div>
+                                                                <div className="text-xs text-gray-500">{item.record}</div>
+                                                            </div>
+                                                        </div>
+                                                    ));
+                                                })()}
+                                            </div>
+                                        </div>
+
+                                        {/* Top 3 Average */}
+                                        <div>
+                                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                <Zap className="h-4 w-4 text-purple-600" />
+                                                Top Average
+                                            </h3>
+                                            <div className="space-y-2">
+                                                {(() => {
+                                                    const averageRankings = leagueStandings
+                                                        .map((team: any) => {
+                                                            const stats = Object.entries(teamAverages).find(
+                                                                ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
+                                                            )?.[1];
+                                                            if (stats?.average && stats.average > 0) {
+                                                                return { team: team.team, average: stats.average };
+                                                            }
+                                                            return null;
+                                                        })
+                                                        .filter(Boolean)
+                                                        .sort((a: any, b: any) => b.average - a.average)
+                                                        .slice(0, 3);
+
+                                                    return averageRankings.map((item: any, idx: number) => (
+                                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
+                                                                    'bg-orange-100 text-orange-700'
+                                                                }`}>
+                                                                    {idx + 1}
+                                                                </span>
+                                                                <span className="text-sm font-medium text-gray-900 truncate max-w-[120px]" title={item.team}>
+                                                                    {item.team}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-sm font-bold text-purple-600">
+                                                                {item.average.toFixed(2)}
+                                                            </div>
+                                                        </div>
+                                                    ));
+                                                })()}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* League Statistics Section */}
+                                <div className="mt-8 pt-6 border-t border-gray-200">
+                                    <h3 className="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                        <Trophy className="h-5 w-5 text-blue-600" />
+                                        League Statistics
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                                        {/* Team Average */}
+                                        <div className="text-center">
+                                            <div className="bg-white rounded-xl p-6 border-2 border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+                                                <div className="flex justify-center mb-3">
+                                                    <div className="bg-blue-100 rounded-full p-3">
+                                                        <Trophy className="h-6 w-6 text-blue-600" />
+                                                    </div>
+                                                </div>
+                                                <div className="text-4xl font-bold text-blue-600 mb-1">{leagueTeamAverage.toFixed(2)}</div>
+                                                <div className="text-sm font-semibold text-gray-700 mb-1">Team Avg</div>
+                                                <div className="text-xs text-gray-500">{validTeamAverages.length} teams</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Team Median */}
+                                        <div className="text-center">
+                                            <div className="bg-white rounded-xl p-6 border-2 border-indigo-200 shadow-sm hover:shadow-md transition-shadow">
+                                                <div className="flex justify-center mb-3">
+                                                    <div className="bg-indigo-100 rounded-full p-3">
+                                                        <Trophy className="h-6 w-6 text-indigo-600" />
+                                                    </div>
+                                                </div>
+                                                <div className="text-4xl font-bold text-indigo-600 mb-1">{teamMedian.toFixed(2)}</div>
+                                                <div className="text-sm font-semibold text-gray-700 mb-1">Team Median</div>
+                                                <div className="text-xs text-gray-500">Middle value</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Player Average */}
+                                        <div className="text-center">
+                                            <div className="bg-white rounded-xl p-6 border-2 border-amber-200 shadow-sm hover:shadow-md transition-shadow">
+                                                <div className="flex justify-center mb-3">
+                                                    <div className="bg-amber-100 rounded-full p-3">
+                                                        <Target className="h-6 w-6 text-amber-600" />
+                                                    </div>
+                                                </div>
+                                                <div className="text-4xl font-bold text-amber-600 mb-1">{leaguePlayerAverage.toFixed(2)}</div>
+                                                <div className="text-sm font-semibold text-gray-700 mb-1">Player Avg</div>
+                                                <div className="text-xs text-gray-500">{validPlayerAverages.length} players</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Player Median */}
+                                        <div className="text-center">
+                                            <div className="bg-white rounded-xl p-6 border-2 border-orange-200 shadow-sm hover:shadow-md transition-shadow">
+                                                <div className="flex justify-center mb-3">
+                                                    <div className="bg-orange-100 rounded-full p-3">
+                                                        <Target className="h-6 w-6 text-orange-600" />
+                                                    </div>
+                                                </div>
+                                                <div className="text-4xl font-bold text-orange-600 mb-1">{playerMedian.toFixed(2)}</div>
+                                                <div className="text-sm font-semibold text-gray-700 mb-1">Player Median</div>
+                                                <div className="text-xs text-gray-500">Middle value</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Active Players */}
+                                        <div className="text-center">
+                                            <div className="bg-white rounded-xl p-6 border-2 border-green-200 shadow-sm hover:shadow-md transition-shadow">
+                                                <div className="flex justify-center mb-3">
+                                                    <div className="bg-green-100 rounded-full p-3">
+                                                        <Target className="h-6 w-6 text-green-600" />
+                                                    </div>
+                                                </div>
+                                                <div className="text-4xl font-bold text-green-600 mb-1">{playerStats.length}</div>
+                                                <div className="text-sm font-semibold text-gray-700 mb-1">Active Players</div>
+                                                <div className="text-xs text-gray-500">With records</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </TabsContent>
+                        <TabsContent value="results">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {Object.entries(groupedFinishedGames)
                                     .sort(([a], [b]) => Number(b) - Number(a))
                                     .map(([matchday, games]) => (
-                                        <div key={matchday} className="space-y-3">
+                                        <div key={matchday} className="space-y-2">
                                             <div className="flex items-center gap-2 pb-2 border-b">
-                                                <span className="text-sm font-bold text-green-600">Matchday {matchday}</span>
+                                                <span className="text-sm font-bold text-green-600">MD {matchday}</span>
                                                 {(games as any[])[0] && (
                                                     <span className="text-xs text-gray-500">({(games as any[])[0].date})</span>
                                                 )}
                                             </div>
                                             <div className="space-y-2">
-                                                {(games as any[]).map((game: any, index: number) => (
-                                                    <div key={index} className="bg-gray-50 rounded-lg p-3 border">
-                                                        <div className="flex items-center justify-between gap-2">
-                                                            <span className="font-medium text-gray-900 flex-1 text-xs sm:text-sm truncate" title={game.homeTeam}>{game.homeTeam}</span>
-                                                            <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-700 rounded font-bold text-xs sm:text-sm flex-shrink-0">{game.score}</span>
-                                                            <span className="font-medium text-gray-900 flex-1 text-right text-xs sm:text-sm truncate" title={game.awayTeam}>{game.awayTeam}</span>
+                                                {(games as any[]).map((game: any, index: number) => {
+                                                    const [homeScore, awayScore] = game.score.split('-');
+                                                    const isDraw = homeScore === awayScore;
+                                                    
+                                                    return (
+                                                        <div key={index} className="bg-gray-50 rounded-lg p-2 border border-gray-200">
+                                                            <div className="space-y-1">
+                                                                <div className="flex items-center justify-between gap-2 text-xs">
+                                                                    <span className="font-medium text-gray-900 truncate" title={game.homeTeam}>{game.homeTeam}</span>
+                                                                    <span className={`font-bold flex-shrink-0 ${isDraw ? 'text-orange-600' : 'text-green-700'}`}>
+                                                                        {homeScore}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center justify-between gap-2 text-xs">
+                                                                    <span className="font-medium text-gray-900 truncate" title={game.awayTeam}>{game.awayTeam}</span>
+                                                                    <span className={`font-bold flex-shrink-0 ${isDraw ? 'text-orange-600' : 'text-red-700'}`}>
+                                                                        {awayScore}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                 ))}
                             </div>
                         </TabsContent>
                         <TabsContent value="schedule">
-                            <div className="space-y-6">
-                                {futureSchedule.length === 0 && (
-                                    <div className="text-sm text-gray-500 p-4">No future games scheduled.</div>
-                                )}
-                                {(() => {
-                                    // Group by round, then inject Cup round 2 between 6 and 7
-                                    const grouped = futureSchedule.reduce((acc: any, game: any) => {
-                                        if (!acc[game.round]) acc[game.round] = [];
-                                        acc[game.round].push(game);
-                                        return acc;
-                                    }, {});
-                                    // Insert Cup round 2 after round 6
-                                    const rounds = Object.keys(grouped).map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
-                                    const output: Array<[string, any[]]> = [];
-                                    for (let i = 0; i < rounds.length; ++i) {
-                                        output.push([rounds[i].toString(), grouped[rounds[i]]]);
-                                        if (rounds[i] === 6) {
-                                            output.push([
-                                                'Cup Round 2',
-                                                [{
-                                                    round: 'Cup Round 2',
-                                                    date: '06.11.2025',
-                                                    homeTeam: 'DC Patron',
-                                                    awayTeam: 'Fortunas Wölfe',
-                                                }]
-                                            ]);
+                            {futureSchedule.length === 0 ? (
+                                <div className="text-sm text-gray-500 p-4">No future games scheduled.</div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {(() => {
+                                        // Group by round, then inject Cup Round 2 between 6 and 7
+                                        const grouped = futureSchedule.reduce((acc: any, game: any) => {
+                                            if (!acc[game.round]) acc[game.round] = [];
+                                            acc[game.round].push(game);
+                                            return acc;
+                                        }, {});
+                                        // Insert Cup Round 2 after round 6 (if we have Cup matches)
+                                        const cupMatches = leagueData.cupMatches || [];
+                                        const rounds = Object.keys(grouped).map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
+                                        const output: Array<[string, any[]]> = [];
+                                        for (let i = 0; i < rounds.length; ++i) {
+                                            output.push([rounds[i].toString(), grouped[rounds[i]]]);
+                                            if (rounds[i] === 6 && cupMatches.length > 0) {
+                                                output.push([
+                                                    'Cup Round 2',
+                                                    cupMatches
+                                                ]);
+                                            }
                                         }
-                                    }
-                                    return output.map(([round, games]) => (
-                                        <div key={round} className="space-y-3">
-                                            <div className="flex items-center gap-2 pb-2 border-b">
-                                                <span className={`text-sm font-bold ${round === 'Cup Round 2' ? 'text-pink-700' : 'text-blue-700'}`}>{round === 'Cup Round 2' ? 'Cup Round 2' : `Matchday ${round}`}</span>
-                                                {(games as any[])[0] && (
-                                                    <span className="text-xs text-gray-500">({(games as any[])[0].date})</span>
-                                                )}
-                                            </div>
-                                            <div className="space-y-2">
-                                                {(games as any[]).map((game: any, idx: number) => (
-                                                    <div key={idx} className="bg-gray-50 rounded-lg p-3 border">
-                                                        <div className="flex items-center justify-between gap-2">
-                                                            <span className="font-medium text-gray-900 flex-1 text-xs sm:text-sm truncate" title={game.homeTeam}>{game.homeTeam}</span>
-                                                            <span className={`px-2 sm:px-3 py-1 ${round === 'Cup Round 2' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'} rounded font-bold text-xs sm:text-sm flex-shrink-0`}>{round === 'Cup Round 2' ? 'Cup' : 'vs'}</span>
-                                                            <span className="font-medium text-gray-900 flex-1 text-right text-xs sm:text-sm truncate" title={game.awayTeam}>{game.awayTeam}</span>
-                                                        </div>
+                                        return output.map(([round, games]) => {
+                                            // Count unique teams from our league in Cup Round 2
+                                            let leagueTeamsInCup = 0;
+                                            if (round === 'Cup Round 2') {
+                                                const uniqueLeagueTeams = new Set<string>();
+                                                (games as any[]).forEach((game: any) => {
+                                                    const homeInLeague = leagueStandings.some((team: any) => 
+                                                        team.team.toLowerCase() === game.homeTeam.toLowerCase()
+                                                    );
+                                                    const awayInLeague = leagueStandings.some((team: any) => 
+                                                        team.team.toLowerCase() === game.awayTeam.toLowerCase()
+                                                    );
+                                                    if (homeInLeague) uniqueLeagueTeams.add(game.homeTeam.toLowerCase());
+                                                    if (awayInLeague) uniqueLeagueTeams.add(game.awayTeam.toLowerCase());
+                                                });
+                                                leagueTeamsInCup = uniqueLeagueTeams.size;
+                                            }
+                                            
+                                            return (
+                                                <div key={round} className="space-y-2">
+                                                    <div className="flex items-center gap-2 pb-2 border-b">
+                                                        <span className={`text-sm font-bold ${round === 'Cup Round 2' ? 'text-pink-700' : 'text-blue-700'}`}>
+                                                            {round === 'Cup Round 2' ? 'Cup R2' : `MD ${round}`}
+                                                        </span>
+                                                        {(games as any[])[0] && (
+                                                            <span className="text-xs text-gray-500">
+                                                                ({(games as any[])[0].date})
+                                                                {round === 'Cup Round 2' && leagueTeamsInCup > 0 && (
+                                                                    <span className="ml-1 font-semibold text-pink-600">{leagueTeamsInCup}/7 active</span>
+                                                                )}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                ))}
+                                                <div className="space-y-2">
+                                                    {(games as any[]).map((game: any, idx: number) => {
+                                                        // Check if teams are in our league (Division 5)
+                                                        const homeInLeague = leagueStandings.some((team: any) => 
+                                                            team.team.toLowerCase() === game.homeTeam.toLowerCase()
+                                                        );
+                                                        const awayInLeague = leagueStandings.some((team: any) => 
+                                                            team.team.toLowerCase() === game.awayTeam.toLowerCase()
+                                                        );
+                                                        
+                                                        return (
+                                                            <div key={idx} className={`rounded-lg p-2 border ${round === 'Cup Round 2' ? 'bg-pink-50/50 border-pink-200' : 'bg-gray-50 border-gray-200'}`}>
+                                                                <div className="space-y-1">
+                                                                    <div className="flex items-center justify-between gap-2 text-xs">
+                                                                        <span className="font-medium text-gray-900 truncate" title={game.homeTeam}>
+                                                                            {game.homeTeam}
+                                                                            {!homeInLeague && game.homeDivision && (
+                                                                                <span className="text-gray-500 ml-1">({game.homeDivision}. Div)</span>
+                                                                            )}
+                                                                        </span>
+                                                                        <span className={`text-xs flex-shrink-0 ${round === 'Cup Round 2' ? 'text-pink-600' : 'text-gray-500'}`}>
+                                                                            {round === 'Cup Round 2' ? 'Cup' : 'vs'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="flex items-center justify-between gap-2 text-xs">
+                                                                        <span className="font-medium text-gray-900 truncate" title={game.awayTeam}>
+                                                                            {game.awayTeam}
+                                                                            {!awayInLeague && game.awayDivision && (
+                                                                                <span className="text-gray-500 ml-1">({game.awayDivision}. Div)</span>
+                                                                            )}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ));
-                                })()}
-
-                            </div>
+                                            );
+                                        });
+                                    })()}
+                                </div>
+                            )}
                         </TabsContent>
                     </CardContent>
                 </Tabs>
             </Card>
 
-            {/* Player Leaderboard Card */}
-            <Card className="mt-8">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <User className="h-6 w-6 text-indigo-500" />
-                        Player Leaderboard
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {/* Top 5 Average */}
-                        <div>
-                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                                <Zap className="h-4 w-4 text-purple-600" />
-                                Top Average
-                            </h3>
-                            <div className="space-y-2">
-                                {playerStats && playerStats.length > 0 ? (
-                                    playerStats
-                                        .filter(p => p.average > 0)
-                                        .sort((a, b) => b.average - a.average)
-                                        .slice(0, 5)
-                                        .map((player, idx) => {
-                                        const singlesGames = player.singlesWon + player.singlesLost;
-                                        return (
-                                            <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
-                                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                    <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold flex-shrink-0 ${
-                                                        idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                                                        idx === 1 ? 'bg-gray-200 text-gray-700' :
-                                                        idx === 2 ? 'bg-orange-100 text-orange-700' :
-                                                        'bg-gray-100 text-gray-600'
-                                                    }`}>
-                                                        {idx + 1}
-                                                    </span>
-                                                    <PlayerAvatar name={player.name} imageUrl={playerImages[player.name]} size="sm" />
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="font-medium text-gray-900 truncate" title={player.name}>{player.name}</div>
-                                                        <div className="text-xs text-gray-500 truncate" title={player.team}>{player.team}</div>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right ml-2">
-                                                    <div className="text-sm font-bold text-purple-600">{player.average.toFixed(2)}</div>
-                                                    <div className="text-xs text-gray-500">{singlesGames} games</div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                ) : (
-                                    <div className="text-xs text-gray-500 p-2">No data available</div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Top 5 Singles % */}
-                        <div>
-                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                                <Target className="h-4 w-4 text-blue-600" />
-                                Top Singles %
-                            </h3>
-                            <div className="space-y-2">
-                                {playerStats
-                                    .filter(p => (p.singlesWon + p.singlesLost) >= 1) // At least 1 game
-                                    .sort((a, b) => {
-                                        // Sort by percentage first
-                                        if (b.singlesPercentage !== a.singlesPercentage) {
-                                            return b.singlesPercentage - a.singlesPercentage;
-                                        }
-                                        // If same percentage, sort by total games played (more games = higher rank)
-                                        return (b.singlesWon + b.singlesLost) - (a.singlesWon + a.singlesLost);
-                                    })
-                                    .slice(0, 5)
-                                    .map((player, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
-                                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold flex-shrink-0 ${
-                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
-                                                    idx === 2 ? 'bg-orange-100 text-orange-700' :
-                                                    'bg-gray-100 text-gray-600'
-                                                }`}>
-                                                    {idx + 1}
-                                                </span>
-                                                <PlayerAvatar name={player.name} imageUrl={playerImages[player.name]} size="sm" />
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="font-medium text-gray-900 truncate" title={player.name}>{player.name}</div>
-                                                    <div className="text-xs text-gray-500 truncate" title={player.team}>{player.team}</div>
-                                                </div>
-                                            </div>
-                                            <div className="text-right ml-2">
-                                                <div className="text-sm font-bold text-blue-600">{player.singlesPercentage.toFixed(1)}%</div>
-                                                <div className="text-xs text-gray-500">{player.singlesWon}-{player.singlesLost}</div>
-                                            </div>
-                                        </div>
-                                    ))}
-                            </div>
-                        </div>
-
-                        {/* Top 5 Doubles % */}
-                        <div>
-                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                                <Users className="h-4 w-4 text-green-600" />
-                                Top Doubles %
-                            </h3>
-                            <div className="space-y-2">
-                                {playerStats
-                                    .filter(p => (p.doublesWon + p.doublesLost) >= 1) // At least 1 game
-                                    .sort((a, b) => {
-                                        // Sort by percentage first
-                                        if (b.doublesPercentage !== a.doublesPercentage) {
-                                            return b.doublesPercentage - a.doublesPercentage;
-                                        }
-                                        // If same percentage, sort by total games played (more games = higher rank)
-                                        return (b.doublesWon + b.doublesLost) - (a.doublesWon + a.doublesLost);
-                                    })
-                                    .slice(0, 5)
-                                    .map((player, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
-                                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold flex-shrink-0 ${
-                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
-                                                    idx === 2 ? 'bg-orange-100 text-orange-700' :
-                                                    'bg-gray-100 text-gray-600'
-                                                }`}>
-                                                    {idx + 1}
-                                                </span>
-                                                <PlayerAvatar name={player.name} imageUrl={playerImages[player.name]} size="sm" />
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="font-medium text-gray-900 truncate" title={player.name}>{player.name}</div>
-                                                    <div className="text-xs text-gray-500 truncate" title={player.team}>{player.team}</div>
-                                                </div>
-                                            </div>
-                                            <div className="text-right ml-2">
-                                                <div className="text-sm font-bold text-green-600">{player.doublesPercentage.toFixed(1)}%</div>
-                                                <div className="text-xs text-gray-500">{player.doublesWon}-{player.doublesLost}</div>
-                                            </div>
-                                        </div>
-                                    ))}
-                            </div>
-                        </div>
-
-                        {/* Top 5 Combined % */}
-                        <div>
-                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                                <Trophy className="h-4 w-4 text-amber-600" />
-                                Top Combined %
-                            </h3>
-                            <div className="space-y-2">
-                                {playerStats
-                                    .filter(p => (p.singlesWon + p.singlesLost + p.doublesWon + p.doublesLost) >= 3) // At least 3 total games
-                                    .sort((a, b) => {
-                                        // Sort by percentage first
-                                        if (b.combinedPercentage !== a.combinedPercentage) {
-                                            return b.combinedPercentage - a.combinedPercentage;
-                                        }
-                                        // If same percentage, sort by total games played (more games = higher rank)
-                                        const aTotalGames = a.singlesWon + a.singlesLost + a.doublesWon + a.doublesLost;
-                                        const bTotalGames = b.singlesWon + b.singlesLost + b.doublesWon + b.doublesLost;
-                                        return bTotalGames - aTotalGames;
-                                    })
-                                    .slice(0, 5)
-                                    .map((player, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
-                                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold flex-shrink-0 ${
-                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
-                                                    idx === 2 ? 'bg-orange-100 text-orange-700' :
-                                                    'bg-gray-100 text-gray-600'
-                                                }`}>
-                                                    {idx + 1}
-                                                </span>
-                                                <PlayerAvatar name={player.name} imageUrl={playerImages[player.name]} size="sm" />
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="font-medium text-gray-900 truncate" title={player.name}>{player.name}</div>
-                                                    <div className="text-xs text-gray-500 truncate" title={player.team}>{player.team}</div>
-                                                </div>
-                                            </div>
-                                            <div className="text-right ml-2">
-                                                <div className="text-sm font-bold text-amber-600">{player.combinedPercentage.toFixed(1)}%</div>
-                                                <div className="text-xs text-gray-500">{player.singlesWon + player.doublesWon}-{player.singlesLost + player.doublesLost}</div>
-                                            </div>
-                                        </div>
-                                    ))}
-                            </div>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Team Rankings Card */}
-            <Card className="mt-8">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Trophy className="h-6 w-6 text-yellow-500" />
-                        Team Rankings
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {/* Top 3 Singles % */}
-                        <div>
-                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                                <Target className="h-4 w-4 text-blue-600" />
-                                Top Singles %
-                            </h3>
-                            <div className="space-y-2">
-                                {(() => {
-                                    const singlesRankings = leagueStandings
-                                        .map((team: any) => {
-                                            const stats = Object.entries(teamAverages).find(
-                                                ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
-                                            )?.[1];
-                                            if (stats?.singles) {
-                                                const [won, lost] = stats.singles.split('-').map(Number);
-                                                const total = won + lost;
-                                                const percentage = total > 0 ? (won / total) * 100 : 0;
-                                                return { team: team.team, percentage, record: stats.singles };
-                                            }
-                                            return null;
-                                        })
-                                        .filter(Boolean)
-                                        .sort((a: any, b: any) => b.percentage - a.percentage)
-                                        .slice(0, 3);
-
-                                    return singlesRankings.map((item: any, idx: number) => (
-                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
-                                                    'bg-orange-100 text-orange-700'
-                                                }`}>
-                                                    {idx + 1}
-                                                </span>
-                                                <span className="text-sm font-medium text-gray-900 truncate max-w-[120px]" title={item.team}>
-                                                    {item.team}
-                                                </span>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-sm font-bold text-blue-600">{item.percentage.toFixed(1)}%</div>
-                                                <div className="text-xs text-gray-500">{item.record}</div>
-                                            </div>
-                                        </div>
-                                    ));
-                                })()}
-                            </div>
-                        </div>
-
-                        {/* Top 3 Doubles % */}
-                        <div>
-                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                                <Users className="h-4 w-4 text-green-600" />
-                                Top Doubles %
-                            </h3>
-                            <div className="space-y-2">
-                                {(() => {
-                                    const doublesRankings = leagueStandings
-                                        .map((team: any) => {
-                                            const stats = Object.entries(teamAverages).find(
-                                                ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
-                                            )?.[1];
-                                            if (stats?.doubles) {
-                                                const [won, lost] = stats.doubles.split('-').map(Number);
-                                                const total = won + lost;
-                                                const percentage = total > 0 ? (won / total) * 100 : 0;
-                                                return { team: team.team, percentage, record: stats.doubles };
-                                            }
-                                            return null;
-                                        })
-                                        .filter(Boolean)
-                                        .sort((a: any, b: any) => b.percentage - a.percentage)
-                                        .slice(0, 3);
-
-                                    return doublesRankings.map((item: any, idx: number) => (
-                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
-                                                    'bg-orange-100 text-orange-700'
-                                                }`}>
-                                                    {idx + 1}
-                                                </span>
-                                                <span className="text-sm font-medium text-gray-900 truncate max-w-[120px]" title={item.team}>
-                                                    {item.team}
-                                                </span>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-sm font-bold text-green-600">{item.percentage.toFixed(1)}%</div>
-                                                <div className="text-xs text-gray-500">{item.record}</div>
-                                            </div>
-                                        </div>
-                                    ));
-                                })()}
-                            </div>
-                        </div>
-
-                        {/* Top 3 Average */}
-                        <div>
-                            <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                                <Zap className="h-4 w-4 text-purple-600" />
-                                Top Average
-                            </h3>
-                            <div className="space-y-2">
-                                {(() => {
-                                    const averageRankings = leagueStandings
-                                        .map((team: any) => {
-                                            const stats = Object.entries(teamAverages).find(
-                                                ([key]) => normalizeTeamName(key) === normalizeTeamName(team.team)
-                                            )?.[1];
-                                            if (stats?.average && stats.average > 0) {
-                                                return { team: team.team, average: stats.average };
-                                            }
-                                            return null;
-                                        })
-                                        .filter(Boolean)
-                                        .sort((a: any, b: any) => b.average - a.average)
-                                        .slice(0, 3);
-
-                                    return averageRankings.map((item: any, idx: number) => (
-                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                                                    idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                                                    idx === 1 ? 'bg-gray-200 text-gray-700' :
-                                                    'bg-orange-100 text-orange-700'
-                                                }`}>
-                                                    {idx + 1}
-                                                </span>
-                                                <span className="text-sm font-medium text-gray-900 truncate max-w-[120px]" title={item.team}>
-                                                    {item.team}
-                                                </span>
-                                            </div>
-                                            <div className="text-sm font-bold text-purple-600">
-                                                {item.average.toFixed(2)}
-                                            </div>
-                                        </div>
-                                    ));
-                                })()}
-                            </div>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-               
         </div>
     );
 };
@@ -946,6 +1454,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [comparisonData, setComparisonData] = useState<ComparisonData[]>([]);
     const [teamStandings, setTeamStandings] = useState<TeamStandings | null>(null);
     const [selectedPlayer, setSelectedPlayer] = useState<string>("team");
+    const [selectedPlayerFilter, setSelectedPlayerFilter] = useState<string>("all"); // Filter for matches tab
     const [matchAverages, setMatchAverages] = useState<MatchAverages[]>([]);
     const [sortColumn] = useState<string>('winRate');
     const [sortDirection] = useState<'asc' | 'desc'>('desc');
@@ -968,6 +1477,9 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [comparisonTeam, setComparisonTeam] = useState<string>('');
     const [comparisonTeamData, setComparisonTeamData] = useState<TeamData | null>(null);
     const [comparisonLoading, setComparisonLoading] = useState(false);
+    
+    // Season switcher state (only for DC Patron)
+    const [selectedSeason, setSelectedSeason] = useState<'2025/26' | '2024/25' | 'all'>('2025/26');
 
     // Add this at the top level
     const playerImages: { [key: string]: string } = {
@@ -1039,6 +1551,11 @@ const DartsStatisticsDashboard: React.FC = () => {
     // Filter teams for comparison table (exclude selected team)
     const comparisonTeams = teams.filter(team => team !== selectedTeam);
     
+    // Reset season to 2025/26 when team changes
+    useEffect(() => {
+        setSelectedSeason('2025/26');
+    }, [selectedTeam]);
+    
     useEffect(() => {
         if (selectedTeam) {
             // Skip data fetching for League Overview
@@ -1063,7 +1580,9 @@ const DartsStatisticsDashboard: React.FC = () => {
             const fetchData = async (forceUpdate = false) => {
                 const requestedTeam = currentTeamRef.current;  // Capture team at request time
                 try {
-                    const response = await axios.get(`/api/teamData?team=${encodeURIComponent(requestedTeam)}&forceUpdate=${forceUpdate}`);
+                    // Add season parameter for DC Patron
+                    const seasonParam = selectedTeam === 'DC Patron' ? `&season=${selectedSeason}` : '';
+                    const response = await axios.get(`/api/teamData?team=${encodeURIComponent(requestedTeam)}&forceUpdate=${forceUpdate}${seasonParam}`);
                     const { data, source } = response.data;
 
                     // Only update state if we're still on the same team
@@ -1107,7 +1626,7 @@ const DartsStatisticsDashboard: React.FC = () => {
 
             fetchData();
         }
-    }, [selectedTeam]);
+    }, [selectedTeam, selectedSeason]);
 
     useEffect(() => {
         const fetchSchedule = async () => {
@@ -1207,21 +1726,28 @@ const DartsStatisticsDashboard: React.FC = () => {
 
     // Update the matchData calculation to keep original matchday numbers
     const matchData = matchAverages.map((match) => {
+        // Create display matchday with season prefix if available
+        const displayMatchday = match.seasonPrefix 
+            ? `${match.seasonPrefix}-${match.originalMatchday}` 
+            : match.matchday;
+            
         if (selectedPlayer === "team") {
             return {
-                matchday: match.matchday,
+                matchday: displayMatchday,
                 average: match.teamAverage,
                 opponent: match.opponent || '',  // Use the opponent directly from matchAverages
-                originalMatchday: match.matchday // Keep track of original matchday
+                originalMatchday: match.matchday, // Keep track of original matchday
+                numericMatchday: match.matchday // For sorting/indexing
             };
         } else {
             const playerAvg = match.playerAverages.find(p => p.playerName === selectedPlayer)?.average;
             if (playerAvg) {
                 return {
-                    matchday: match.matchday,
+                    matchday: displayMatchday,
                     average: playerAvg,
                     opponent: match.opponent || '', // Use the opponent directly from matchAverages
-                    originalMatchday: match.matchday // Keep track of original matchday
+                    originalMatchday: match.matchday, // Keep track of original matchday
+                    numericMatchday: match.matchday // For sorting/indexing
                 };
             }
             return null;
@@ -1260,7 +1786,21 @@ const DartsStatisticsDashboard: React.FC = () => {
         );
 
         // Find the match report for this matchday
-        const matchReport = matchReports[payload.matchday - 1];
+        // Handle both numeric matchday and string matchday with season prefix (e.g., "1-5", "2-3")
+        let matchReport;
+        const matchday = payload.matchday as number | string;
+        if (typeof matchday === 'string' && matchday.includes('-')) {
+            // For "all seasons" mode with prefix like "1-5"
+            const matchDataEntry = matchData.find(m => m.matchday === matchday);
+            if (matchDataEntry && matchDataEntry.numericMatchday) {
+                matchReport = matchReports[matchDataEntry.numericMatchday - 1];
+            }
+        } else {
+            // For single season mode
+            const numericMatchday = typeof matchday === 'number' ? matchday : parseInt(matchday);
+            matchReport = matchReports[numericMatchday - 1];
+        }
+        
         if (!matchReport) return (
             <svg width={0} height={0}></svg>
         );
@@ -1517,7 +2057,7 @@ const DartsStatisticsDashboard: React.FC = () => {
             losses: number, 
             winRate: number,
             matches: Array<{
-                matchday: number,
+                matchday: number | string,
                 opponent: string,
                 isWin: boolean
             }>
@@ -1544,8 +2084,13 @@ const DartsStatisticsDashboard: React.FC = () => {
             
             stats[pairKey].winRate = Math.round((stats[pairKey].wins / (stats[pairKey].wins + stats[pairKey].losses)) * 100);
             
+            // Use season prefix if available (for "all seasons" mode)
+            const matchdayDisplay = match.seasonPrefix 
+                ? `${match.seasonPrefix}-${match.originalMatchday}` 
+                : matchIndex + 1;
+            
             stats[pairKey].matches.push({
-                matchday: matchIndex + 1,
+                matchday: matchdayDisplay,
                 opponent: match.opponent,
                 isWin
             });
@@ -1757,14 +2302,57 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                     )}
                                                 </div>
                                             </div>
-                                            <span className="text-sm text-gray-500">Season 2024/25</span>
+                                            
+                                            {/* Season Switcher - Only for DC Patron */}
+                                            {selectedTeam === 'DC Patron' ? (
+                                                <div className="flex items-center gap-2 mt-2">
+                                                    <span className="text-xs text-gray-400 font-medium">Season:</span>
+                                                    <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                                                        <button
+                                                            onClick={() => setSelectedSeason('2025/26')}
+                                                            className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                                                                selectedSeason === '2025/26'
+                                                                    ? 'bg-white text-blue-600 shadow-sm'
+                                                                    : 'text-gray-600 hover:text-gray-900'
+                                                            }`}
+                                                        >
+                                                            2025/26
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setSelectedSeason('2024/25')}
+                                                            className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                                                                selectedSeason === '2024/25'
+                                                                    ? 'bg-white text-blue-600 shadow-sm'
+                                                                    : 'text-gray-600 hover:text-gray-900'
+                                                            }`}
+                                                        >
+                                                            2024/25
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setSelectedSeason('all')}
+                                                            className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                                                                selectedSeason === 'all'
+                                                                    ? 'bg-white text-blue-600 shadow-sm'
+                                                                    : 'text-gray-600 hover:text-gray-900'
+                                                            }`}
+                                                        >
+                                                            All Seasons
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <span className="text-sm text-gray-500">Season 2025/26</span>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Top Performers Card */}
+                        {/* Top Performers Card - Hide for old seasons and certain teams */}
+                        {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
+                         selectedTeam !== 'Fortunas Wölfe' && 
+                         selectedTeam !== 'DC Patron II' && (
                         <div className="mb-8 bg-white rounded-xl shadow-sm border overflow-hidden">
                             <div className="h-1 w-full bg-gradient-to-r from-amber-400/40 to-amber-500/40" />
                             <div className="p-5">
@@ -1853,8 +2441,12 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 </div>
                             </div>
                         </div>
+                        )}
 
-                        {/* Stats Cards Grid */}
+                        {/* Stats Cards Grid - Hide for old seasons and certain teams */}
+                        {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
+                         selectedTeam !== 'Fortunas Wölfe' && 
+                         selectedTeam !== 'DC Patron II' && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                             {/* Team Average Card with Singles/Doubles */}
                             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -2079,14 +2671,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                         </div>
                                         <span className="text-base font-medium text-gray-900">Record</span>
                                     </div>
-                                    {(selectedTeam === 'Fortunas Wölfe' || selectedTeam === 'DC Patron II') ? (
-                                        <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                                            <svg className="h-5 w-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                            </svg>
-                                            <span className="text-sm text-blue-700">Only visible for 5. Division A</span>
-                                        </div>
-                                    ) : teamStandings && (
+                                    {teamStandings && (
                                         <>
                                             <div className="flex items-baseline gap-2 mb-3">
                                                 <span className="text-2xl font-bold text-gray-900">
@@ -2122,15 +2707,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                         </div>
                                         <span className="text-base font-medium text-gray-900">{clubVenue?.venue}</span>
                                     </div>
-                                    {(selectedTeam === 'Fortunas Wölfe' || selectedTeam === 'DC Patron II') ? (
-                                        <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                                            <svg className="h-5 w-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                            </svg>
-                                            <span className="text-sm text-blue-700">Only visible for 5. Division A</span>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-2">
+                                    <div className="space-y-2">
                                         <div className="flex items-center gap-2 text-sm text-gray-600">
                                             <MapPin className="h-4 w-4 text-gray-400" />
                                             <span>{clubVenue?.address}, {clubVenue?.city}</span>
@@ -2138,12 +2715,12 @@ const DartsStatisticsDashboard: React.FC = () => {
                                         <div className="flex items-center gap-2 text-sm text-gray-600">
                                             <Phone className="h-4 w-4 text-gray-400" />
                                             <span>{clubVenue?.phone}</span>
+                                        </div>
                                     </div>
-                                </div>
-                                    )}
                                 </div>
                             </div>
                         </div>
+                        )}
                         <Tabs defaultValue="matches" className="space-y-4">
                             <TabsList className="flex flex-wrap gap-2 justify-start mb-32 sm:mb-6">
                                 {/* Primary Tabs - Always visible */}
@@ -2151,10 +2728,14 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     <Users className="h-5 w-5 text-green-500 mr-1" />
                                     Matches
                                 </TabsTrigger>
+                                {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
+                                 selectedTeam !== 'Fortunas Wölfe' && 
+                                 selectedTeam !== 'DC Patron II' && (
                                 <TabsTrigger value="mergedStats" className="flex items-center">
                                     <User className="h-5 w-5 text-green-500 mr-1" />
                                     Player Overview
                                 </TabsTrigger>
+                                )}
                                 <TabsTrigger value="pairs" className="flex items-center">
                                     <Users className="h-5 w-5 text-green-500 mr-1" />
                                     Pairs
@@ -2164,10 +2745,14 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     <BarChart className="h-5 w-5 text-green-500 mr-1" />
                                     Charts
                                 </TabsTrigger>
+                                {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
+                                 selectedTeam !== 'Fortunas Wölfe' && 
+                                 selectedTeam !== 'DC Patron II' && (
                                 <TabsTrigger value="schedule" className="flex items-center">
                                             <Calendar className="h-5 w-5 text-green-500 mr-1" />
                                             Schedule
                                 </TabsTrigger>
+                                )}
                             
                                         {/* <TabsTrigger value="stats" className="flex items-center">
                                             <User className="h-5 w-5 text-green-500 mr-1" />
@@ -2186,7 +2771,256 @@ const DartsStatisticsDashboard: React.FC = () => {
 
 
                             <TabsContent value="matches">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {/* Player Filter Dropdown */}
+                                <div className="mb-6 flex items-center gap-3">
+                                    <label className="text-sm font-medium text-gray-700">Filter by Player:</label>
+                                    <select
+                                        value={selectedPlayerFilter}
+                                        onChange={(e) => setSelectedPlayerFilter(e.target.value)}
+                                        className="appearance-none text-sm font-medium bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer min-w-[200px]"
+                                    >
+                                        <option value="all">All Matches</option>
+                                        {(() => {
+                                            // Get unique singles players from home team only
+                                            const players = new Set<string>();
+                                            matchReports.forEach(match => {
+                                                const isHomeTeam = match.isHomeMatch !== undefined 
+                                                    ? match.isHomeMatch 
+                                                    : match.details.singles[0].homePlayer === match.lineup[0];
+                                                
+                                                match.details.singles.forEach(single => {
+                                                    const playerName = isHomeTeam ? single.homePlayer : single.awayPlayer;
+                                                    if (playerName) players.add(playerName);
+                                                });
+                                            });
+                                            return Array.from(players).sort().map(player => (
+                                                <option key={player} value={player}>{player}</option>
+                                            ));
+                                        })()}
+                                    </select>
+                                    {selectedPlayerFilter !== "all" && (
+                                        <button
+                                            onClick={() => setSelectedPlayerFilter("all")}
+                                            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                                        >
+                                            Clear Filter
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Player Singles View */}
+                                {selectedPlayerFilter !== "all" ? (
+                                    <div className="space-y-4">
+                                        {/* Player Header */}
+                                        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+                                            <div className="flex items-center gap-3">
+                                                <PlayerAvatar name={selectedPlayerFilter} imageUrl={playerImages[selectedPlayerFilter]} size="md" />
+                                                <div>
+                                                    <h3 className="text-lg font-bold text-gray-900">{selectedPlayerFilter}</h3>
+                                                    <p className="text-sm text-gray-600">Singles Games</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Match Cards */}
+                                        <div>
+                                        {matchReports.map((matchday: MatchReport, matchIndex: number) => {
+                                            const isHomeTeam = matchday.isHomeMatch !== undefined 
+                                                ? matchday.isHomeMatch 
+                                                : matchday.details.singles[0].homePlayer === matchday.lineup[0];
+                                            
+                                            // Find all singles games for this player in this match
+                                            const playerSinglesGames = matchday.details.singles
+                                                .map((game, singlesIndex) => ({ game, singlesIndex }))
+                                                .filter(({ game }) => {
+                                                    const playerInGame = isHomeTeam 
+                                                        ? game.homePlayer === selectedPlayerFilter
+                                                        : game.awayPlayer === selectedPlayerFilter;
+                                                    return playerInGame;
+                                                });
+
+                                            if (playerSinglesGames.length === 0) return null;
+
+                                            // Find actual index in filtered list
+                                            const filteredMatches = matchReports.filter((md, idx) => {
+                                                const isHome = md.isHomeMatch !== undefined 
+                                                    ? md.isHomeMatch 
+                                                    : md.details.singles[0].homePlayer === md.lineup[0];
+                                                const hasPlayerGames = md.details.singles.some(game => {
+                                                    return isHome 
+                                                        ? game.homePlayer === selectedPlayerFilter
+                                                        : game.awayPlayer === selectedPlayerFilter;
+                                                });
+                                                return hasPlayerGames;
+                                            });
+                                            const filteredIndex = filteredMatches.findIndex(md => md === matchday);
+                                            const isFirst = filteredIndex === 0;
+                                            const isLast = filteredIndex === filteredMatches.length - 1;
+
+                                            return (
+                                                <div key={matchIndex} className={`bg-white border border-gray-200 shadow-sm p-3 sm:p-4 ${
+                                                    isFirst ? 'rounded-t-lg' : ''
+                                                } ${
+                                                    isLast ? 'rounded-b-lg' : ''
+                                                } ${
+                                                    !isFirst ? 'border-t-0' : ''
+                                                }`}>
+                                                    {/* EXACT Match Header from MatchReport */}
+                                                    <div className="mb-3 sm:mb-4 pb-2 sm:pb-3 border-b border-gray-200">
+                                                        <div className="flex items-center justify-between flex-wrap gap-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-blue-50 border border-blue-100 text-sm sm:text-base font-bold text-blue-600">
+                                                                    {matchday.seasonPrefix ? `${matchday.seasonPrefix}-${matchday.originalMatchday}` : matchIndex + 1}
+                                                                </span>
+                                                                <h3 className="text-base sm:text-lg font-bold text-gray-800">vs {matchday.opponent}</h3>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`inline-flex items-center px-2.5 py-1 text-sm font-medium rounded ${
+                                                                    matchday.isHomeMatch 
+                                                                        ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                                                        : 'bg-orange-50 text-orange-700 border border-orange-200'
+                                                                }`}>
+                                                                    {matchday.isHomeMatch ? 'H' : 'A'}
+                                                                </span>
+                                                                <div className={`px-2 sm:px-3 py-0.5 sm:py-1 text-base sm:text-lg font-bold rounded border ${
+                                                                    matchday.score.split('-')[0] > matchday.score.split('-')[1]
+                                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                                        : matchday.score.split('-')[0] === matchday.score.split('-')[1]
+                                                                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                                                            : 'bg-rose-50 text-rose-700 border-rose-200'
+                                                                }`}>
+                                                                    {matchday.score}
+                                                                </div>
+                                                                <div className="px-2 sm:px-3 py-0.5 sm:py-1 text-sm sm:text-base font-bold bg-blue-50 text-blue-600 border border-blue-100 rounded">
+                                                                    {matchAverages[matchIndex]?.teamAverage.toFixed(2)}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Singles Games List - EXACT format from MatchReport */}
+                                                    <div>
+                                                        {playerSinglesGames.map(({ game, singlesIndex }, idx) => {
+                                                            const match = game;
+                                                            const player = selectedPlayerFilter;
+                                                            
+                                                            // Determine win/loss
+                                                            const isWin = isHomeTeam ? 
+                                                                match.homeScore > match.awayScore : 
+                                                                match.awayScore > match.homeScore;
+                                                            
+                                                            // Get opponent info
+                                                            const opponentName = isHomeTeam ? match.awayPlayer : match.homePlayer;
+                                                            
+                                                            // Check for walkover
+                                                            const isWalkover = isHomeTeam 
+                                                                ? match.awayPlayer.toLowerCase().includes('nicht angetreten') 
+                                                                : match.homePlayer.toLowerCase().includes('nicht angetreten');
+                                                            
+                                                            // Get checkouts
+                                                            const playerCheckouts = matchday.checkouts
+                                                                .filter(c => c.scores.startsWith(player))
+                                                                .map(c => c.scores.split(': ')[1])
+                                                                .filter(c => c && c !== '-');
+                                                            
+                                                            const opponentCheckouts = matchday.checkouts
+                                                                .filter(c => c.scores.startsWith(opponentName))
+                                                                .map(c => c.scores.split(': ')[1])
+                                                                .filter(c => c && c !== '-');
+                                                            
+                                                            // Get averages
+                                                            const matchdayAvg = matchAverages[matchIndex]?.playerAverages.find(
+                                                                pa => pa.playerName === player
+                                                            )?.average;
+                                                            
+                                                            const runningAvg = sortedPlayers.find(p => p.playerName === player)?.adjustedAverage ?? 0;
+                                                            const avgDiff = matchdayAvg ? matchdayAvg - runningAvg : 0;
+                                                            
+                                                            // Get score
+                                                            const playerScore = isHomeTeam ? match.homeScore : match.awayScore;
+                                                            const opponentScore = isHomeTeam ? match.awayScore : match.homeScore;
+
+                                                            return (
+                                                                <div key={singlesIndex} className={`p-2 sm:p-3 ${
+                                                                    idx === 0 ? 'border rounded-t-lg' : 'border-l border-r border-b'
+                                                                } ${
+                                                                    idx === playerSinglesGames.length - 1 ? 'rounded-b-lg' : ''
+                                                                } ${
+                                                                    isWin ? 'bg-green-50/50 border-green-200' : 'bg-gray-50/30 border-gray-200'
+                                                                }`}>
+                                                                    <div className="flex items-center gap-1.5 sm:gap-3">
+                                                                        {/* Your Player (Left Side) */}
+                                                                        <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
+                                                                            {playerImages[player] && (
+                                                                                <div className="hidden sm:block">
+                                                                                    <PlayerAvatar name={player} imageUrl={playerImages[player]} size="md" />
+                                                                                </div>
+                                                                            )}
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <div className="font-bold text-xs sm:text-sm text-gray-900 truncate">{player}</div>
+                                                                                {matchdayAvg && !isWalkover && (
+                                                                                    <div className="text-xs sm:text-sm text-gray-700 font-bold truncate">
+                                                                                        <span className="text-purple-600">{matchdayAvg.toFixed(2)}</span>
+                                                                                        {avgDiff !== 0 && (
+                                                                                            <span className={`ml-1 ${avgDiff > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                                                                {avgDiff > 0 ? '▲' : '▼'}
+                                                                                            </span>
+                                                                                        )}
+                                                                                        {playerCheckouts.length > 0 && (
+                                                                                            <span className="text-blue-600 ml-1">• {playerCheckouts.join(', ')}</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                            <div className={`text-xl sm:text-2xl font-bold flex-shrink-0 ${isWin ? 'text-green-600' : 'text-gray-400'}`}>
+                                                                                {playerScore}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Separator */}
+                                                                        <div className="flex-shrink-0 text-gray-300 font-bold text-base sm:text-xl">-</div>
+
+                                                                        {/* Opponent (Right Side) */}
+                                                                        <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
+                                                                            <div className={`text-xl sm:text-2xl font-bold flex-shrink-0 ${!isWin ? 'text-red-600' : 'text-gray-400'}`}>
+                                                                                {opponentScore}
+                                                                            </div>
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <div className="font-bold text-xs sm:text-sm text-gray-900 truncate text-right">{opponentName}</div>
+                                                                                {!isWalkover && (opponentCheckouts.length > 0 || matchdayAvg) && (
+                                                                                    <div className="text-xs sm:text-sm text-gray-700 truncate text-right font-bold">
+                                                                                        {opponentCheckouts.length > 0 && (
+                                                                                            <span className="text-blue-600">{opponentCheckouts.join(', ')}</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                            {playerImages[opponentName] && (
+                                                                                <div className="hidden sm:block">
+                                                                                    <PlayerAvatar name={opponentName} imageUrl={playerImages[opponentName]} size="md" />
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {/* Walkover indicator */}
+                                                                        {isWalkover && (
+                                                                            <span className="text-xs font-medium px-2 py-1 bg-slate-100 text-slate-600 rounded italic flex-shrink-0">
+                                                                                w/o
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* Original Team Matches View */
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     {[...matchReports].reverse().map((matchday: MatchReport, index: number) => {
                                         // Debug: Log the isHomeMatch value
                                         console.log('Match', index + 1, 'isHomeMatch:', matchday.isHomeMatch, 'opponent:', matchday.opponent);
@@ -2196,212 +3030,363 @@ const DartsStatisticsDashboard: React.FC = () => {
                                             ? matchday.isHomeMatch 
                                             : matchday.details.singles[0].homePlayer === matchday.lineup[0];
                                         
+                                        // Create array of all individual games in proper order
+                                        const allGames: Array<{
+                                            type: 'singles' | 'doubles';
+                                            index: number;
+                                            lineupIndex: number;
+                                            match: any;
+                                            player: string;
+                                        }> = [];
+                                        
+                                        // S1
+                                        allGames.push({
+                                            type: 'singles',
+                                            index: 0,
+                                            lineupIndex: 0,
+                                            match: matchday.details.singles[0],
+                                            player: matchday.lineup[0]
+                                        });
+                                        
+                                        // S2
+                                        allGames.push({
+                                            type: 'singles',
+                                            index: 1,
+                                            lineupIndex: 1,
+                                            match: matchday.details.singles[1],
+                                            player: matchday.lineup[1]
+                                        });
+                                        
+                                        // D1
+                                        allGames.push({
+                                            type: 'doubles',
+                                            index: 0,
+                                            lineupIndex: 2,
+                                            match: matchday.details.doubles[0],
+                                            player: matchday.lineup[2]
+                                        });
+                                        
+                                        // D2
+                                        allGames.push({
+                                            type: 'doubles',
+                                            index: 1,
+                                            lineupIndex: 3,
+                                            match: matchday.details.doubles[1],
+                                            player: matchday.lineup[3]
+                                        });
+                                        
+                                        // S3
+                                        allGames.push({
+                                            type: 'singles',
+                                            index: 2,
+                                            lineupIndex: 4,
+                                            match: matchday.details.singles[2],
+                                            player: matchday.lineup[4]
+                                        });
+                                        
+                                        // S4
+                                        allGames.push({
+                                            type: 'singles',
+                                            index: 3,
+                                            lineupIndex: 5,
+                                            match: matchday.details.singles[3],
+                                            player: matchday.lineup[5]
+                                        });
+                                        
+                                        // D3
+                                        if (matchday.details.doubles[2]) {
+                                            allGames.push({
+                                                type: 'doubles',
+                                                index: 2,
+                                                lineupIndex: 6,
+                                                match: matchday.details.doubles[2],
+                                                player: matchday.lineup[6]
+                                            });
+                                        }
+                                        
+                                        // D4
+                                        if (matchday.details.doubles[3]) {
+                                            allGames.push({
+                                                type: 'doubles',
+                                                index: 3,
+                                                lineupIndex: 7,
+                                                match: matchday.details.doubles[3],
+                                                player: matchday.lineup[7]
+                                            });
+                                        }
+
                                         return (
-                                            <div 
-                                                key={matchReports.length - index - 1} 
-                                                className="group relative bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden border border-gray-100"
-                                            >
-                                                {/* Subtle top accent line */}
-                                                <div className={`h-1 w-full bg-gradient-to-r ${
-                                                    matchday.score.split('-')[0] > matchday.score.split('-')[1]
-                                                        ? 'from-emerald-400/40 to-emerald-500/40'
-                                                        : matchday.score.split('-')[0] === matchday.score.split('-')[1]
-                                                            ? 'from-amber-400/40 to-amber-500/40'
-                                                            : 'from-rose-400/40 to-rose-500/40'
-                                                }`} />
-
-                                                <div className="p-5">
-                                                    {/* Header Section */}
-                                                    <div className="flex items-start justify-between mb-6">
-                                                        <div className="space-y-1.5">
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center">
-                                                                    <span className="text-sm font-bold text-blue-600">
-                                                                        {matchReports.length - index}
+                                            <div key={matchReports.length - index - 1} className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 sm:p-4">
+                                                {/* Matchday Header */}
+                                                <div className="mb-3 sm:mb-4 pb-2 sm:pb-3 border-b border-gray-200">
+                                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-blue-50 border border-blue-100 text-sm sm:text-base font-bold text-blue-600">
+                                                                {matchday.seasonPrefix ? `${matchday.seasonPrefix}-${matchday.originalMatchday}` : matchReports.length - index}
                                                             </span>
+                                                            <h3 className="text-base sm:text-lg font-bold text-gray-800">vs {matchday.opponent}</h3>
                                                         </div>
-                                                                <h3 className="text-lg sm:text-lg text-sm font-semibold text-gray-800 truncate">
-                                                            {matchday.opponent}
-                                                        </h3>
-                                                                <div className="flex items-center gap-1.5 mt-1">
-                                                                    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-md ${
-                                                                        matchday.isHomeMatch 
-                                                                            ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                                                                            : 'bg-orange-50 text-orange-700 border border-orange-200'
-                                                                    }`}>
-                                                                        {matchday.isHomeMatch ? 'Home' : 'Away'}
-                                                                    </span>
-                                                                </div>
-                                                    </div>
-                                                            <div className="flex items-center gap-1.5">
-                                                                {/* Match Score Badge */}
-                                                                <div className={`px-2.5 py-1 text-xs font-medium rounded-md border ${
-                                                                    matchday.score.split('-')[0] > matchday.score.split('-')[1]
-                                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                                                                        : matchday.score.split('-')[0] === matchday.score.split('-')[1]
-                                                                            ? 'bg-amber-50 text-amber-700 border-amber-100'
-                                                                            : 'bg-rose-50 text-rose-700 border-rose-100'
-                                                                }`}>
-                                                                    {matchday.score}
-                                                                </div>
-
-                                                                {/* Average Badge */}
-                                                                <div className="px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-600 border border-blue-100 rounded-md flex items-center gap-1">
-                                                                    <span className="text-blue-400 text-[10px]">AVG</span>
-                                                                    <span>{matchAverages[matchReports.length - index - 1]?.teamAverage.toFixed(2)}</span>
-                                                                </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`inline-flex items-center px-2.5 py-1 text-sm font-medium rounded ${
+                                                                matchday.isHomeMatch 
+                                                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                                                    : 'bg-orange-50 text-orange-700 border border-orange-200'
+                                                            }`}>
+                                                                {matchday.isHomeMatch ? 'H' : 'A'}
+                                                            </span>
+                                                            <div className={`px-2 sm:px-3 py-0.5 sm:py-1 text-base sm:text-lg font-bold rounded border ${
+                                                                matchday.score.split('-')[0] > matchday.score.split('-')[1]
+                                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                                    : matchday.score.split('-')[0] === matchday.score.split('-')[1]
+                                                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                                                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                                                            }`}>
+                                                                {matchday.score}
+                                                            </div>
+                                                            <div className="px-2 sm:px-3 py-0.5 sm:py-1 text-sm sm:text-base font-bold bg-blue-50 text-blue-600 border border-blue-100 rounded">
+                                                                {matchAverages[matchReports.length - index - 1]?.teamAverage.toFixed(2)}
                                                             </div>
                                                         </div>
                                                     </div>
+                                                </div>
 
-                                                    {/* Lineup Section */}
-                                                <div className="space-y-4">
-                                                        <div className="rounded-lg bg-slate-50/50 border border-slate-100 p-3">
-                                                            <div className="text-xs text-slate-500 font-medium mb-2">Lineup & Performances</div>
-                                                            <div className="space-y-2">
-                                                            {matchday.lineup.map((player, idx) => {
-                                                                // Get match result based on position
-                                                                let isWin = false;
-                                                                if ([0, 1, 4, 5].includes(idx)) { // Singles matches
-                                                                    const matchIndex = idx > 3 ? idx - 2 : idx;
-                                                                    const match = matchday.details.singles[matchIndex];
-                                                                    isWin = isHomeTeam ? 
-                                                                        match.homeScore > match.awayScore : 
-                                                                        match.awayScore > match.homeScore;
-                                                                } else { // Doubles matches
-                                                                    const matchIndex = idx > 3 ? (idx - 4) : ((idx - 2));
-                                                                    const match = matchday.details.doubles[matchIndex];
-                                                                    isWin = isHomeTeam ? 
-                                                                        match.homeScore > match.awayScore : 
-                                                                        match.awayScore > match.homeScore;
-                                                                }
-
-                                                                    // Get checkouts for singles matches
-                                                                const isSinglesMatch = [0, 1, 4, 5].includes(idx);
-                                                                    const playerCheckouts = isSinglesMatch 
-                                                                    ? matchday.checkouts
-                                                                        .filter(c => c.scores.startsWith(player))
-                                                                        .map(c => c.scores.split(': ')[1])
-                                                                        .filter(c => c && c !== '-') // Filter out "-" and empty values
-                                                                    : [];
-                                                                
-                                                                // Get opponent checkouts for singles matches
-                                                                let opponentCheckouts: string[] = [];
-                                                                if (isSinglesMatch) {
-                                                                    const matchIndex = idx > 3 ? idx - 2 : idx;
-                                                                    const match = matchday.details.singles[matchIndex];
-                                                                    const opponentName = isHomeTeam ? match.awayPlayer : match.homePlayer;
-                                                                    opponentCheckouts = matchday.checkouts
-                                                                        .filter(c => c.scores.startsWith(opponentName))
-                                                                        .map(c => c.scores.split(': ')[1])
-                                                                        .filter(c => c && c !== '-'); // Filter out "-" and empty values
-                                                                }
-
-                                                                    // Get player's matchday average and running average for singles matches
-                                                                    const matchdayAvg = isSinglesMatch ? 
-                                                                        matchAverages[matchReports.length - index - 1]?.playerAverages.find(
-                                                                            pa => pa.playerName === player
-                                                                        )?.average : null;
-                                                                    
-                                                                    const runningAvg = sortedPlayers.find(p => p.playerName === player)?.adjustedAverage ?? 0;
-                                                                    const avgDiff = matchdayAvg ? matchdayAvg - runningAvg : 0;
-
-                                                                // Inside the lineup.map function, before the return statement
-                                                                // Check if opponent player is "nicht angetreten"
-                                                                let isWalkover = false;
-                                                                if ([0, 1, 4, 5].includes(idx)) { // Singles matches
-                                                                    const matchIndex = idx > 3 ? idx - 2 : idx;
-                                                                    const match = matchday.details.singles[matchIndex];
-                                                                    isWalkover = isHomeTeam ? 
-                                                                        match.awayPlayer.toLowerCase().includes('nicht angetreten') : 
-                                                                        match.homePlayer.toLowerCase().includes('nicht angetreten');
-                                                                } else { // Doubles matches
-                                                                    const matchIndex = idx > 3 ? (idx - 4) : ((idx - 2));
-                                                                    const match = matchday.details.doubles[matchIndex];
-                                                                    isWalkover = isHomeTeam ? 
-                                                                        match.awayPlayers.some(p => p.toLowerCase().includes('nicht angetreten')) : 
-                                                                        match.homePlayers.some(p => p.toLowerCase().includes('nicht angetreten'));
-                                                                }
-
-                                                                return (
-                                                                        <div key={idx} className="flex items-center justify-between group/player">
-                                                                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                                                <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                                                                                    isWin ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                                                                            }`}>
-                                                                                    <span className="text-[10px] font-medium">{idx + 1}</span>
-                                                                        </div>
-                                                                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                                                                    <span className="text-sm text-slate-700 truncate">{player}</span>
-                                                                                    {isSinglesMatch && matchdayAvg && (
-                                                                                        <div className="flex items-center gap-0.5 flex-shrink-0">
-                                                                                            <span className="text-xs text-slate-500 italic">
-                                                                                                {matchdayAvg.toFixed(2)}
-                                                                            </span>
-                                                                                            {avgDiff !== 0 && (
-                                                                                                <span className={`text-[10px] ${avgDiff > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                                                                    {avgDiff > 0 ? '▲' : '▼'}
-                                                                            </span>
-                                                                        )}
-                                                                        </div>
-                                                                                    )}
+                                                {/* Games List */}
+                                                <div className="space-y-1.5 sm:space-y-2">
+                                                    {allGames.map((game, gameIdx) => {
+                                                        const isSinglesMatch = game.type === 'singles';
+                                                        const match = game.match;
+                                                        const player = game.player;
+                                                        const idx = game.lineupIndex;
+                                                        
+                                                        // DC Patron players with avatars
+                                                        const dcPatronPlayersWithAvatars = [
+                                                            'Muhamet Mahmutaj',
+                                                            'Marko Cvejic',
+                                                            'Markus Hafner',
+                                                            'Christoph Hafner',
+                                                            'Dejan Stojadinovic',
+                                                            'Luca Schuckert'
+                                                        ];
+                                                        
+                                                        // Determine win/loss
+                                                        const isWin = isHomeTeam ? 
+                                                            match.homeScore > match.awayScore : 
+                                                            match.awayScore > match.homeScore;
+                                                        
+                                                        // Get opponent info
+                                                        const opponentName = isHomeTeam ? 
+                                                            (isSinglesMatch ? match.awayPlayer : match.awayPlayers.join(' / ')) :
+                                                            (isSinglesMatch ? match.homePlayer : match.homePlayers.join(' / '));
+                                                        
+                                                        // Check for walkover
+                                                        const isWalkover = isSinglesMatch ?
+                                                            (isHomeTeam ? match.awayPlayer.toLowerCase().includes('nicht angetreten') : match.homePlayer.toLowerCase().includes('nicht angetreten')) :
+                                                            (isHomeTeam ? match.awayPlayers.some((p: string) => p.toLowerCase().includes('nicht angetreten')) : match.homePlayers.some((p: string) => p.toLowerCase().includes('nicht angetreten')));
+                                                        
+                                                        // Get checkouts
+                                                        const playerCheckouts = isSinglesMatch 
+                                                            ? matchday.checkouts
+                                                                .filter(c => c.scores.startsWith(player))
+                                                                .map(c => c.scores.split(': ')[1])
+                                                                .filter(c => c && c !== '-')
+                                                            : [];
+                                                        
+                                                        const opponentCheckouts = isSinglesMatch
+                                                            ? matchday.checkouts
+                                                                .filter(c => c.scores.startsWith(opponentName))
+                                                                .map(c => c.scores.split(': ')[1])
+                                                                .filter(c => c && c !== '-')
+                                                            : [];
+                                                        
+                                                        // Get averages for singles
+                                                        const matchdayAvg = isSinglesMatch ? 
+                                                            matchAverages[matchReports.length - index - 1]?.playerAverages.find(
+                                                                pa => pa.playerName === player
+                                                            )?.average : null;
+                                                        
+                                                        const runningAvg = sortedPlayers.find(p => p.playerName === player)?.adjustedAverage ?? 0;
+                                                        const avgDiff = matchdayAvg ? matchdayAvg - runningAvg : 0;
+                                                        
+                                                        // Get score
+                                                        const playerScore = isHomeTeam ? match.homeScore : match.awayScore;
+                                                        const opponentScore = isHomeTeam ? match.awayScore : match.homeScore;
+                                                        
+                                                        // For doubles, split names
+                                                        const playerNames = isSinglesMatch ? [player] : (isHomeTeam ? match.homePlayers : match.awayPlayers);
+                                                        const opponentNames = isSinglesMatch ? [opponentName] : (isHomeTeam ? match.awayPlayers : match.homePlayers);
+                                                        
+                                                        return (
+                                                            <div key={gameIdx} className={`rounded-lg p-2 sm:p-3 border ${
+                                                                isWin ? 'bg-green-50/50 border-green-200' : 'bg-gray-50/30 border-gray-200'
+                                                            }`}>
+                                                                <div className="flex items-center gap-1.5 sm:gap-3">
+                                                                    {/* Your Player (Left Side) */}
+                                                                    <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
+                                                                        {isSinglesMatch ? (
+                                                                            dcPatronPlayersWithAvatars.includes(player) && (
+                                                                                <div className="hidden sm:block">
+                                                                                    <PlayerAvatar name={player} imageUrl={playerImages[player]} size="md" />
                                                                                 </div>
-                                                                            </div>
-                                                                            <div className="flex gap-1.5 flex-shrink-0">
-                                                                        {isWalkover ? (
-                                                                                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-slate-50 text-slate-500 rounded border border-slate-100 italic">
-                                                                                        w/o
-                                                                            </span>
-                                                                                ) : (
-                                                                                    <>
-                                                                                        {playerCheckouts.length > 0 && (
-                                                                                            <div className="flex">
-                                                                                                {playerCheckouts.map((checkout, cidx) => (
-                                                                                                    <span key={`player-${cidx}`} 
-                                                                                                        className={`px-1.5 py-0.5 text-[10px] font-medium bg-blue-50 text-blue-600 border-y border-l ${
-                                                                                                            cidx === 0 ? 'rounded-l' : ''
-                                                                                                        } ${
-                                                                                                            cidx === playerCheckouts.length - 1 && opponentCheckouts.length === 0 ? 'rounded-r border-r' : ''
-                                                                                                        } ${
-                                                                                                            cidx < playerCheckouts.length - 1 ? 'border-r' : ''
-                                                                                                        } border-blue-100`}
-                                                                                                    >
-                                                                                                        {checkout}
-                                                                                                    </span>
-                                                                                                ))}
-                                                                                                {opponentCheckouts.length > 0 && opponentCheckouts.map((checkout, cidx) => (
-                                                                                                    <span key={`opp-${cidx}`} 
-                                                                                                        className={`px-1.5 py-0.5 text-[10px] font-medium bg-red-50 text-red-600 border-y border-red-100 ${
-                                                                                                            cidx === opponentCheckouts.length - 1 ? 'rounded-r border-r' : 'border-r'
-                                                                                                        }`}
-                                                                                                    >
-                                                                                                        {checkout}
-                                                                                                    </span>
-                                                                                                ))}
-                                                                                            </div>
+                                                                            )
+                                                                        ) : (
+                                                                            (dcPatronPlayersWithAvatars.includes(playerNames[0]) || dcPatronPlayersWithAvatars.includes(playerNames[1])) && (
+                                                                                <div className="hidden sm:flex -space-x-2">
+                                                                                    <div className="h-10 w-10 rounded-full bg-blue-50 border-2 border-white overflow-hidden flex items-center justify-center relative z-10">
+                                                                                        {playerImages[playerNames[0]] ? (
+                                                                                            <img src={playerImages[playerNames[0]]} alt={playerNames[0]} className="w-full h-full object-cover" />
+                                                                                        ) : (
+                                                                                            <span className="text-xs font-semibold text-blue-600">{playerNames[0]?.charAt(0)}</span>
                                                                                         )}
-                                                                                    </>
-                                                                                )}
-                                                                            </div>
+                                                                                    </div>
+                                                                                    <div className="h-10 w-10 rounded-full bg-purple-50 border-2 border-white overflow-hidden flex items-center justify-center">
+                                                                                        {playerImages[playerNames[1]] ? (
+                                                                                            <img src={playerImages[playerNames[1]]} alt={playerNames[1]} className="w-full h-full object-cover" />
+                                                                                        ) : (
+                                                                                            <span className="text-xs font-semibold text-purple-600">{playerNames[1]?.charAt(0)}</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                            )
+                                                                        )}
+                                                                        <div className="flex-1 min-w-0">
+                                                                            {isSinglesMatch ? (
+                                                                                <>
+                                                                                    <div className="font-bold text-xs sm:text-sm text-gray-900 truncate">{player}</div>
+                                                                                    {matchdayAvg && !isWalkover && (
+                                                                                        <div className="text-xs sm:text-sm text-gray-700 font-bold truncate">
+                                                                                            <span className="text-purple-600">{matchdayAvg.toFixed(2)}</span>
+                                                                                            {avgDiff !== 0 && (
+                                                                                                <span className={`ml-1 ${avgDiff > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                                                                    {avgDiff > 0 ? '▲' : '▼'}
+                                                                                                </span>
+                                                                                            )}
+                                                                                            {playerCheckouts.length > 0 && (
+                                                                                                <span className="text-blue-600 ml-1">• {playerCheckouts.join(', ')}</span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </>
+                                                                            ) : (
+                                                                                <div className="font-bold text-xs sm:text-sm text-gray-900">
+                                                                                    <div className="truncate">{playerNames[0]}</div>
+                                                                                    <div className="truncate">{playerNames[1]}</div>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className={`text-xl sm:text-2xl font-bold flex-shrink-0 ${isWin ? 'text-green-600' : 'text-gray-400'}`}>
+                                                                            {playerScore}
+                                                                        </div>
                                                                     </div>
-                                                                );
-                                                            })}
+
+                                                                    {/* Separator */}
+                                                                    <div className="flex-shrink-0 text-gray-300 font-bold text-base sm:text-xl">-</div>
+
+                                                                    {/* Opponent (Right Side) */}
+                                                                    <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
+                                                                        <div className={`text-xl sm:text-2xl font-bold flex-shrink-0 ${!isWin ? 'text-red-600' : 'text-gray-400'}`}>
+                                                                            {opponentScore}
+                                                                        </div>
+                                                                        <div className="flex-1 min-w-0">
+                                                                            {isSinglesMatch ? (
+                                                                                <>
+                                                                                    <div className="font-bold text-xs sm:text-sm text-gray-900 truncate text-right">{opponentName}</div>
+                                                                                    {!isWalkover && (opponentCheckouts.length > 0 || matchdayAvg) && (
+                                                                                        <div className="text-xs sm:text-sm text-gray-700 truncate text-right font-bold">
+                                                                                            {opponentCheckouts.length > 0 && (
+                                                                                                <span className="text-blue-600">{opponentCheckouts.join(', ')}</span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </>
+                                                                            ) : (
+                                                                                <div className="font-bold text-xs sm:text-sm text-gray-900 text-right">
+                                                                                    <div className="truncate">{opponentNames[0]}</div>
+                                                                                    <div className="truncate">{opponentNames[1]}</div>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        {isSinglesMatch ? (
+                                                                            dcPatronPlayersWithAvatars.includes(opponentName) && (
+                                                                                <div className="hidden sm:block">
+                                                                                    <PlayerAvatar name={opponentName} imageUrl={playerImages[opponentName]} size="md" />
+                                                                                </div>
+                                                                            )
+                                                                        ) : (
+                                                                            (dcPatronPlayersWithAvatars.includes(opponentNames[0]) || dcPatronPlayersWithAvatars.includes(opponentNames[1])) && (
+                                                                                <div className="hidden sm:flex -space-x-2">
+                                                                                    <div className="h-10 w-10 rounded-full bg-blue-50 border-2 border-white overflow-hidden flex items-center justify-center relative z-10">
+                                                                                        {playerImages[opponentNames[0]] ? (
+                                                                                            <img src={playerImages[opponentNames[0]]} alt={opponentNames[0]} className="w-full h-full object-cover" />
+                                                                                        ) : (
+                                                                                            <span className="text-xs font-semibold text-blue-600">{opponentNames[0]?.charAt(0)}</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div className="h-10 w-10 rounded-full bg-purple-50 border-2 border-white overflow-hidden flex items-center justify-center">
+                                                                                        {playerImages[opponentNames[1]] ? (
+                                                                                            <img src={playerImages[opponentNames[1]]} alt={opponentNames[1]} className="w-full h-full object-cover" />
+                                                                                        ) : (
+                                                                                            <span className="text-xs font-semibold text-purple-600">{opponentNames[1]?.charAt(0)}</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                            )
+                                                                        )}
+                                                                    </div>
+
+                                                                    {/* Walkover indicator */}
+                                                                    {isWalkover && (
+                                                                        <span className="text-xs font-medium px-2 py-1 bg-slate-100 text-slate-600 rounded italic flex-shrink-0">
+                                                                            w/o
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* Result in Legs */}
+                                                <div className="mt-3 sm:mt-4 pt-2 sm:pt-3 border-t border-gray-200">
+                                                    <div className="text-center">
+                                                        <div className="text-xs text-gray-500 font-medium mb-1 sm:mb-2">Result in Legs</div>
+                                                        <div className={`text-xl sm:text-2xl font-bold ${
+                                                            (() => {
+                                                                const [yourSingles, oppSingles] = matchday.details.singles.reduce((acc, match) => {
+                                                                    const yourScore = isHomeTeam ? match.homeScore : match.awayScore;
+                                                                    const oppScore = isHomeTeam ? match.awayScore : match.homeScore;
+                                                                    return [acc[0] + yourScore, acc[1] + oppScore];
+                                                                }, [0, 0]);
+                                                                const [yourDoubles, oppDoubles] = matchday.details.doubles.reduce((acc, match) => {
+                                                                    const yourScore = isHomeTeam ? match.homeScore : match.awayScore;
+                                                                    const oppScore = isHomeTeam ? match.awayScore : match.homeScore;
+                                                                    return [acc[0] + yourScore, acc[1] + oppScore];
+                                                                }, [0, 0]);
+                                                                const yourTotal = yourSingles + yourDoubles;
+                                                                const oppTotal = oppSingles + oppDoubles;
+                                                                return yourTotal > oppTotal ? 'text-green-600' : yourTotal < oppTotal ? 'text-red-600' : 'text-gray-600';
+                                                            })()
+                                                        }`}>
+                                                            {(() => {
+                                                                const [yourSingles, oppSingles] = matchday.details.singles.reduce((acc, match) => {
+                                                                    const yourScore = isHomeTeam ? match.homeScore : match.awayScore;
+                                                                    const oppScore = isHomeTeam ? match.awayScore : match.homeScore;
+                                                                    return [acc[0] + yourScore, acc[1] + oppScore];
+                                                                }, [0, 0]);
+                                                                const [yourDoubles, oppDoubles] = matchday.details.doubles.reduce((acc, match) => {
+                                                                    const yourScore = isHomeTeam ? match.homeScore : match.awayScore;
+                                                                    const oppScore = isHomeTeam ? match.awayScore : match.homeScore;
+                                                                    return [acc[0] + yourScore, acc[1] + oppScore];
+                                                                }, [0, 0]);
+                                                                return `${yourSingles + yourDoubles}-${oppSingles + oppDoubles}`;
+                                                            })()}
                                                         </div>
                                                     </div>
-
-                                                        {/* Match Details Button */}
-                                                            <button
-                                                            onClick={() => setSelectedMatchId(matchReports.length - index - 1)}
-                                                            className="w-full px-3 py-2 text-sm font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
-                                                            >
-                                                                View Details
-                                                            </button>
-                                                        </div>
-                                                            </div>
-                                                        </div>
+                                                </div>
+                                            </div>
                                         );
                                     })}
                                 </div>
+                                )}
                             </TabsContent>
 
                             <TabsContent value="stats">
@@ -2935,6 +3920,9 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 </div>
                             </TabsContent>
 
+                            {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
+                             selectedTeam !== 'Fortunas Wölfe' && 
+                             selectedTeam !== 'DC Patron II' && (
                             <TabsContent value="schedule">
                                 <div className="space-y-6">
                                     {/* Header */}
@@ -3049,6 +4037,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     )}
                                 </div>
                             </TabsContent>
+                            )}
 
                             <TabsContent value="pairs">
                                 <div className="space-y-6">
@@ -3061,6 +4050,9 @@ const DartsStatisticsDashboard: React.FC = () => {
                                             className="px-3 py-1.5 bg-white border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                                             >
                                                 <option value="team">All Pairs</option>
+                                                {selectedTeam === 'DC Patron' && selectedSeason === 'all' && (
+                                                    <option value="active-players">Active Players</option>
+                                                )}
                                                 {teamData?.players.map((player) => (
                                                     <option key={player.playerName} value={player.playerName}>
                                                         {player.playerName}
@@ -3072,7 +4064,22 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     {/* Partnerships Grid */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                         {Object.entries(pairStats)
-                                            .filter(([pair]) => selectedPlayer === "team" || pair.includes(selectedPlayer))
+                                            .filter(([pair]) => {
+                                                if (selectedPlayer === "team") return true;
+                                                if (selectedPlayer === "active-players") {
+                                                    const activePlayers = [
+                                                        'Marko Cvejic',
+                                                        'Luca Schuckert',
+                                                        'Muhamet Mahmutaj',
+                                                        'Markus Hafner',
+                                                        'Christoph Hafner',
+                                                        'Dejan Stojadinovic'
+                                                    ];
+                                                    const players = pair.split(' & ');
+                                                    return players.every(player => activePlayers.includes(player));
+                                                }
+                                                return pair.includes(selectedPlayer);
+                                            })
                                             .sort(([, a], [, b]) => {
                                                 const aHasEnoughMatches = (a.wins + a.losses) >= 3;
                                                 const bHasEnoughMatches = (b.wins + b.losses) >= 3;
@@ -3205,6 +4212,9 @@ const DartsStatisticsDashboard: React.FC = () => {
                                 </div>
                             </TabsContent>
 
+                            {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
+                             selectedTeam !== 'Fortunas Wölfe' && 
+                             selectedTeam !== 'DC Patron II' && (
                             <TabsContent value="mergedStats">
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-visible">
                                     {sortedPlayers.map((player) => {
@@ -3590,6 +4600,7 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     })}
                                             </div>
                             </TabsContent>
+                            )}
                         </Tabs>
                         </>
                         )}

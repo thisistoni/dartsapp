@@ -1,7 +1,24 @@
 Am1iNl1zQxOYPzLW
 
-adding best teams players/ 180 HIFI 
+adding best teams players/ 180 HIFI (done)
 
-league avg
+league avg in league ov (done)
 
-adding historical data
+bug game details pending.(fixed - but test next thu)
+
+add singles this week with checkouts (done)
+
+3-0 matchday cards checkouts (done)
+
+adding historical data (DONE)
+
+adding tabs system to league overview (done)
+
+ADDING DB SUPABASE
+
+ADDING REAL DATA TO SAMPLE DATA LEAGUE overview
+
+latest bug testen wenn matchreport nicht da ist 
+
+
+leaderboard welcher spieler wie oft bestes weekly avg hatte

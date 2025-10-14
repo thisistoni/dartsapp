@@ -51,6 +51,8 @@ export interface MatchReport {
     score: string;
     details: DetailedMatchReport;
     isHomeMatch?: boolean;
+    seasonPrefix?: string;
+    originalMatchday?: number;
 }
 
 // Define the interface for Club Venue
@@ -83,6 +85,8 @@ export interface MatchAverages {
     teamAverage: number;
     playerAverages: PlayerMatchAverage[];
     opponent: string;
+    seasonPrefix?: string;
+    originalMatchday?: number;
 }
 
 export interface PlayerMatchAverage {
@@ -117,6 +121,7 @@ export interface LeagueMatch {
   awayLegs: number;
   homeSets: number;
   awaySets: number;
+  matchId?: string;
 }
 
 export interface LeagueMatchday {

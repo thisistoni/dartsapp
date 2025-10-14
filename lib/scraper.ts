@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import axiosRetry from 'axios-retry';
@@ -17,14 +18,17 @@ axiosRetry(axios, {
 });
 
 // Fetch Spielberichte-Link
-export async function fetchSpielberichteLink(): Promise<string | null> {
-    const url = 'https://www.wdv-dart.at/_landesliga/_statistik/index.php?saison=2025/26&div=all';
+export async function fetchSpielberichteLink(customUrl?: string): Promise<string | null> {
+    // Use custom URL if provided (for 2024/25), otherwise use default (2025/26)
+    const url = customUrl || 'https://www.wdv-dart.at/_landesliga/_statistik/index.php?saison=2025/26&div=all';
 
     try {
         const { data } = await axios.get(url);
         const $ = cheerio.load(data);
 
-        const targetLi = $('li').filter((_, el) => $(el).text().includes('Sonstiges 1/2 (2025/26):'));
+        // Determine season from URL for correct <li> text matching
+        const season = customUrl?.includes('2024/25') ? '2024/25' : '2025/26';
+        const targetLi = $('li').filter((_, el) => $(el).text().includes(`Sonstiges 1/2 (${season}):`));
         if (targetLi.length === 0) {
             console.error('Das Ziel <li> wurde nicht gefunden.');
             return null;
@@ -652,6 +656,11 @@ export async function fetchLeagueResults(): Promise<LeagueResults> {
           const homeSets = parseInt($(cells[5]).find('b').text().trim());
           const awaySets = parseInt($(cells[7]).find('b').text().trim());
           
+          // Extract match ID from the link
+          const linkHref = $(row).find('a').attr('href') || '';
+          const matchIdMatch = linkHref.match(/id=(\d+)/);
+          const matchId = matchIdMatch ? matchIdMatch[1] : '';
+          
           if (homeTeam && awayTeam && !isNaN(homeLegs) && !isNaN(awayLegs) && !isNaN(homeSets) && !isNaN(awaySets)) {
             matches.push({
               homeTeam,
@@ -659,7 +668,8 @@ export async function fetchLeagueResults(): Promise<LeagueResults> {
               homeLegs,
               awayLegs,
               homeSets,
-              awaySets
+              awaySets,
+              matchId
             });
           }
         });
@@ -674,5 +684,221 @@ export async function fetchLeagueResults(): Promise<LeagueResults> {
   } catch (error) {
     console.error('❌ Error fetching league results:', error);
     return { matchdays: [] };
+  }
+}
+
+// Helper function to get all match reports from the central page
+async function getAllMatchReports() {
+  try {
+    const url = 'https://www.wdv-dart.at/_landesliga/_statistik/spielberichtmenue.php?start=1754042400&ende=1785578400&saison=2025/26';
+    const { data } = await axios.get(url);
+    const $ = cheerio.load(data);
+    
+    const matches: Array<{ date: string; homeTeam: string; awayTeam: string; matchId: string }> = [];
+    
+    $('tr.ranking').each((_, element) => {
+      const dateText = $(element).find('td').eq(0).text().trim();
+      const homeTeam = $(element).find('td').eq(1).text().trim();
+      const awayTeam = $(element).find('td').eq(2).text().trim();
+      const onclick = $(element).attr('onclick');
+      
+      if (onclick) {
+        const match = onclick.match(/id=(\d+)/);
+        if (match && dateText && homeTeam && awayTeam) {
+          matches.push({
+            date: dateText,
+            homeTeam,
+            awayTeam,
+            matchId: match[1]
+          });
+        }
+      }
+    });
+    
+    return matches;
+  } catch (error) {
+    console.error('Error fetching all match reports:', error);
+    return [];
+  }
+}
+
+// Fetch Latest Match Details (3 most recent matches with singles/doubles data)
+export async function fetchLatestMatchDetails() {
+  try {
+    console.log('🔍 Fetching latest match details...');
+    
+    // Get league results to find the latest matchday
+    const leagueResults = await fetchLeagueResults();
+    console.log(`📊 League results fetched, matchdays: ${leagueResults.matchdays.length}`);
+    
+    if (leagueResults.matchdays.length === 0) {
+      console.log('⚠️ No matchdays found');
+      return [];
+    }
+    
+    // Get the latest matchday
+    const sortedMatchdays = leagueResults.matchdays.sort((a, b) => b.round - a.round);
+    const latestMatchday = sortedMatchdays[0];
+    console.log(`📅 Latest matchday: ${latestMatchday.round} on ${latestMatchday.date}`);
+    console.log(`🏆 Matches in latest matchday: ${latestMatchday.matches.length}`);
+    
+    // Get all match reports from central page
+    console.log('📥 Fetching all match reports from central page...');
+    const allMatchReports = await getAllMatchReports();
+    console.log(`✅ Found ${allMatchReports.length} total match reports`);
+    
+    const latestMatches: any[] = [];
+    
+    // Process all matches from the latest matchday
+    for (const match of latestMatchday.matches) {
+      try {
+        console.log(`🔎 Looking for ${match.homeTeam} vs ${match.awayTeam} on ${latestMatchday.date}...`);
+        
+        // Find the match in the central list
+        const matchReport = allMatchReports.find(m => 
+          m.date === latestMatchday.date &&
+          m.homeTeam === match.homeTeam &&
+          m.awayTeam === match.awayTeam
+        );
+        
+        if (matchReport) {
+          console.log(`📥 Found match ID ${matchReport.matchId}, fetching details...`);
+          
+          const details = await fetchMatchReport(matchReport.matchId, match.homeTeam);
+          const matchUrl = `https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${matchReport.matchId}&saison=2025/26`;
+          const averagesData = await fetchMatchAverages(matchUrl, match.homeTeam);
+          console.log(`✅ Match report fetched, singles: ${details.details.singles.length}, averages: ${averagesData.playerAverages.length}`);
+          
+          // Combine singles with averages and checkouts
+          const singlesWithData = details.details.singles.map((single: any) => {
+            // Find average for home player
+            const homeAvg = averagesData.playerAverages.find(p => p.playerName === single.homePlayer);
+            // Find average for away player (need to fetch away team averages too)
+            
+            // Find checkouts for both players
+            const homeCheckout = details.checkouts.find(c => c.scores.startsWith(single.homePlayer));
+            const awayCheckout = details.checkouts.find(c => c.scores.startsWith(single.awayPlayer));
+            
+            return {
+              ...single,
+              homeAverage: homeAvg?.average || 0,
+              awayAverage: 0, // Will be calculated separately
+              homeCheckouts: homeCheckout ? homeCheckout.scores.split(': ')[1] : '-',
+              awayCheckouts: awayCheckout ? awayCheckout.scores.split(': ')[1] : '-'
+            };
+          });
+          
+          // Also fetch away team averages
+          const awayAveragesData = await fetchMatchAverages(matchUrl, match.awayTeam);
+          
+          // Update away averages
+          singlesWithData.forEach((single: any) => {
+            const awayAvg = awayAveragesData.playerAverages.find(p => p.playerName === single.awayPlayer);
+            single.awayAverage = awayAvg?.average || 0;
+          });
+          
+          latestMatches.push({
+            matchday: latestMatchday.round,
+            date: latestMatchday.date,
+            homeTeam: match.homeTeam,
+            awayTeam: match.awayTeam,
+            score: `${match.homeSets}-${match.awaySets}`,
+            singles: singlesWithData,
+            doubles: details.details.doubles
+          });
+        } else {
+          console.log(`⚠️ Could not find match ID for ${match.homeTeam} vs ${match.awayTeam}`);
+        }
+      } catch (err) {
+        console.error(`❌ Error processing match ${match.homeTeam} vs ${match.awayTeam}:`, err);
+      }
+    }
+    
+    console.log(`✅ Returning ${latestMatches.length} matches from matchday ${latestMatchday.round}`);
+    return latestMatches;
+  } catch (error) {
+    console.error('❌ Error fetching latest match details:', error);
+    return [];
+  }
+}
+
+// Fetch Cup Round 2 matches for teams in our league
+export async function fetchCupMatches(leagueTeams: string[]): Promise<{ homeTeam: string; awayTeam: string; date: string; round: string; homeDivision?: string; awayDivision?: string }[]> {
+  const url = 'https://www.wdv-dart.at/_teamcup/_cup/index.php?saison=2025/26';
+  
+  try {
+    const { data } = await axios.get(url);
+    const $ = cheerio.load(data);
+    const cupMatches: { homeTeam: string; awayTeam: string; date: string; round: string; homeDivision?: string; awayDivision?: string }[] = [];
+    
+    // Build division mapping - hardcoded from WDV data
+    const teamDivisions = new Map<string, string>([
+      ['an sporran 1', '1'], ['an sporran ahg', '2'], ['an sporran angels', '1'], ['an sporran c&s', '2'],
+      ['an sporran chips', '4'], ['an sporran de oidn', '2'], ['as 404 double not found', '4'],
+      ['as the dart side of the moon i', '4'], ['as the dart side of the moon ii', '5'], ['as the third side of the moon', '5'],
+      ['babylon +-er', '1'], ['babylon bassdarts', '4'], ['babylon sackratten', '3'], ['babylon saloon daltons', '5'],
+      ['babylon triple', '4'], ['babylon vienna bulls', '2'], ['bad boys buddies', '2'], ['bad boys bulls', '1'],
+      ['bad boys fanatics', '1'], ['bad boys hot shots', '2'], ['bad boys lumberjacks', '4'], ['bad boys tornados', '5'],
+      ['bad boys underground', '5'], ['bsw prater darter', '3'], ['bsw zwara panier', '5'], ['d-c arts of darts', '1'],
+      ['d-c bawag show time', '1'], ['d-c dartcore', '1'], ['d-c darts-control', '1'], ['d-c flying squad', '5'],
+      ['d-c jausngegner', '3'], ['d-c madhouse', '3'], ['d-c standart', '2'], ['d-c steelers', '2'],
+      ['d-c steelers 1.80', '2'], ['dartclub twentytwo 1', '3'], ['dartclub twentytwo 2', '3'], ['dartclub twentytwo 3', '5'],
+      ['dartclub twentytwo 4', '5'], ['dartons', '2'], ['darts artists', '3'], ['darts artists darteros', '2'],
+      ['dc dartcabaret', '5'], ['dc favoriten rainbows', '3'], ['dc patron', '5'], ['dc patron ii', '5'],
+      ['dc voltadolis steel', '4'], ['dilettanten', '2'], ['dlb vienna alligators', '3'], ['dsv nanog flying hellfish', '3'],
+      ['dsv nanog zinsfabrik', '5'], ['fortunas wölfe', '5'], ['ldc martial darts 1', '1'], ['ldc martial darts 2', '1'],
+      ['ldc martial darts 4ward', '4'], ['ldc martial darts fun legends', '4'], ['mafiosis', '3'], ['megasports-darts', '4'],
+      ['mtb bully bullchecker', '5'], ['mtb simply the best 1', '1'], ['psv wien darts 1', '5'], ['relax one steel 1', '1'],
+      ['relax one steel 2', '1'], ['relax one steel 3', '1'], ['relax one steel 4', '2'], ['relax one steel 5', '4'],
+      ['relax one steel 6', '4'], ['rosa untier nein darters', '3'], ['rosa untier plumbatas', '5'],
+      ['scheibenfreunde the clowns of dart', '3'], ['sfva bull\'s hit', '2'], ['sfva ccr', '3'], ['snakes', '2'],
+      ['snakes ii', '4'], ['tc aspern 1', '5'], ['temmel fundraising darts lions 1', '3'], ['temmel fundraising darts lions 2', '5'],
+      ['the expendables', '4'], ['vienna devils 1', '3'], ['vienna devils dartfathers', '4'], ['vienna devils the 9 darters', '5'],
+      ['vienna tigers black dragons', '1'], ['vienna tigers double out', '2'], ['vienna tigers flying tigers', '4'], ['vienna tigers white tigers', '5']
+    ]);
+    
+    // Find Round 2 section
+    $('h4').each((_, h4Element) => {
+      const headerText = $(h4Element).text().trim();
+      if (headerText.includes('Runde 2')) {
+        const date = headerText.match(/(\d{2}\.\d{2}\.\d{4})/)?.[1] || '06.11.2025';
+        
+        // Get the table following this header
+        const table = $(h4Element).next('div').find('table.ranking');
+        
+        table.find('tbody tr.ranking').each((_, row) => {
+          const homeTeam = $(row).find('td').eq(0).text().trim();
+          const awayTeam = $(row).find('td').eq(1).text().trim();
+          
+          // Check if either team is in our league
+          const homeInLeague = leagueTeams.some(team => 
+            team.toLowerCase() === homeTeam.toLowerCase()
+          );
+          const awayInLeague = leagueTeams.some(team => 
+            team.toLowerCase() === awayTeam.toLowerCase()
+          );
+          
+          if (homeInLeague || awayInLeague) {
+            const homeDivision = teamDivisions.get(homeTeam.toLowerCase());
+            const awayDivision = teamDivisions.get(awayTeam.toLowerCase());
+            
+            cupMatches.push({
+              homeTeam,
+              awayTeam,
+              date,
+              round: 'Cup Round 2',
+              homeDivision,
+              awayDivision
+            });
+          }
+        });
+      }
+    });
+    
+    console.log(`✅ Found ${cupMatches.length} Cup Round 2 matches with league teams`);
+    return cupMatches;
+  } catch (error) {
+    console.error('❌ Error fetching Cup matches:', error);
+    return [];
   }
 }
