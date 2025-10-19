@@ -9,7 +9,7 @@ import { Trophy, Search, Users, User,  MapPin, Martini, Phone, BarChart, ArrowUp
 import axios from 'axios';
 import ClipLoader from "react-spinners/ClipLoader"; // Importing Spinner
 import { ClubVenue, MatchReport, Player, TeamData, ComparisonData, TeamStandings, MatchAverages, OneEighty, HighFinish } from '@/lib/types';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart as RechartsBarChart, Bar, Legend } from 'recharts';
 import { TooltipProps } from 'recharts';
 import axiosRetry from 'axios-retry';
 
@@ -1455,6 +1455,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [teamStandings, setTeamStandings] = useState<TeamStandings | null>(null);
     const [selectedPlayer, setSelectedPlayer] = useState<string>("team");
     const [selectedPlayerFilter, setSelectedPlayerFilter] = useState<string>("all"); // Filter for matches tab
+    const [checkoutPlayerFilter, setCheckoutPlayerFilter] = useState<string>("all"); // Filter for checkout chart
     const [matchAverages, setMatchAverages] = useState<MatchAverages[]>([]);
     const [sortColumn] = useState<string>('winRate');
     const [sortDirection] = useState<'asc' | 'desc'>('desc');
@@ -1480,6 +1481,9 @@ const DartsStatisticsDashboard: React.FC = () => {
     
     // Season switcher state (only for DC Patron)
     const [selectedSeason, setSelectedSeason] = useState<'2025/26' | '2024/25' | 'all'>('2025/26');
+    
+    // Active section state (replaces tabs)
+    const [activeSection, setActiveSection] = useState<string>('matches');
 
     // Add this at the top level
     const playerImages: { [key: string]: string } = {
@@ -1601,8 +1605,16 @@ const DartsStatisticsDashboard: React.FC = () => {
                             players: data.players
                         };
                         setTeamData(teamData);
-                        setTeamAverage(data.players.reduce((sum: number, player: Player) => 
-                            sum + player.adjustedAverage, 0) / data.players.length);
+                        
+                        // Calculate team average from match reports (top of each report)
+                        const matchAvgs = data.matchAverages || [];
+                        if (matchAvgs.length > 0) {
+                            const avgSum = matchAvgs.reduce((sum: number, match: MatchAverages) => 
+                                sum + match.teamAverage, 0);
+                            setTeamAverage(avgSum / matchAvgs.length);
+                        } else {
+                            setTeamAverage(null);
+                        }
 
                         // Schedule next update only if still on same team
                         if (source === 'database') {
@@ -2144,15 +2156,18 @@ const DartsStatisticsDashboard: React.FC = () => {
         return null;
     };
 
-    // First, calculate the domain based on the data
+    // Calculate the domain dynamically based on the actual data
     const getChartDomain = () => {
-        const minValue = Math.min(...runningAverages.map(d => d.average));
-        const maxValue = Math.max(...runningAverages.map(d => d.average));
+        if (runningAverages.length === 0) return [30, 50];  // fallback if no data
         
-        let [min, max] = [30, 50];  // default range
+        const allValues = runningAverages.flatMap(d => [d.average, d.runningAverage].filter(v => v !== undefined));
+        const minValue = Math.min(...allValues);
+        const maxValue = Math.max(...allValues);
         
-        if (minValue < 30) min = Math.floor(minValue / 5) * 5;  // round down to nearest 5
-        if (maxValue > 50) max = Math.ceil(maxValue / 5) * 5;   // round up to nearest 5
+        // Add 5-10% padding and round to nearest 5
+        const padding = (maxValue - minValue) * 0.1;
+        const min = Math.floor((minValue - padding) / 5) * 5;
+        const max = Math.ceil((maxValue + padding) / 5) * 5;
         
         return [min, max];
     };
@@ -2212,140 +2227,509 @@ const DartsStatisticsDashboard: React.FC = () => {
                             <LeagueOverview onTeamSelect={setSelectedTeam} />
                         ) : (
                         <>
-                        {/* Display Selected Team */}
-                        <div className="mb-6 bg-white rounded-xl shadow-sm border overflow-visible">
-                            <div className="h-1 w-full bg-gradient-to-r from-blue-400/40 to-blue-500/40" />
-                            <div className="p-5">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-12 w-12 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center">
-                                            <Trophy className="h-6 w-6 text-blue-500" />
+                        {/* Sidebar + Content Layout */}
+                        <div className="flex gap-6 relative pb-20 lg:pb-0">
+                            {/* Desktop Sidebar - Collapsible */}
+                            <aside className="hidden lg:block w-16 hover:w-64 flex-shrink-0 transition-all duration-300 group">
+                                <div className="sticky top-4 space-y-2">
+                                    <button
+                                        onClick={() => setActiveSection('matches')}
+                                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all ${
+                                            activeSection === 'matches'
+                                                ? 'bg-green-50 text-green-700 font-semibold border border-green-200'
+                                                : 'text-gray-700 hover:bg-gray-50'
+                                        }`}
+                                        title="Matches"
+                                    >
+                                        <Users className="h-5 w-5 flex-shrink-0" />
+                                        <span className="whitespace-nowrap overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-300">Matches</span>
+                                    </button>
+                                    
+                                    {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
+                                     selectedTeam !== 'Fortunas Wölfe' && 
+                                     selectedTeam !== 'DC Patron II' && (
+                                        <button
+                                            onClick={() => setActiveSection('mergedStats')}
+                                            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all ${
+                                                activeSection === 'mergedStats'
+                                                    ? 'bg-green-50 text-green-700 font-semibold border border-green-200'
+                                                    : 'text-gray-700 hover:bg-gray-50'
+                                            }`}
+                                            title="Player Overview"
+                                        >
+                                            <User className="h-5 w-5 flex-shrink-0" />
+                                            <span className="whitespace-nowrap overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-300">Player Overview</span>
+                                        </button>
+                                    )}
+                                    
+                                    <button
+                                        onClick={() => setActiveSection('pairs')}
+                                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all ${
+                                            activeSection === 'pairs'
+                                                ? 'bg-green-50 text-green-700 font-semibold border border-green-200'
+                                                : 'text-gray-700 hover:bg-gray-50'
+                                        }`}
+                                        title="Pairs"
+                                    >
+                                        <Users className="h-5 w-5 flex-shrink-0" />
+                                        <span className="whitespace-nowrap overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-300">Pairs</span>
+                                    </button>
+                                    
+                                    <button
+                                        onClick={() => setActiveSection('charts')}
+                                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all ${
+                                            activeSection === 'charts'
+                                                ? 'bg-green-50 text-green-700 font-semibold border border-green-200'
+                                                : 'text-gray-700 hover:bg-gray-50'
+                                        }`}
+                                        title="Charts"
+                                    >
+                                        <BarChart className="h-5 w-5 flex-shrink-0" />
+                                        <span className="whitespace-nowrap overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-300">Charts</span>
+                                    </button>
+                                    
+                                    <button
+                                        onClick={() => setActiveSection('details')}
+                                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all ${
+                                            activeSection === 'details'
+                                                ? 'bg-green-50 text-green-700 font-semibold border border-green-200'
+                                                : 'text-gray-700 hover:bg-gray-50'
+                                        }`}
+                                        title="Checkouts"
+                                    >
+                                        <Target className="h-5 w-5 flex-shrink-0" />
+                                        <span className="whitespace-nowrap overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-300">Checkouts</span>
+                                    </button>
+                                    
+                                    {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
+                                     selectedTeam !== 'Fortunas Wölfe' && 
+                                     selectedTeam !== 'DC Patron II' && (
+                                        <button
+                                            onClick={() => setActiveSection('schedule')}
+                                            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all ${
+                                                activeSection === 'schedule'
+                                                    ? 'bg-green-50 text-green-700 font-semibold border border-green-200'
+                                                    : 'text-gray-700 hover:bg-gray-50'
+                                            }`}
+                                            title="Schedule"
+                                        >
+                                            <Calendar className="h-5 w-5 flex-shrink-0" />
+                                            <span className="whitespace-nowrap overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-300">Schedule</span>
+                                        </button>
+                                    )}
+                                </div>
+                            </aside>
+                            
+                            {/* Mobile Bottom Navbar */}
+                            <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
+                                <div className="flex justify-around items-center px-2 py-2">
+                                    <button
+                                        onClick={() => setActiveSection('matches')}
+                                        className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all ${
+                                            activeSection === 'matches'
+                                                ? 'text-green-600'
+                                                : 'text-gray-600'
+                                        }`}
+                                    >
+                                        <Users className="h-5 w-5" />
+                                        <span className="text-xs">Matches</span>
+                                    </button>
+                                    
+                                    {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
+                                     selectedTeam !== 'Fortunas Wölfe' && 
+                                     selectedTeam !== 'DC Patron II' && (
+                                        <button
+                                            onClick={() => setActiveSection('mergedStats')}
+                                            className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all ${
+                                                activeSection === 'mergedStats'
+                                                    ? 'text-green-600'
+                                                    : 'text-gray-600'
+                                            }`}
+                                        >
+                                            <User className="h-5 w-5" />
+                                            <span className="text-xs">Players</span>
+                                        </button>
+                                    )}
+                                    
+                                    <button
+                                        onClick={() => setActiveSection('pairs')}
+                                        className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all ${
+                                            activeSection === 'pairs'
+                                                ? 'text-green-600'
+                                                : 'text-gray-600'
+                                        }`}
+                                    >
+                                        <Users className="h-5 w-5" />
+                                        <span className="text-xs">Pairs</span>
+                                    </button>
+                                    
+                                    <button
+                                        onClick={() => setActiveSection('charts')}
+                                        className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all ${
+                                            activeSection === 'charts'
+                                                ? 'text-green-600'
+                                                : 'text-gray-600'
+                                        }`}
+                                    >
+                                        <BarChart className="h-5 w-5" />
+                                        <span className="text-xs">Charts</span>
+                                    </button>
+                                    
+                                    <button
+                                        onClick={() => setActiveSection('details')}
+                                        className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all ${
+                                            activeSection === 'details'
+                                                ? 'text-green-600'
+                                                : 'text-gray-600'
+                                        }`}
+                                    >
+                                        <Target className="h-5 w-5" />
+                                        <span className="text-xs">Checkouts</span>
+                                    </button>
+                                    
+                                    {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
+                                     selectedTeam !== 'Fortunas Wölfe' && 
+                                     selectedTeam !== 'DC Patron II' && (
+                                        <button
+                                            onClick={() => setActiveSection('schedule')}
+                                            className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all ${
+                                                activeSection === 'schedule'
+                                                    ? 'text-green-600'
+                                                    : 'text-gray-600'
+                                            }`}
+                                        >
+                                            <Calendar className="h-5 w-5" />
+                                            <span className="text-xs">Schedule</span>
+                                        </button>
+                                    )}
+                                </div>
+                            </nav>
+                            
+                            {/* Main Content Area */}
+                            <div className="flex-1 min-w-0">
+                        {/* Team Dashboard Card - Melted Design */}
+                        <div className="mb-6 bg-white rounded-2xl border-2 border-gray-100 overflow-hidden">
+                            {/* Gradient top bar */}
+                            <div className="h-2 w-full bg-gradient-to-r from-blue-500 via-violet-500 via-amber-500 to-emerald-500" />
+                            
+                            <div className="p-6">
+                                {/* Main Header Row */}
+                                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+                                    {/* Team Name & Core Stats */}
+                                    <div className="flex items-center gap-4">
+                                        <div className="relative">
+                                            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
+                                                <Trophy className="h-8 w-8 text-white" />
+                                            </div>
+                                            {leaguePosition !== null && (
+                                                <div className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
+                                                    <span className="text-xs font-bold text-white">#{leaguePosition}</span>
+                                                </div>
+                                            )}
                                         </div>
                                         <div>
-                                            {/* Modified team name and badges container */}
-                                            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                                                <h2 className="text-xl font-semibold text-gray-900">{selectedTeam}</h2>
-                                                <div className="flex gap-1.5 mt-1 sm:mt-0">
-                                                    {/* Position Badge */}
-                                                    <div className="relative group/badge">
-                                                        <div className={`h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg ${
-                                                            leaguePosition && leaguePosition <= 6
-                                                                ? 'bg-emerald-50 border border-emerald-100'
-                                                                : 'bg-blue-50 border border-blue-100'
-                                                        } flex items-center justify-center`}>
-                                                            <span className={`text-[10px] font-bold ${
-                                                                leaguePosition && leaguePosition <= 6
-                                                                    ? 'text-emerald-600'
-                                                                    : 'text-blue-600'
-                                                            }`}>POS</span>
-                                                        </div>
-                                                        <div className={`absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white ${
-                                                            leaguePosition && leaguePosition <= 6
-                                                                ? 'text-emerald-600 border border-emerald-200'
-                                                                : 'text-blue-600 border border-blue-200'
-                                                        } text-[10px] flex items-center justify-center font-medium`}>
-                                                            {leaguePosition !== null ? leaguePosition : '-'}
-                                                        </div>
+                                            <h2 className="text-3xl font-bold text-gray-900 mb-1">{selectedTeam}</h2>
+                                            <div className="flex items-center gap-3 text-sm">
+                                                {teamAverage !== null && (
+                                                    <div className="flex items-center gap-1">
+                                                        <div className="h-1.5 w-1.5 rounded-full bg-violet-500" />
+                                                        <span className="text-gray-600">Avg</span>
+                                                        <span className="font-bold text-violet-600">{teamAverage.toFixed(1)}</span>
                                                     </div>
-
-                                                    {/* Average Badge */}
-                                                    <div className="relative group/badge">
-                                                        <div className="h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center">
-                                                            <span className="text-[10px] font-bold text-violet-600">AVG</span>
-                                                        </div>
-                                                        <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-violet-600 text-[10px] flex items-center justify-center border border-violet-200 font-medium">
-                                                            {teamAverage !== null ? teamAverage.toFixed(1) : '-'}
-                                                        </div>
+                                                )}
+                                                {oneEightys.reduce((sum, player) => sum + (player.count || 0), 0) > 0 && (
+                                                    <div className="flex items-center gap-1">
+                                                        <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                                                        <span className="text-gray-600">180s</span>
+                                                        <span className="font-bold text-amber-600">{oneEightys.reduce((sum, player) => sum + (player.count || 0), 0)}</span>
                                                     </div>
-
-                                                    {/* Existing 180s and HiFi badges */}
-                                                    {oneEightys.reduce((sum, player) => sum + (player.count || 0), 0) > 0 && (
-                                                        <div className="relative group/badge">
-                                                            <div className="h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center">
-                                                                <span className="text-[10px] font-bold text-amber-600">180</span>
-                                                            </div>
-                                                            <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-amber-600 text-[10px] flex items-center justify-center border border-amber-200 font-medium">
-                                                                {oneEightys.reduce((sum, player) => sum + (player.count || 0), 0)}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    {highFinishes.reduce((sum, player) => sum + (player.finishes?.length || 0), 0) > 0 && (
-                                                        <div className="relative group/badge">
-                                                            <div className="h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center group-hover/badge:bg-rose-100 transition-colors">
-                                                                <span className="text-[10px] font-bold text-rose-600">HiFi</span>
-                                                            </div>
-                                                            <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-rose-600 text-[10px] flex items-center justify-center border border-rose-200 font-medium">
-                                                                {highFinishes.reduce((sum, player) => sum + (player.finishes?.length || 0), 0)}
-                                                            </div>
-
-                                                            {/* Hover tooltip for high finishes */}
-                                                            <div className="absolute right-0 top-full mt-2 scale-0 group-hover/badge:scale-100 transition-transform origin-top-right z-[100]">
-                                                                <div className="bg-white rounded-lg shadow-lg border border-gray-100 p-2 whitespace-nowrap">
-                                                                    <div className="text-[11px] font-medium text-slate-500 mb-1.5">High Finishes</div>
-                                                                    <div className="flex gap-1.5">
-                                                                        {highFinishes.flatMap(player => player.finishes || [])
-                                                                            .sort((a, b) => b - a)
-                                                                            .map((finish, idx) => (
-                                                                                <span 
-                                                                                    key={idx}
-                                                                                    className="px-2 py-0.5 text-xs font-medium bg-rose-50 text-rose-700 rounded border border-rose-100"
-                                                                                >
-                                                                                    {finish}
-                                                                                </span>
-                                                                            ))}
-                                                                    </div>
+                                                )}
+                                                {highFinishes.reduce((sum, player) => sum + (player.finishes?.length || 0), 0) > 0 && (
+                                                    <div className="relative group/hifi flex items-center gap-1 cursor-pointer">
+                                                        <div className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                                                        <span className="text-gray-600">HiFi</span>
+                                                        <span className="font-bold text-rose-600">{highFinishes.reduce((sum, player) => sum + (player.finishes?.length || 0), 0)}</span>
+                                                        
+                                                        {/* Tooltip */}
+                                                        <div className="absolute left-0 top-full mt-2 scale-0 group-hover/hifi:scale-100 transition-transform origin-top-left z-50">
+                                                            <div className="bg-gray-900 text-white rounded-lg shadow-xl p-2 whitespace-nowrap">
+                                                                <div className="flex gap-1.5">
+                                                                    {highFinishes.flatMap(player => player.finishes || [])
+                                                                        .sort((a, b) => b - a)
+                                                                        .map((finish, idx) => (
+                                                                            <span key={idx} className="px-2 py-0.5 text-xs font-bold bg-rose-500 rounded">
+                                                                                {finish}
+                                                                            </span>
+                                                                        ))}
                                                                 </div>
-                                                                {/* Arrow */}
-                                                                <div className="absolute -top-1 right-3 w-2 h-2 bg-white border-t border-l border-gray-100 transform -rotate-45"></div>
                                                             </div>
                                                         </div>
-                                                    )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Right Side: Season + Venue */}
+                                    <div className="flex flex-col gap-3">
+                                        {/* Season Dropdown */}
+                                        {selectedTeam === 'DC Patron' ? (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-medium text-gray-600">Season:</span>
+                                                <select
+                                                    value={selectedSeason}
+                                                    onChange={(e) => setSelectedSeason(e.target.value as '2025/26' | '2024/25' | 'all')}
+                                                    className="text-xs font-semibold bg-white border-2 border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
+                                                >
+                                                    <option value="2025/26">2025/26</option>
+                                                    <option value="2024/25">2024/25</option>
+                                                    <option value="all">All Seasons</option>
+                                                </select>
+                                            </div>
+                                        ) : (
+                                            <div className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg">Season 2025/26</div>
+                                        )}
+                                        
+                                        {/* Venue Info */}
+                                        {clubVenue && (
+                                            <div className="text-xs">
+                                                <div className="font-semibold text-gray-900 mb-0.5">{clubVenue.venue}</div>
+                                                <div className="text-gray-600">
+                                                    {clubVenue.address}, {clubVenue.city}
                                                 </div>
                                             </div>
-                                            
-                                            {/* Season Switcher - Only for DC Patron */}
-                                            {selectedTeam === 'DC Patron' ? (
-                                                <div className="flex items-center gap-2 mt-2">
-                                                    <span className="text-xs text-gray-400 font-medium">Season:</span>
-                                                    <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
-                                                        <button
-                                                            onClick={() => setSelectedSeason('2025/26')}
-                                                            className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                                                                selectedSeason === '2025/26'
-                                                                    ? 'bg-white text-blue-600 shadow-sm'
-                                                                    : 'text-gray-600 hover:text-gray-900'
-                                                            }`}
-                                                        >
-                                                            2025/26
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setSelectedSeason('2024/25')}
-                                                            className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                                                                selectedSeason === '2024/25'
-                                                                    ? 'bg-white text-blue-600 shadow-sm'
-                                                                    : 'text-gray-600 hover:text-gray-900'
-                                                            }`}
-                                                        >
-                                                            2024/25
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setSelectedSeason('all')}
-                                                            className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                                                                selectedSeason === 'all'
-                                                                    ? 'bg-white text-blue-600 shadow-sm'
-                                                                    : 'text-gray-600 hover:text-gray-900'
-                                                            }`}
-                                                        >
-                                                            All Seasons
-                                                        </button>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                {/* Stats Grid - Compact */}
+                                {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
+                                 selectedTeam !== 'Fortunas Wölfe' && 
+                                 selectedTeam !== 'DC Patron II' && (
+                                <div className="mt-6 pt-6 border-t-2 border-gray-100">
+                                    <div className="flex flex-wrap items-stretch gap-4 mb-4">
+                                        {/* Singles */}
+                                        <div className="flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-blue-200 bg-blue-50/30 flex-1 min-w-[calc(50%-0.5rem)] md:min-w-0">
+                                            <User className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                            <div>
+                                                <div className="text-[10px] font-semibold text-blue-600 uppercase">Singles</div>
+                                                <div className="text-lg font-bold text-gray-900">
+                                                    {(teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0)}
+                                                    <span className="text-sm text-gray-400 font-medium">
+                                                        /{(teamData?.players ?? []).reduce((sum, player) => {
+                                                            const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                            return sum + wins + losses;
+                                                        }, 0)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Doubles */}
+                                        <div className="flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-violet-200 bg-violet-50/30 flex-1 min-w-[calc(50%-0.5rem)] md:min-w-0">
+                                            <Users className="h-4 w-4 text-violet-500 flex-shrink-0" />
+                                            <div>
+                                                <div className="text-[10px] font-semibold text-violet-600 uppercase">Doubles</div>
+                                                <div className="text-lg font-bold text-gray-900">
+                                                    {Math.round((teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2)}
+                                                    <span className="text-sm text-gray-400 font-medium">
+                                                        /{Math.round((teamData?.players ?? []).reduce((sum, player) => {
+                                                            const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                            return sum + wins + losses;
+                                                        }, 0) / 2)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Record */}
+                                        {teamStandings && (
+                                            <div className="flex items-center gap-3 px-4 py-2 rounded-lg border-2 border-gray-200 bg-gray-50/30 flex-1 w-full md:w-auto md:min-w-0">
+                                                <Trophy className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                                                <div className="flex-1">
+                                                    <div className="text-[10px] font-semibold text-gray-600 uppercase mb-1">Record</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-lg font-bold text-gray-900">
+                                                            {teamStandings.wins}-{teamStandings.draws}-{teamStandings.losses}
+                                                        </span>
+                                                        <div className="flex-1 h-2 rounded-full bg-gray-200 overflow-hidden">
+                                                            <div className="h-full flex">
+                                                                <div className="h-full bg-emerald-500"
+                                                                    style={{ width: `${(teamStandings.wins / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` }} 
+                                                                />
+                                                                <div className="h-full bg-amber-500"
+                                                                    style={{ width: `${(teamStandings.draws / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` }} 
+                                                                />
+                                                                <div className="h-full bg-rose-500"
+                                                                    style={{ width: `${(teamStandings.losses / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` }} 
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Team Comparison */}
+                                    <div className="mt-4 flex items-center gap-3">
+                                        <BarChart className="h-4 w-4 text-violet-500" />
+                                        <span className="text-xs font-medium text-gray-700">Compare with:</span>
+                                        <select
+                                            value={comparisonTeam}
+                                            onChange={(e) => {
+                                                setComparisonTeam(e.target.value);
+                                                if (e.target.value) {
+                                                    fetchComparisonTeam(e.target.value);
+                                                } else {
+                                                    setComparisonTeamData(null);
+                                                }
+                                            }}
+                                            className="text-xs font-semibold bg-white border-2 border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 hover:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all cursor-pointer flex-1"
+                                        >
+                                            <option value="">Select team...</option>
+                                            {teams.filter(t => t !== selectedTeam).map(team => (
+                                                <option key={team} value={team}>{team}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    
+                                    {/* Comparison Results */}
+                                    {comparisonTeam && (
+                                        <div className="mt-3 p-3 bg-gradient-to-r from-violet-50 to-blue-50 rounded-lg border border-violet-200">
+                                            {comparisonLoading ? (
+                                                <div className="flex items-center justify-center py-4">
+                                                    <ClipLoader color="#8B5CF6" size={20} />
+                                                </div>
+                                            ) : comparisonTeamData ? (
+                                                <div className="space-y-2">
+                                                    <div className="text-xs font-semibold text-gray-700 mb-2">vs {comparisonTeam}</div>
+                                                    
+                                                    {/* Singles Comparison */}
+                                                    <div className="flex items-center gap-2">
+                                                        <User className="h-3 w-3 text-blue-500" />
+                                                        <span className="text-xs text-gray-600 w-16">Singles</span>
+                                                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                            {(() => {
+                                                                const yourSingles = (teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0);
+                                                                const yourSinglesTotal = (teamData?.players ?? []).reduce((sum, player) => {
+                                                                    const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                    return sum + wins + losses;
+                                                                }, 0);
+                                                                const theirSingles = (comparisonTeamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0);
+                                                                const theirSinglesTotal = (comparisonTeamData?.players ?? []).reduce((sum, player) => {
+                                                                    const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                    return sum + wins + losses;
+                                                                }, 0);
+                                                                
+                                                                const yourRate = yourSinglesTotal > 0 ? (yourSingles / yourSinglesTotal * 100) : 0;
+                                                                const theirRate = theirSinglesTotal > 0 ? (theirSingles / theirSinglesTotal * 100) : 0;
+                                                                const total = yourRate + theirRate;
+                                                                const yourWidth = total > 0 ? (yourRate / total * 100) : 50;
+                                                                
+                                                                return (
+                                                                    <div className="h-full flex">
+                                                                        <div 
+                                                                            className={`h-full ${yourRate > theirRate ? 'bg-blue-600' : 'bg-blue-400'}`}
+                                                                            style={{ width: `${yourWidth}%` }}
+                                                                        />
+                                                                        <div 
+                                                                            className={`h-full ${theirRate > yourRate ? 'bg-rose-600' : 'bg-rose-400'}`}
+                                                                            style={{ width: `${100 - yourWidth}%` }}
+                                                                        />
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                        <span className="text-xs font-semibold text-gray-700 text-right whitespace-nowrap">
+                                                            {(() => {
+                                                                const yourSingles = (teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0);
+                                                                const yourSinglesTotal = (teamData?.players ?? []).reduce((sum, player) => {
+                                                                    const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                    return sum + wins + losses;
+                                                                }, 0);
+                                                                const theirSingles = (comparisonTeamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0);
+                                                                const theirSinglesTotal = (comparisonTeamData?.players ?? []).reduce((sum, player) => {
+                                                                    const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                    return sum + wins + losses;
+                                                                }, 0);
+                                                                
+                                                                const yourRate = yourSinglesTotal > 0 ? (yourSingles / yourSinglesTotal * 100).toFixed(0) : 0;
+                                                                const theirRate = theirSinglesTotal > 0 ? (theirSingles / theirSinglesTotal * 100).toFixed(0) : 0;
+                                                                const yourLosses = yourSinglesTotal - yourSingles;
+                                                                const theirLosses = theirSinglesTotal - theirSingles;
+                                                                
+                                                                return `${yourSingles}-${yourLosses} (${yourRate}%) : ${theirSingles}-${theirLosses} (${theirRate}%)`;
+                                                            })()}
+                                                        </span>
+                                                    </div>
+                                                    
+                                                    {/* Doubles Comparison */}
+                                                    <div className="flex items-center gap-2">
+                                                        <Users className="h-3 w-3 text-violet-500" />
+                                                        <span className="text-xs text-gray-600 w-16">Doubles</span>
+                                                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                            {(() => {
+                                                                const yourDoubles = Math.round((teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2);
+                                                                const yourDoublesTotal = Math.round((teamData?.players ?? []).reduce((sum, player) => {
+                                                                    const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                    return sum + wins + losses;
+                                                                }, 0) / 2);
+                                                                const theirDoubles = Math.round((comparisonTeamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2);
+                                                                const theirDoublesTotal = Math.round((comparisonTeamData?.players ?? []).reduce((sum, player) => {
+                                                                    const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                    return sum + wins + losses;
+                                                                }, 0) / 2);
+                                                                
+                                                                const yourRate = yourDoublesTotal > 0 ? (yourDoubles / yourDoublesTotal * 100) : 0;
+                                                                const theirRate = theirDoublesTotal > 0 ? (theirDoubles / theirDoublesTotal * 100) : 0;
+                                                                const total = yourRate + theirRate;
+                                                                const yourWidth = total > 0 ? (yourRate / total * 100) : 50;
+                                                                
+                                                                return (
+                                                                    <div className="h-full flex">
+                                                                        <div 
+                                                                            className={`h-full ${yourRate > theirRate ? 'bg-violet-600' : 'bg-violet-400'}`}
+                                                                            style={{ width: `${yourWidth}%` }}
+                                                                        />
+                                                                        <div 
+                                                                            className={`h-full ${theirRate > yourRate ? 'bg-rose-600' : 'bg-rose-400'}`}
+                                                                            style={{ width: `${100 - yourWidth}%` }}
+                                                                        />
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                        <span className="text-xs font-semibold text-gray-700 text-right whitespace-nowrap">
+                                                            {(() => {
+                                                                const yourDoubles = Math.round((teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2);
+                                                                const yourDoublesTotal = Math.round((teamData?.players ?? []).reduce((sum, player) => {
+                                                                    const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                    return sum + wins + losses;
+                                                                }, 0) / 2);
+                                                                const theirDoubles = Math.round((comparisonTeamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2);
+                                                                const theirDoublesTotal = Math.round((comparisonTeamData?.players ?? []).reduce((sum, player) => {
+                                                                    const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
+                                                                    return sum + wins + losses;
+                                                                }, 0) / 2);
+                                                                
+                                                                const yourRate = yourDoublesTotal > 0 ? (yourDoubles / yourDoublesTotal * 100).toFixed(0) : 0;
+                                                                const theirRate = theirDoublesTotal > 0 ? (theirDoubles / theirDoublesTotal * 100).toFixed(0) : 0;
+                                                                const yourLosses = yourDoublesTotal - yourDoubles;
+                                                                const theirLosses = theirDoublesTotal - theirDoubles;
+                                                                
+                                                                return `${yourDoubles}-${yourLosses} (${yourRate}%) : ${theirDoubles}-${theirLosses} (${theirRate}%)`;
+                                                            })()}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <span className="text-sm text-gray-500">Season 2025/26</span>
+                                                <p className="text-xs text-gray-500 text-center py-2">Failed to load comparison data</p>
                                             )}
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
+                                )}
                             </div>
                         </div>
 
@@ -2443,334 +2827,17 @@ const DartsStatisticsDashboard: React.FC = () => {
                         </div>
                         )}
 
-                        {/* Stats Cards Grid - Hide for old seasons and certain teams */}
-                        {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
-                         selectedTeam !== 'Fortunas Wölfe' && 
-                         selectedTeam !== 'DC Patron II' && (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                            {/* Team Average Card with Singles/Doubles */}
-                            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                                <div className="h-1 w-full bg-gradient-to-r from-violet-400/40 to-violet-500/40" />
-                                <div className="p-5">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center">
-                                                <BarChart className="h-5 w-5 text-violet-500" />
-                                            </div>
-                                            <span className="text-base font-medium text-gray-900">Performance</span>
-                                        </div>
-                                        
-                                        {/* Comparison Team Selector */}
-                                        <div className="relative">
-                                            <select
-                                                value={comparisonTeam}
-                                                onChange={(e) => {
-                                                    setComparisonTeam(e.target.value);
-                                                    if (e.target.value) {
-                                                        fetchComparisonTeam(e.target.value);
-                                                    } else {
-                                                        setComparisonTeamData(null);
-                                                    }
-                                                }}
-                                                className="appearance-none text-xs font-medium bg-white border border-violet-200 rounded-lg pl-3 pr-8 py-2 text-gray-700 hover:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all cursor-pointer"
-                                            >
-                                                <option value="">Compare team...</option>
-                                                {teams.filter(t => t !== selectedTeam).map(team => (
-                                                    <option key={team} value={team}>{team}</option>
-                                                ))}
-                                            </select>
-                                            <ArrowUp className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-violet-400 pointer-events-none rotate-180" />
-                                        </div>
-                                    </div>
+                            {activeSection === 'matches' && (
+                                <div>
+                        
+                                
+                              
                                     
-                                    {/* Singles and Doubles Stats */}
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="relative rounded-lg bg-slate-50/50 p-3 border border-slate-100 group hover:border-blue-200">
-                                            <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-transparent rounded-lg"></div>
-                                            <div className="relative z-10">
-                                                <div className="text-[11px] text-blue-600 font-medium mb-1">Singles</div>
-                                                <div className="flex items-baseline gap-1">
-                                                    <span className="text-xl font-semibold text-slate-700">
-                                                        {(teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0)}
-                                                    </span>
-                                                    <span className="text-sm text-slate-400">
-                                                        /{(teamData?.players ?? []).reduce((sum, player) => {
-                                                            const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
-                                                            return sum + wins + losses;
-                                                        }, 0)}
-                                                    </span>
-                                                </div>
                                             </div>
-                                            <User className="absolute bottom-1 right-1 h-8 w-8 text-blue-200" />
-                                        </div>
-                                        <div className="relative rounded-lg bg-slate-50/50 p-3 border border-slate-100 group hover:border-violet-200">
-                                            <div className="absolute inset-0 bg-gradient-to-br from-violet-50/50 to-transparent rounded-lg"></div>
-                                            <div className="relative z-10">
-                                                <div className="text-[11px] text-violet-600 font-medium mb-1">Doubles</div>
-                                                <div className="flex items-baseline gap-1">
-                                                    <span className="text-xl font-semibold text-slate-700">
-                                                        {Math.round((teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2)}
-                                                    </span>
-                                                    <span className="text-sm text-slate-400">
-                                                        /{Math.round((teamData?.players ?? []).reduce((sum, player) => {
-                                                            const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
-                                                            return sum + wins + losses;
-                                                        }, 0) / 2)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <Users className="absolute bottom-1 right-1 h-8 w-8 text-violet-200" />
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Comparison Section */}
-                                    {comparisonTeam && (
-                                        <div className="mt-4 pt-4 border-t border-gray-200">
-                                            {comparisonLoading ? (
-                                                <div className="flex items-center justify-center py-8">
-                                                    <div className="flex flex-col items-center gap-3">
-                                                        <ClipLoader color="#8B5CF6" size={35} />
-                                                        <p className="text-sm text-gray-500">Loading {comparisonTeam}...</p>
-                                                    </div>
-                                                </div>
-                                            ) : comparisonTeamData ? (
-                                                <div className="space-y-3">
-                                                    <div className="text-xs font-medium text-gray-500 mb-2">vs {comparisonTeam}</div>
-                                                    
-                                                    {/* Singles Comparison */}
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center justify-between text-xs text-gray-600">
-                                                            <span>Singles</span>
-                                                            <span>
-                                                                {(() => {
-                                                                    const yourSingles = (teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0);
-                                                                    const yourSinglesTotal = (teamData?.players ?? []).reduce((sum, player) => {
-                                                                        const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
-                                                                        return sum + wins + losses;
-                                                                    }, 0);
-                                                                    const theirSingles = (comparisonTeamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0);
-                                                                    const theirSinglesTotal = (comparisonTeamData?.players ?? []).reduce((sum, player) => {
-                                                                        const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
-                                                                        return sum + wins + losses;
-                                                                    }, 0);
-                                                                    
-                                                                    const yourRate = yourSinglesTotal > 0 ? (yourSingles / yourSinglesTotal * 100).toFixed(0) : 0;
-                                                                    const theirRate = theirSinglesTotal > 0 ? (theirSingles / theirSinglesTotal * 100).toFixed(0) : 0;
-                                                                    
-                                                                    return `${yourRate}% vs ${theirRate}%`;
-                                                                })()}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex gap-1 h-2">
-                                                            {(() => {
-                                                                const yourSingles = (teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0);
-                                                                const yourSinglesTotal = (teamData?.players ?? []).reduce((sum, player) => {
-                                                                    const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
-                                                                    return sum + wins + losses;
-                                                                }, 0);
-                                                                const theirSingles = (comparisonTeamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.singles?.split('-')[0] || '0'), 0);
-                                                                const theirSinglesTotal = (comparisonTeamData?.players ?? []).reduce((sum, player) => {
-                                                                    const [wins, losses] = player.singles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
-                                                                    return sum + wins + losses;
-                                                                }, 0);
-                                                                
-                                                                const yourRate = yourSinglesTotal > 0 ? (yourSingles / yourSinglesTotal * 100) : 0;
-                                                                const theirRate = theirSinglesTotal > 0 ? (theirSingles / theirSinglesTotal * 100) : 0;
-                                                                const total = yourRate + theirRate;
-                                                                const yourWidth = total > 0 ? (yourRate / total * 100) : 50;
-                                                                
-                                                                return (
-                                                                    <>
-                                                                        <div 
-                                                                            className={`rounded-l transition-all ${yourRate > theirRate ? 'bg-blue-500' : 'bg-blue-300'}`}
-                                                                            style={{ width: `${yourWidth}%` }}
-                                                                        />
-                                                                        <div 
-                                                                            className={`rounded-r transition-all ${theirRate > yourRate ? 'bg-red-500' : 'bg-red-300'}`}
-                                                                            style={{ width: `${100 - yourWidth}%` }}
-                                                                        />
-                                                                    </>
-                                                                );
-                                                            })()}
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    {/* Doubles Comparison */}
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center justify-between text-xs text-gray-600">
-                                                            <span>Doubles</span>
-                                                            <span>
-                                                                {(() => {
-                                                                    const yourDoubles = Math.round((teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2);
-                                                                    const yourDoublesTotal = Math.round((teamData?.players ?? []).reduce((sum, player) => {
-                                                                        const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
-                                                                        return sum + wins + losses;
-                                                                    }, 0) / 2);
-                                                                    const theirDoubles = Math.round((comparisonTeamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2);
-                                                                    const theirDoublesTotal = Math.round((comparisonTeamData?.players ?? []).reduce((sum, player) => {
-                                                                        const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
-                                                                        return sum + wins + losses;
-                                                                    }, 0) / 2);
-                                                                    
-                                                                    const yourRate = yourDoublesTotal > 0 ? (yourDoubles / yourDoublesTotal * 100).toFixed(0) : 0;
-                                                                    const theirRate = theirDoublesTotal > 0 ? (theirDoubles / theirDoublesTotal * 100).toFixed(0) : 0;
-                                                                    
-                                                                    return `${yourRate}% vs ${theirRate}%`;
-                                                                })()}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex gap-1 h-2">
-                                                            {(() => {
-                                                                const yourDoubles = Math.round((teamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2);
-                                                                const yourDoublesTotal = Math.round((teamData?.players ?? []).reduce((sum, player) => {
-                                                                    const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
-                                                                    return sum + wins + losses;
-                                                                }, 0) / 2);
-                                                                const theirDoubles = Math.round((comparisonTeamData?.players ?? []).reduce((sum, player) => sum + parseInt(player.doubles?.split('-')[0] || '0'), 0) / 2);
-                                                                const theirDoublesTotal = Math.round((comparisonTeamData?.players ?? []).reduce((sum, player) => {
-                                                                    const [wins, losses] = player.doubles?.split('-').map(n => parseInt(n) || 0) || [0, 0];
-                                                                    return sum + wins + losses;
-                                                                }, 0) / 2);
-                                                                
-                                                                const yourRate = yourDoublesTotal > 0 ? (yourDoubles / yourDoublesTotal * 100) : 0;
-                                                                const theirRate = theirDoublesTotal > 0 ? (theirDoubles / theirDoublesTotal * 100) : 0;
-                                                                const total = yourRate + theirRate;
-                                                                const yourWidth = total > 0 ? (yourRate / total * 100) : 50;
-                                                                
-                                                                return (
-                                                                    <>
-                                                                        <div 
-                                                                            className={`rounded-l transition-all ${yourRate > theirRate ? 'bg-violet-500' : 'bg-violet-300'}`}
-                                                                            style={{ width: `${yourWidth}%` }}
-                                                                        />
-                                                                        <div 
-                                                                            className={`rounded-r transition-all ${theirRate > yourRate ? 'bg-red-500' : 'bg-red-300'}`}
-                                                                            style={{ width: `${100 - yourWidth}%` }}
-                                                                        />
-                                                                    </>
-                                                                );
-                                                            })()}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <p className="text-xs text-gray-500 text-center py-4">Failed to load comparison data</p>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Standings Card */}
-                            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                                <div className="h-1 w-full bg-gradient-to-r from-amber-400/40 to-amber-500/40" />
-                                <div className="p-5">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="h-10 w-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center">
-                                            <Trophy className="h-5 w-5 text-amber-500" />
-                                        </div>
-                                        <span className="text-base font-medium text-gray-900">Record</span>
-                                    </div>
-                                    {teamStandings && (
-                                        <>
-                                            <div className="flex items-baseline gap-2 mb-3">
-                                                <span className="text-2xl font-bold text-gray-900">
-                                                    {`${teamStandings.wins}-${teamStandings.draws}-${teamStandings.losses}`}
-                                                </span>
-                                                <span className="text-sm text-gray-500">W-D-L</span>
-                                            </div>
-                                            <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
-                                            <div className="h-full flex">
-                                                    <div className="h-full bg-emerald-200 transition-all duration-300"
-                                                        style={{ width: `${(teamStandings.wins / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` }} 
-                                                    />
-                                                    <div className="h-full bg-amber-200 transition-all duration-300"
-                                                        style={{ width: `${(teamStandings.draws / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` }} 
-                                                    />
-                                                    <div className="h-full bg-rose-200 transition-all duration-300"
-                                                        style={{ width: `${(teamStandings.losses / (teamStandings.wins + teamStandings.draws + teamStandings.losses)) * 100}%` }} 
-                                                />
-                                            </div>
-                                        </div>
-                                        </>
-                                    )}
-                                    </div>
-                            </div>
-
-                            {/* Venue Card */}
-                            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                                <div className="h-1 w-full bg-gradient-to-r from-emerald-400/40 to-emerald-500/40" />
-                                <div className="p-5">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="h-10 w-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center">
-                                            <Martini className="h-5 w-5 text-emerald-500" />
-                                        </div>
-                                        <span className="text-base font-medium text-gray-900">{clubVenue?.venue}</span>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                                            <MapPin className="h-4 w-4 text-gray-400" />
-                                            <span>{clubVenue?.address}, {clubVenue?.city}</span>
-                                            </div>
-                                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                                            <Phone className="h-4 w-4 text-gray-400" />
-                                            <span>{clubVenue?.phone}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                         )}
-                        <Tabs defaultValue="matches" className="space-y-4">
-                            <TabsList className="flex flex-wrap gap-2 justify-start mb-32 sm:mb-6">
-                                {/* Primary Tabs - Always visible */}
-                                <TabsTrigger value="matches" className="flex items-center">
-                                    <Users className="h-5 w-5 text-green-500 mr-1" />
-                                    Matches
-                                </TabsTrigger>
-                                {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
-                                 selectedTeam !== 'Fortunas Wölfe' && 
-                                 selectedTeam !== 'DC Patron II' && (
-                                <TabsTrigger value="mergedStats" className="flex items-center">
-                                    <User className="h-5 w-5 text-green-500 mr-1" />
-                                    Player Overview
-                                </TabsTrigger>
-                                )}
-                                <TabsTrigger value="pairs" className="flex items-center">
-                                    <Users className="h-5 w-5 text-green-500 mr-1" />
-                                    Pairs
-                                </TabsTrigger>
-                               
-                                <TabsTrigger value="charts" className="flex items-center">
-                                    <BarChart className="h-5 w-5 text-green-500 mr-1" />
-                                    Charts
-                                </TabsTrigger>
-                                {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
-                                 selectedTeam !== 'Fortunas Wölfe' && 
-                                 selectedTeam !== 'DC Patron II' && (
-                                <TabsTrigger value="schedule" className="flex items-center">
-                                            <Calendar className="h-5 w-5 text-green-500 mr-1" />
-                                            Schedule
-                                </TabsTrigger>
-                                )}
-                            
-                                        {/* <TabsTrigger value="stats" className="flex items-center">
-                                            <User className="h-5 w-5 text-green-500 mr-1" />
-                                            Stats
-                                        </TabsTrigger>
-                                        
-                                <TabsTrigger value="performances" className="flex items-center">
-                                    <Trophy className="h-5 w-5 text-green-500 mr-1" />
-                                           Performances
-                                </TabsTrigger>
-                                <TabsTrigger value="scoreBreakdown" className="flex items-center">
-                                    <Rows4 className="h-5 w-5 text-green-500 mr-1" />
-                                         Distribution
-                                </TabsTrigger> */}
-                            </TabsList>
 
-
-                            <TabsContent value="matches">
+                            {activeSection === 'matches' && (
+                                <div>
                                 {/* Player Filter Dropdown */}
                                 <div className="mb-6 flex items-center gap-3">
                                     <label className="text-sm font-medium text-gray-700">Filter by Player:</label>
@@ -2961,7 +3028,9 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                                 {matchdayAvg && !isWalkover && (
                                                                                     <div className="text-xs sm:text-sm text-gray-700 font-bold truncate">
                                                                                         <span className="text-purple-600">{matchdayAvg.toFixed(2)}</span>
-                                                                                        {avgDiff !== 0 && (
+                                                                                        {isLast ? (
+                                                                                            <span className="ml-1 text-blue-500">-</span>
+                                                                                        ) : avgDiff !== 0 && (
                                                                                             <span className={`ml-1 ${avgDiff > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                                                                 {avgDiff > 0 ? '▲' : '▼'}
                                                                                             </span>
@@ -3207,6 +3276,20 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                         const runningAvg = sortedPlayers.find(p => p.playerName === player)?.adjustedAverage ?? 0;
                                                         const avgDiff = matchdayAvg ? matchdayAvg - runningAvg : 0;
                                                         
+                                                        // Check if this is the first chronological appearance of this player
+                                                        // matchReports is oldest to newest, we're iterating in reverse (newest to oldest)
+                                                        // So check all matches BEFORE the current one chronologically (indices 0 to currentOriginalIndex-1)
+                                                        const currentOriginalIndex = matchReports.length - index - 1;
+                                                        const isFirstAppearance = isSinglesMatch && !matchReports.slice(0, currentOriginalIndex).some((prevMatch) => {
+                                                            const prevIsHomeTeam = prevMatch.isHomeMatch !== undefined 
+                                                                ? prevMatch.isHomeMatch 
+                                                                : prevMatch.details.singles[0]?.homePlayer === prevMatch.lineup[0];
+                                                            return prevMatch.details.singles.some(single => {
+                                                                const prevPlayer = prevIsHomeTeam ? single.homePlayer : single.awayPlayer;
+                                                                return prevPlayer === player;
+                                                            });
+                                                        });
+                                                        
                                                         // Get score
                                                         const playerScore = isHomeTeam ? match.homeScore : match.awayScore;
                                                         const opponentScore = isHomeTeam ? match.awayScore : match.homeScore;
@@ -3255,7 +3338,9 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                                     {matchdayAvg && !isWalkover && (
                                                                                         <div className="text-xs sm:text-sm text-gray-700 font-bold truncate">
                                                                                             <span className="text-purple-600">{matchdayAvg.toFixed(2)}</span>
-                                                                                            {avgDiff !== 0 && (
+                                                                                            {isFirstAppearance ? (
+                                                                                                <span className="ml-1 text-blue-500">-</span>
+                                                                                            ) : avgDiff !== 0 && (
                                                                                                 <span className={`ml-1 ${avgDiff > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                                                                     {avgDiff > 0 ? '▲' : '▼'}
                                                                                                 </span>
@@ -3387,9 +3472,10 @@ const DartsStatisticsDashboard: React.FC = () => {
                                     })}
                                 </div>
                                 )}
-                            </TabsContent>
+                                </div>
+                            )}
 
-                            <TabsContent value="stats">
+                            {activeSection === 'stats' && (
                                 <Card>
                                             <CardHeader>
                                         <div className="flex items-center justify-between">
@@ -3690,9 +3776,9 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                 </div>
                                             </CardContent>
                                         </Card>
-                            </TabsContent>
+                            )}
 
-                            <TabsContent value="comparison">
+                            {activeSection === 'comparison' && (
                                 <div className="space-y-6">
                                     {/* Header */}
                                                 <div className="flex items-center justify-between">
@@ -3818,9 +3904,9 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                     })}
                                                 </div>
                                 </div>
-                            </TabsContent>
+                            )}
 
-                            <TabsContent value="charts">
+                            {activeSection === 'charts' && (
                                 <div className="space-y-6">
                                     {/* Header */}
                                     <div className="flex items-center justify-between mb-6">
@@ -3918,12 +4004,373 @@ const DartsStatisticsDashboard: React.FC = () => {
                                         </div>
                                     </div>
                                 </div>
-                            </TabsContent>
+                            )}
+
+                            {activeSection === 'details' && (
+                                <div className="space-y-6">
+                                    {/* Header with Player Filter */}
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h2 className="text-lg font-semibold text-gray-800">Checkout Statistics</h2>
+                                        <select
+                                            value={checkoutPlayerFilter}
+                                            onChange={(e) => setCheckoutPlayerFilter(e.target.value)}
+                                            className="px-3 py-1.5 bg-white border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        >
+                                            <option value="all">All Players</option>
+                                            {(() => {
+                                                // Get unique HOME TEAM SINGLES players only
+                                                const players = new Set<string>();
+                                                matchReports.forEach(report => {
+                                                    const isHomeTeam = report.isHomeMatch !== undefined 
+                                                        ? report.isHomeMatch 
+                                                        : report.details.singles[0]?.homePlayer === report.lineup[0];
+                                                    
+                                                    // Get singles players from home team
+                                                    report.details.singles.forEach(single => {
+                                                        const playerName = isHomeTeam ? single.homePlayer : single.awayPlayer;
+                                                        if (playerName) players.add(playerName);
+                                                    });
+                                                });
+                                                return Array.from(players).sort().map(player => (
+                                                    <option key={player} value={player}>{player}</option>
+                                                ));
+                                            })()}
+                                        </select>
+                                    </div>
+
+                                    {/* Grid Layout: Chart + Stats */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                        {/* Checkout Chart - 2/3 on desktop */}
+                                        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border overflow-hidden">
+                                            <div className="h-1 w-full bg-gradient-to-r from-green-400/40 to-green-500/40" />
+                                            <div className="p-5">
+                                                <div className="h-[400px] sm:h-[500px]">
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <RechartsBarChart 
+                                                        data={(() => {
+                                                            // Process checkout data - HOME TEAM ONLY
+                                                            const checkoutData: { [key: number]: { count: number; details: Array<{ player: string; matchday: string }> } } = {};
+                                                            
+                                                            matchReports.forEach((report, index) => {
+                                                                const matchdayLabel = report.seasonPrefix 
+                                                                    ? `${report.seasonPrefix}-${report.originalMatchday}` 
+                                                                    : `MD${index + 1}`;
+                                                                
+                                                                report.checkouts.forEach(checkout => {
+                                                                    const playerName = checkout.scores.split(':')[0].trim();
+                                                                    const checkoutsStr = checkout.scores.split(':')[1];
+                                                                    
+                                                                    // Only include HOME TEAM players (from lineup)
+                                                                    if (!report.lineup.includes(playerName)) {
+                                                                        return;
+                                                                    }
+                                                                    
+                                                                    // Skip if filtering by player and doesn't match
+                                                                    if (checkoutPlayerFilter !== 'all' && playerName !== checkoutPlayerFilter) {
+                                                                        return;
+                                                                    }
+                                                                    
+                                                                    if (checkoutsStr && checkoutsStr !== '-') {
+                                                                        const checkouts = checkoutsStr.split(',').map(c => parseInt(c.trim())).filter(n => !isNaN(n));
+                                                                        checkouts.forEach(checkoutValue => {
+                                                                            if (!checkoutData[checkoutValue]) {
+                                                                                checkoutData[checkoutValue] = { count: 0, details: [] };
+                                                                            }
+                                                                            checkoutData[checkoutValue].count += 1;
+                                                                            checkoutData[checkoutValue].details.push({
+                                                                                player: playerName,
+                                                                                matchday: matchdayLabel
+                                                                            });
+                                                                        });
+                                                                    }
+                                                                });
+                                                            });
+                                                            
+                                                            // Convert to array and sort by checkout value
+                                                            return Object.entries(checkoutData)
+                                                                .map(([checkout, data]) => ({
+                                                                    checkout: parseInt(checkout),
+                                                                    count: data.count,
+                                                                    details: data.details
+                                                                }))
+                                                                .sort((a, b) => a.checkout - b.checkout);
+                                                        })()}
+                                                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                                                    >
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                        <XAxis 
+                                                            dataKey="checkout" 
+                                                            axisLine={false}
+                                                            tickLine={false}
+                                                            tick={{ fontSize: 12 }}
+                                                            angle={-45}
+                                                            textAnchor="end"
+                                                            height={80}
+                                                            label={{ value: 'Checkout', position: 'insideBottom', offset: -50, style: { fontSize: 14, fontWeight: 600 } }}
+                                                        />
+                                                        <YAxis 
+                                                            axisLine={false}
+                                                            tickLine={false}
+                                                            tick={{ fontSize: 12 }}
+                                                            label={{ value: 'Count', angle: -90, position: 'insideLeft', style: { fontSize: 14, fontWeight: 600 } }}
+                                                        />
+                                                        <Tooltip 
+                                                            content={({ active, payload }) => {
+                                                                if (active && payload && payload.length) {
+                                                                    const data = payload[0].payload;
+                                                                    return (
+                                                                        <div className="bg-white p-3 shadow-lg rounded-lg border border-gray-200 max-w-xs">
+                                                                            <p className="text-sm font-bold text-gray-900 mb-2">
+                                                                                Checkout: {data.checkout}
+                                                                            </p>
+                                                                            <p className="text-xs text-gray-600 mb-2">
+                                                                                Total Count: {data.count}
+                                                                            </p>
+                                                                            <div className="border-t border-gray-200 pt-2 mt-2">
+                                                                                <p className="text-xs font-semibold text-gray-700 mb-1">Details:</p>
+                                                                                <div className="max-h-32 overflow-y-auto space-y-1">
+                                                                                    {data.details.map((detail: any, idx: number) => (
+                                                                                        <div key={idx} className="text-xs text-gray-600">
+                                                                                            • {detail.player} ({detail.matchday})
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                                return null;
+                                                            }}
+                                                        />
+                                                        <Bar 
+                                                            dataKey="count" 
+                                                            fill="#22c55e" 
+                                                            radius={[8, 8, 0, 0]}
+                                                        />
+                                                    </RechartsBarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Stats Card - 1/3 on desktop */}
+                                    <div className="lg:col-span-1 space-y-4">
+                                        {(() => {
+                                            // Calculate checkout statistics for ALL players to get rankings
+                                            const playerCheckoutsMap: { [playerName: string]: number[] } = {};
+                                            
+                                            matchReports.forEach(report => {
+                                                report.checkouts.forEach(checkout => {
+                                                    const playerName = checkout.scores.split(':')[0].trim();
+                                                    const checkoutsStr = checkout.scores.split(':')[1];
+                                                    
+                                                    // Only include HOME TEAM players
+                                                    if (!report.lineup.includes(playerName)) {
+                                                        return;
+                                                    }
+                                                    
+                                                    if (checkoutsStr && checkoutsStr !== '-') {
+                                                        const checkouts = checkoutsStr.split(',').map(c => parseInt(c.trim())).filter(n => !isNaN(n));
+                                                        if (!playerCheckoutsMap[playerName]) {
+                                                            playerCheckoutsMap[playerName] = [];
+                                                        }
+                                                        playerCheckoutsMap[playerName].push(...checkouts);
+                                                    }
+                                                });
+                                            });
+                                            
+                                            // Calculate median for each player and rank them (lower = better, but exclude 0)
+                                            const playerMedians = Object.entries(playerCheckoutsMap)
+                                                .map(([playerName, checkouts]) => {
+                                                    const sorted = [...checkouts].sort((a, b) => a - b);
+                                                    const median = sorted.length > 0
+                                                        ? sorted.length % 2 === 0
+                                                            ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+                                                            : sorted[Math.floor(sorted.length / 2)]
+                                                        : 0;
+                                                    return { playerName, median, checkouts };
+                                                })
+                                                .filter(p => p.checkouts.length > 0 && p.median > 0) // Exclude players with no checkouts or 0 median
+                                                .sort((a, b) => a.median - b.median); // Lower median = better rank
+                                            
+                                            // Get current player's data
+                                            const allCheckouts: number[] = [];
+                                            
+                                            matchReports.forEach(report => {
+                                                report.checkouts.forEach(checkout => {
+                                                    const playerName = checkout.scores.split(':')[0].trim();
+                                                    const checkoutsStr = checkout.scores.split(':')[1];
+                                                    
+                                                    // Only include HOME TEAM players
+                                                    if (!report.lineup.includes(playerName)) {
+                                                        return;
+                                                    }
+                                                    
+                                                    // Skip if filtering by player and doesn't match
+                                                    if (checkoutPlayerFilter !== 'all' && playerName !== checkoutPlayerFilter) {
+                                                        return;
+                                                    }
+                                                    
+                                                    if (checkoutsStr && checkoutsStr !== '-') {
+                                                        const checkouts = checkoutsStr.split(',').map(c => parseInt(c.trim())).filter(n => !isNaN(n));
+                                                        allCheckouts.push(...checkouts);
+                                                    }
+                                                });
+                                            });
+                                            
+                                            // Calculate statistics
+                                            const totalCheckouts = allCheckouts.length;
+                                            const avgCheckout = totalCheckouts > 0 
+                                                ? (allCheckouts.reduce((a, b) => a + b, 0) / totalCheckouts).toFixed(1)
+                                                : 0;
+                                            
+                                            const sortedCheckouts = [...allCheckouts].sort((a, b) => a - b);
+                                            const median = totalCheckouts > 0
+                                                ? sortedCheckouts.length % 2 === 0
+                                                    ? ((sortedCheckouts[sortedCheckouts.length / 2 - 1] + sortedCheckouts[sortedCheckouts.length / 2]) / 2).toFixed(1)
+                                                    : sortedCheckouts[Math.floor(sortedCheckouts.length / 2)]
+                                                : 0;
+                                            
+                                            // Find rank (only if specific player is selected)
+                                            const playerRank = checkoutPlayerFilter !== 'all' 
+                                                ? playerMedians.findIndex(p => p.playerName === checkoutPlayerFilter) + 1
+                                                : null;
+                                            
+                                            const countAbove40 = allCheckouts.filter(c => c > 40).length;
+                                            const count30to40 = allCheckouts.filter(c => c >= 30 && c <= 40).length;
+                                            const countBelow30 = allCheckouts.filter(c => c < 30).length;
+                                            
+                                            return (
+                                                <>
+                                                    {/* Overall Stats Card */}
+                                                    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                                                        <div className="h-1 w-full bg-gradient-to-r from-blue-400/40 to-blue-500/40" />
+                                                        <div className="p-4">
+                                                            <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                                                <Target className="h-4 w-4 text-blue-500" />
+                                                                Overall Statistics
+                                                            </h3>
+                                                            <div className="space-y-3">
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-xs text-gray-600">Total Checkouts</span>
+                                                                    <span className="text-sm font-bold text-gray-900">{totalCheckouts}</span>
+                                                                </div>
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-xs text-gray-600">Average</span>
+                                                                    <span className="text-sm font-bold text-green-600">{avgCheckout}</span>
+                                                                </div>
+                                                                <div>
+                                                                    <div className="flex justify-between items-center">
+                                                                        <span className="text-xs text-gray-600">Median</span>
+                                                                        <span className="text-sm font-bold text-blue-600">{median}</span>
+                                                                    </div>
+                                                                    {playerRank && (
+                                                                        <div className="mt-1 text-center">
+                                                                            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
+                                                                                #{playerRank} in Team
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Leaderboard Card - Only show when "All Players" is selected */}
+                                                    {checkoutPlayerFilter === 'all' && playerMedians.length > 0 && (
+                                                        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                                                            <div className="h-1 w-full bg-gradient-to-r from-indigo-400/40 to-indigo-500/40" />
+                                                            <div className="p-4">
+                                                                <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                                                    <Trophy className="h-4 w-4 text-indigo-500" />
+                                                                    Median Leaderboard
+                                                                </h3>
+                                                                <div className="space-y-2 max-h-96 overflow-y-auto">
+                                                                    {playerMedians.map((player, index) => (
+                                                                        <div key={player.playerName} className={`flex items-center justify-between p-2 rounded-lg ${
+                                                                            index === 0 ? 'bg-yellow-50 border border-yellow-200' :
+                                                                            index === 1 ? 'bg-gray-50 border border-gray-200' :
+                                                                            index === 2 ? 'bg-orange-50 border border-orange-200' :
+                                                                            'bg-gray-50/50'
+                                                                        }`}>
+                                                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                                                <span className={`text-xs font-bold flex-shrink-0 w-6 ${
+                                                                                    index === 0 ? 'text-yellow-600' :
+                                                                                    index === 1 ? 'text-gray-600' :
+                                                                                    index === 2 ? 'text-orange-600' :
+                                                                                    'text-gray-500'
+                                                                                }`}>
+                                                                                    #{index + 1}
+                                                                                </span>
+                                                                                <span className="text-xs font-medium text-gray-900 truncate">
+                                                                                    {player.playerName}
+                                                                                </span>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-3">
+                                                                                <span className="text-xs font-bold text-blue-600">
+                                                                                    {player.median.toFixed(1)}
+                                                                                </span>
+                                                                                <span className="text-xs text-gray-500">
+                                                                                    ({player.checkouts.length})
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Distribution Card */}
+                                                    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                                                        <div className="h-1 w-full bg-gradient-to-r from-amber-400/40 to-amber-500/40" />
+                                                        <div className="p-4">
+                                                            <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                                                <BarChart className="h-4 w-4 text-amber-500" />
+                                                                Distribution
+                                                            </h3>
+                                                            <div className="space-y-3">
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-xs text-gray-600">&gt; 40</span>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-sm font-bold text-green-600">{countAbove40}</span>
+                                                                        <span className="text-xs text-gray-500">
+                                                                            ({totalCheckouts > 0 ? ((countAbove40 / totalCheckouts) * 100).toFixed(0) : 0}%)
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-xs text-gray-600">30-40</span>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-sm font-bold text-amber-600">{count30to40}</span>
+                                                                        <span className="text-xs text-gray-500">
+                                                                            ({totalCheckouts > 0 ? ((count30to40 / totalCheckouts) * 100).toFixed(0) : 0}%)
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-xs text-gray-600">&lt; 30</span>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-sm font-bold text-blue-600">{countBelow30}</span>
+                                                                        <span className="text-xs text-gray-500">
+                                                                            ({totalCheckouts > 0 ? ((countBelow30 / totalCheckouts) * 100).toFixed(0) : 0}%)
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+                                </div>
+                            )}
 
                             {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
                              selectedTeam !== 'Fortunas Wölfe' && 
-                             selectedTeam !== 'DC Patron II' && (
-                            <TabsContent value="schedule">
+                             selectedTeam !== 'DC Patron II' && activeSection === 'schedule' && (
                                 <div className="space-y-6">
                                     {/* Header */}
                                     <div className="flex items-center justify-between mb-6">
@@ -4036,10 +4483,9 @@ const DartsStatisticsDashboard: React.FC = () => {
                                         </div>
                                     )}
                                 </div>
-                            </TabsContent>
                             )}
 
-                            <TabsContent value="pairs">
+                            {activeSection === 'pairs' && (
                                 <div className="space-y-6">
                                     {/* Header with Filter */}
                                     <div className="flex items-center justify-between mb-6">
@@ -4210,12 +4656,11 @@ const DartsStatisticsDashboard: React.FC = () => {
                                             })}
                                     </div>
                                 </div>
-                            </TabsContent>
+                            )}
 
                             {!(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
                              selectedTeam !== 'Fortunas Wölfe' && 
-                             selectedTeam !== 'DC Patron II' && (
-                            <TabsContent value="mergedStats">
+                             selectedTeam !== 'DC Patron II' && activeSection === 'mergedStats' && (
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-visible">
                                     {sortedPlayers.map((player) => {
                                         const playerAverages = matchAverages
@@ -4598,14 +5043,15 @@ const DartsStatisticsDashboard: React.FC = () => {
                                                                 </div>
                                                             );
                                     })}
-                                            </div>
-                            </TabsContent>
+                                </div>
                             )}
-                        </Tabs>
+                            
+                            </div>
+                        </div>
                         </>
                         )}
-                    </>
-                ) : (
+                        </>
+                    ) : (
                     <div className="flex justify-center items-center min-h-[50vh]">
                         <div className="flex flex-col items-center gap-4">
                             <ClipLoader color="#3B82F6" size={50} />
