@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
-import { fetchLeagueResults, fetchLatestMatchDetails, fetchCupMatches } from '@/lib/scraper';
+import { fetchLeagueResults, fetchAllMatchdaysDetails, fetchCupMatches } from '@/lib/scraper';
 import { fetchLeagueSchedule } from '@/lib/scheduleScraper';
 import { fetchTeamAverages } from '@/lib/teamAveragesScraper';
 
@@ -14,8 +14,9 @@ export async function GET() {
     const leagueSchedule = await fetchLeagueSchedule();
     // Fetch team averages and player stats
     const scraperResult = await fetchTeamAverages();
-    // Fetch latest 3 match details with singles/doubles
-    const latestMatches = await fetchLatestMatchDetails();
+    // Fetch ALL matchday details with singles/doubles
+    console.log('🔄 Fetching detailed data for ALL matchdays (this may take a while)...');
+    const latestMatches = await fetchAllMatchdaysDetails();
     
     // Get list of league teams from matchdays
     const leagueTeams = new Set<string>();

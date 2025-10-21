@@ -2,9 +2,15 @@
 export interface Player {
     playerName: string;
     adjustedAverage: number;
-    singles?: string;    // W-L format
-    doubles?: string;    // W-L format
+    singles?: string;    // W-L format (legacy)
+    doubles?: string;    // W-L format (legacy)
+    singlesWon?: number;    // From Supabase
+    singlesLost?: number;   // From Supabase
+    doublesWon?: number;    // From Supabase
+    doublesLost?: number;   // From Supabase
     winRate?: number;    // Percentage
+    average?: number;    // Player average
+    totalGames?: number; // Total games played
     // Add other properties if necessary
 }
 
@@ -57,13 +63,15 @@ export interface MatchReport {
 
 // Define the interface for Club Venue
 export interface ClubVenue {
-    rank: string;
-    teamName: string;
-    clubName: string;
-    venue: string;
+    rank?: string;
+    teamName?: string;
+    clubName?: string;
+    name?: string;        // From Supabase
+    venue?: string;
     address: string;
-    city: string;
-    phone: string;
+    city?: string;
+    phone?: string;
+    zipcode?: string;     // From Supabase
 }
 
 // Add new type

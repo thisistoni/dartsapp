@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Analytics } from '@vercel/analytics/react';
@@ -17,11 +17,10 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "WDV Landesliga Tool",
   manifest: '/manifest.json',
-  themeColor: '#000000',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black',
-    title: 'Meine App',
+    title: 'WDV App',
   },
   icons: {
     icon: '/icon.png', // der Pfad zum Favicon
@@ -32,11 +31,14 @@ export const metadata: Metadata = {
       { url: '/icons/icon-180x180.png', sizes: '180x180' },  // iOS spezifisch
     ],
   },
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-  }
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: '#000000',
+  viewportFit: 'cover', // Enable safe area insets on iOS
 };
 
 export default function RootLayout({

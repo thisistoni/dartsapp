@@ -9,6 +9,9 @@ const config: Config = {
   ],
   theme: {
   	extend: {
+		spacing: {
+			'safe': 'env(safe-area-inset-bottom)',
+		},
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',

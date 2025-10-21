@@ -722,7 +722,109 @@ async function getAllMatchReports() {
   }
 }
 
+// Fetch ALL Match Details for ALL matchdays (with singles/doubles data)
+export async function fetchAllMatchdaysDetails() {
+  try {
+    console.log('🔍 Fetching ALL matchday details...');
+    
+    // Get league results to find all matchdays
+    const leagueResults = await fetchLeagueResults();
+    console.log(`📊 League results fetched, matchdays: ${leagueResults.matchdays.length}`);
+    
+    if (leagueResults.matchdays.length === 0) {
+      console.log('⚠️ No matchdays found');
+      return [];
+    }
+    
+    // Get all match reports from central page (do this once for efficiency)
+    console.log('📥 Fetching all match reports from central page...');
+    const allMatchReports = await getAllMatchReports();
+    console.log(`✅ Found ${allMatchReports.length} total match reports`);
+    
+    const allMatches: any[] = [];
+    
+    // Process ALL matchdays
+    for (const matchday of leagueResults.matchdays) {
+      console.log(`\n📅 Processing Matchday ${matchday.round} (${matchday.date})...`);
+      console.log(`🏆 Matches in matchday: ${matchday.matches.length}`);
+      
+      // Process all matches from this matchday
+      for (const match of matchday.matches) {
+        try {
+          console.log(`  🔎 Looking for ${match.homeTeam} vs ${match.awayTeam}...`);
+          
+          // Find the match in the central list
+          const matchReport = allMatchReports.find(m => 
+            m.date === matchday.date &&
+            m.homeTeam === match.homeTeam &&
+            m.awayTeam === match.awayTeam
+          );
+          
+          if (matchReport) {
+            console.log(`  📥 Found match ID ${matchReport.matchId}, fetching details...`);
+            
+            const details = await fetchMatchReport(matchReport.matchId, match.homeTeam);
+            const matchUrl = `https://www.wdv-dart.at/_landesliga/_statistik/spielbericht.php?id=${matchReport.matchId}&saison=2025/26`;
+            const averagesData = await fetchMatchAverages(matchUrl, match.homeTeam);
+            console.log(`  ✅ Match report fetched, singles: ${details.details.singles.length}, averages: ${averagesData.playerAverages.length}`);
+            
+            // Combine singles with averages and checkouts
+            const singlesWithData = details.details.singles.map((single: any) => {
+              const homeAvg = averagesData.playerAverages.find(p => p.playerName === single.homePlayer);
+              const homeCheckout = details.checkouts.find(c => c.scores.startsWith(single.homePlayer));
+              const awayCheckout = details.checkouts.find(c => c.scores.startsWith(single.awayPlayer));
+              
+              return {
+                ...single,
+                homeAverage: homeAvg?.average || 0,
+                awayAverage: 0, // Will be calculated separately
+                homeCheckouts: homeCheckout ? homeCheckout.scores.split(': ')[1] : '-',
+                awayCheckouts: awayCheckout ? awayCheckout.scores.split(': ')[1] : '-'
+              };
+            });
+            
+            // Also fetch away team averages
+            const awayAveragesData = await fetchMatchAverages(matchUrl, match.awayTeam);
+            
+            // Update away averages
+            singlesWithData.forEach((single: any) => {
+              const awayAvg = awayAveragesData.playerAverages.find(p => p.playerName === single.awayPlayer);
+              single.awayAverage = awayAvg?.average || 0;
+            });
+            
+            allMatches.push({
+              matchday: matchday.round,
+              date: matchday.date,
+              homeTeam: match.homeTeam,
+              awayTeam: match.awayTeam,
+              score: `${match.homeSets}-${match.awaySets}`,
+              homeSets: match.homeSets,
+              awaySets: match.awaySets,
+              singles: singlesWithData,
+              doubles: details.details.doubles
+            });
+            
+            // Small delay to avoid overwhelming the server
+            await new Promise(resolve => setTimeout(resolve, 300));
+          } else {
+            console.log(`  ⚠️ Could not find match ID for ${match.homeTeam} vs ${match.awayTeam}`);
+          }
+        } catch (err) {
+          console.error(`  ❌ Error processing match ${match.homeTeam} vs ${match.awayTeam}:`, err);
+        }
+      }
+    }
+    
+    console.log(`\n✅ Returning ${allMatches.length} matches from ${leagueResults.matchdays.length} matchdays`);
+    return allMatches;
+  } catch (error) {
+    console.error('❌ Error fetching all matchday details:', error);
+    return [];
+  }
+}
+
 // Fetch Latest Match Details (3 most recent matches with singles/doubles data)
+// DEPRECATED: Use fetchAllMatchdaysDetails() instead
 export async function fetchLatestMatchDetails() {
   try {
     console.log('🔍 Fetching latest match details...');
