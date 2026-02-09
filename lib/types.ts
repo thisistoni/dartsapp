@@ -59,6 +59,7 @@ export interface MatchReport {
     isHomeMatch?: boolean;
     seasonPrefix?: string;
     originalMatchday?: number;
+    matchDate?: string;
 }
 
 // Define the interface for Club Venue
@@ -141,4 +142,3 @@ export interface LeagueMatchday {
 export interface LeagueResults {
   matchdays: LeagueMatchday[];
 }
-

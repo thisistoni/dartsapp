@@ -43,6 +43,7 @@ interface RunningAverage {
 interface MatchDataItem {
     matchday: string | number;
     opponent: string;
+    reportIndex: number;
     numericMatchday?: number;
 }
 
@@ -121,16 +122,9 @@ export default function ChartsTab({
         // Handle both numeric matchday and string matchday with season prefix (e.g., "1-5", "2-3")
         let matchReport;
         const matchday = payload.matchday as number | string;
-        if (typeof matchday === 'string' && matchday.includes('-')) {
-            // For "all seasons" mode with prefix like "1-5"
-            const matchDataEntry = matchData.find(m => m.matchday === matchday);
-            if (matchDataEntry && matchDataEntry.numericMatchday) {
-                matchReport = matchReports[matchDataEntry.numericMatchday - 1];
-            }
-        } else {
-            // For single season mode
-            const numericMatchday = typeof matchday === 'number' ? matchday : parseInt(matchday);
-            matchReport = matchReports[numericMatchday - 1];
+        const matchDataEntry = matchData.find(m => m.matchday === matchday);
+        if (matchDataEntry) {
+            matchReport = matchReports[matchDataEntry.reportIndex];
         }
         
         if (!matchReport) return (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import PlayerAvatar from './PlayerAvatar';
 import MatchCard from './MatchCard';
 
@@ -14,6 +14,7 @@ interface MatchReport {
     isHomeMatch?: boolean;
     seasonPrefix?: string;
     originalMatchday?: number;
+    matchDate?: string;
     checkouts: Array<{ scores: string }>;
     details: {
         singles: Array<{
@@ -57,6 +58,57 @@ export default function MatchesTab({
     selectedOpponentFilter,
     setSelectedOpponentFilter
 }: MatchesTabProps) {
+    const getIsHomeTeam = (match: MatchReport) =>
+        match.isHomeMatch !== undefined
+            ? match.isHomeMatch
+            : match.details.singles[0]?.homePlayer === match.lineup[0];
+
+    const getMatchdayLabel = (match: MatchReport, fallbackIndex: number) =>
+        match.seasonPrefix
+            ? `${match.seasonPrefix}-${match.originalMatchday}`
+            : (match.originalMatchday ?? fallbackIndex + 1);
+
+    const orderedMatches = useMemo(() => {
+        const entries = matchReports.map((matchday, reportIndex) => ({ matchday, reportIndex }));
+
+        return entries.sort((a, b) => {
+            const aSeason = Number(a.matchday.seasonPrefix || 0);
+            const bSeason = Number(b.matchday.seasonPrefix || 0);
+            if (aSeason !== bSeason) return bSeason - aSeason;
+
+            const aRound = a.matchday.originalMatchday ?? -1;
+            const bRound = b.matchday.originalMatchday ?? -1;
+            if (aRound !== bRound) return bRound - aRound;
+
+            return b.reportIndex - a.reportIndex;
+        });
+    }, [matchReports]);
+
+    const opponentFilteredMatches = useMemo(() => {
+        if (selectedOpponentFilter === 'all') return orderedMatches;
+        return orderedMatches.filter(({ matchday }) => matchday.opponent === selectedOpponentFilter);
+    }, [orderedMatches, selectedOpponentFilter]);
+
+    const playerFilteredMatches = useMemo(() => {
+        if (selectedPlayerFilter === 'all') return [];
+
+        return opponentFilteredMatches
+            .map(({ matchday, reportIndex }) => {
+                const isHomeTeam = getIsHomeTeam(matchday);
+                const playerSinglesGames = matchday.details.singles
+                    .map((game, singlesIndex) => ({ game, singlesIndex }))
+                    .filter(({ game }) =>
+                        isHomeTeam
+                            ? game.homePlayer === selectedPlayerFilter
+                            : game.awayPlayer === selectedPlayerFilter
+                    );
+
+                if (playerSinglesGames.length === 0) return null;
+                return { matchday, reportIndex, isHomeTeam, playerSinglesGames };
+            })
+            .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+    }, [opponentFilteredMatches, selectedPlayerFilter]);
+
     return (
         <div>
             {/* Filter Dropdowns */}
@@ -72,12 +124,10 @@ export default function MatchesTab({
                         <option value="all">All Players</option>
                         {(() => {
                             const players = new Set<string>();
-                            matchReports.forEach(match => {
-                                const isHomeTeam = match.isHomeMatch !== undefined 
-                                    ? match.isHomeMatch 
-                                    : match.details.singles[0].homePlayer === match.lineup[0];
+                            orderedMatches.forEach(({ matchday }) => {
+                                const isHomeTeam = getIsHomeTeam(matchday);
                                 
-                                match.details.singles.forEach(single => {
+                                matchday.details.singles.forEach(single => {
                                     const playerName = isHomeTeam ? single.homePlayer : single.awayPlayer;
                                     if (playerName) players.add(playerName);
                                 });
@@ -100,8 +150,8 @@ export default function MatchesTab({
                         <option value="all">All Opponents</option>
                         {(() => {
                             const opponents = new Set<string>();
-                            matchReports.forEach(match => {
-                                if (match.opponent) opponents.add(match.opponent);
+                            orderedMatches.forEach(({ matchday }) => {
+                                if (matchday.opponent) opponents.add(matchday.opponent);
                             });
                             return Array.from(opponents).sort().map(opponent => (
                                 <option key={opponent} value={opponent}>{opponent}</option>
@@ -140,49 +190,19 @@ export default function MatchesTab({
 
                     {/* Player Match Cards - Simplified view showing only their singles games */}
                     <div>
-                    {matchReports.map((matchday, matchIndex) => {
-                        const isHomeTeam = matchday.isHomeMatch !== undefined 
-                            ? matchday.isHomeMatch 
-                            : matchday.details.singles[0].homePlayer === matchday.lineup[0];
-                        
-                        // Check opponent filter at match level
-                        if (selectedOpponentFilter !== "all" && matchday.opponent !== selectedOpponentFilter) {
-                            return null;
-                        }
-
-                        const playerSinglesGames = matchday.details.singles
-                            .map((game, singlesIndex) => ({ game, singlesIndex }))
-                            .filter(({ game }) => {
-                                const playerInGame = isHomeTeam 
-                                    ? game.homePlayer === selectedPlayerFilter
-                                    : game.awayPlayer === selectedPlayerFilter;
-                                return playerInGame;
-                            });
-
-                        if (playerSinglesGames.length === 0) return null;
-
-                        const filteredMatches = matchReports.filter((md) => {
-                            const isHome = md.isHomeMatch !== undefined 
-                                ? md.isHomeMatch 
-                                : md.details.singles[0].homePlayer === md.lineup[0];
-                            return md.details.singles.some(game => {
-                                return isHome 
-                                    ? game.homePlayer === selectedPlayerFilter
-                                    : game.awayPlayer === selectedPlayerFilter;
-                            });
-                        });
-                        const filteredIndex = filteredMatches.findIndex(md => md === matchday);
+                    {playerFilteredMatches.map(({ matchday, reportIndex, isHomeTeam, playerSinglesGames }, filteredIndex) => {
                         const isFirst = filteredIndex === 0;
-                        const isLast = filteredIndex === filteredMatches.length - 1;
+                        const isLast = filteredIndex === playerFilteredMatches.length - 1;
+                        const teamAverage = matchAverages[reportIndex]?.teamAverage;
 
                         return (
-                            <div key={matchIndex} className={`bg-white border border-gray-200 shadow-sm p-3 sm:p-4 ${
+                            <div key={`player-view-${reportIndex}`} className={`bg-white border border-gray-200 shadow-sm p-3 sm:p-4 ${
                                 isFirst ? 'rounded-t-lg' : ''} ${isLast ? 'rounded-b-lg' : ''} ${!isFirst ? 'border-t-0' : ''}`}>
                                 <div className="mb-3 sm:mb-4 pb-2 sm:pb-3 border-b border-gray-200">
                                     <div className="flex items-center justify-between flex-wrap gap-2">
                                         <div className="flex items-center gap-2">
                                             <span className="inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-blue-50 border border-blue-100 text-sm sm:text-base font-bold text-blue-600">
-                                                {matchday.seasonPrefix ? `${matchday.seasonPrefix}-${matchday.originalMatchday}` : matchIndex + 1}
+                                                {getMatchdayLabel(matchday, reportIndex)}
                                             </span>
                                             <h3 className="text-base sm:text-lg font-bold text-gray-800">vs {matchday.opponent}</h3>
                                         </div>
@@ -202,7 +222,7 @@ export default function MatchesTab({
                                                 {matchday.score}
                                             </div>
                                             <div className="px-2 sm:px-3 py-0.5 sm:py-1 text-sm sm:text-base font-bold bg-blue-50 text-blue-600 border border-blue-100 rounded">
-                                                {matchAverages[matchIndex]?.teamAverage.toFixed(2)}
+                                                {teamAverage !== undefined ? teamAverage.toFixed(2) : '-'}
                                             </div>
                                         </div>
                                     </div>
@@ -216,7 +236,7 @@ export default function MatchesTab({
                                         const isWalkover = isHomeTeam ? match.awayPlayer.toLowerCase().includes('nicht angetreten') : match.homePlayer.toLowerCase().includes('nicht angetreten');
                                         const playerCheckouts = matchday.checkouts.filter(c => c.scores.startsWith(selectedPlayerFilter)).map(c => c.scores.split(': ')[1]).filter(c => c && c !== '-');
                                         const opponentCheckouts = matchday.checkouts.filter(c => c.scores.startsWith(opponentName)).map(c => c.scores.split(': ')[1]).filter(c => c && c !== '-');
-                                        const matchdayAvg = matchAverages[matchIndex]?.playerAverages.find(pa => pa.playerName === selectedPlayerFilter)?.average;
+                                        const matchdayAvg = matchAverages[reportIndex]?.playerAverages.find(pa => pa.playerName === selectedPlayerFilter)?.average;
                                         const runningAvg = sortedPlayers.find(p => p.playerName === selectedPlayerFilter)?.adjustedAverage ?? 0;
                                         const avgDiff = matchdayAvg ? matchdayAvg - runningAvg : 0;
                                         const playerScore = isHomeTeam ? match.homeScore : match.awayScore;
@@ -269,16 +289,12 @@ export default function MatchesTab({
             ) : (
                 /* Full Team Matches View */
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {[...matchReports].reverse().filter((matchday) => {
-                        // If opponent filter is active, only show matches with that opponent team
-                        if (selectedOpponentFilter === "all") return true;
-                        return matchday.opponent === selectedOpponentFilter;
-                    }).map((matchday, index) => (
+                    {opponentFilteredMatches.map(({ matchday, reportIndex }) => (
                         <MatchCard
-                            key={matchReports.length - index - 1}
+                            key={`match-card-${reportIndex}`}
                             matchday={matchday}
                             matchReports={matchReports}
-                            index={index}
+                            reportIndex={reportIndex}
                             matchAverages={matchAverages}
                             sortedPlayers={sortedPlayers}
                             playerImages={playerImages}

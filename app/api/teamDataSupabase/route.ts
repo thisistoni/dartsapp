@@ -212,6 +212,8 @@ export async function GET(request: Request) {
                 opponent,
                 score: `${ourScore}:${theirScore}`,
                 isHomeMatch: isHome,
+                originalMatchday: match.matchdays?.round ?? undefined,
+                matchDate: match.matchdays?.date ?? undefined,
                 details: {
                     singles,
                     doubles,
@@ -225,6 +227,7 @@ export async function GET(request: Request) {
         const matchAverages = (matches || []).map((match: any, index: number) => {
             const isHome = match.home_team_id === team.id;
             const allSingles = match.singles_games || [];
+            const matchdayRound = match.matchdays?.round ?? index + 1;
 
             // Our team averages
             const teamAvg = allSingles.length > 0
@@ -249,7 +252,8 @@ export async function GET(request: Request) {
             }));
 
             return {
-                matchday: index + 1,
+                matchday: matchdayRound,
+                originalMatchday: matchdayRound,
                 opponent: isHome ? match.teams_away.name : match.teams_home.name,
                 teamAverage: teamAvg,
                 playerAverages,

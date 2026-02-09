@@ -8,6 +8,7 @@ interface MatchReport {
     isHomeMatch?: boolean;
     seasonPrefix?: string;
     originalMatchday?: number;
+    matchDate?: string;
     checkouts: Array<{ scores: string }>;
     details: {
         singles: Array<{
@@ -40,7 +41,7 @@ interface MatchAverages {
 interface MatchCardProps {
     matchday: MatchReport;
     matchReports: MatchReport[];
-    index: number;
+    reportIndex: number;
     matchAverages: MatchAverages[];
     sortedPlayers: Player[];
     playerImages: { [key: string]: string };
@@ -49,7 +50,7 @@ interface MatchCardProps {
 export default function MatchCard({
     matchday,
     matchReports,
-    index,
+    reportIndex,
     matchAverages,
     sortedPlayers,
     playerImages
@@ -115,7 +116,9 @@ export default function MatchCard({
                 <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
                         <span className="inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-blue-50 border border-blue-100 text-sm sm:text-base font-bold text-blue-600">
-                            {matchday.seasonPrefix ? `${matchday.seasonPrefix}-${matchday.originalMatchday}` : matchReports.length - index}
+                            {matchday.seasonPrefix
+                                ? `${matchday.seasonPrefix}-${matchday.originalMatchday}`
+                                : (matchday.originalMatchday ?? reportIndex + 1)}
                         </span>
                         <h3 className="text-base sm:text-lg font-bold text-gray-800">vs {matchday.opponent}</h3>
                     </div>
@@ -138,7 +141,7 @@ export default function MatchCard({
                             {matchday.score}
                         </div>
                         <div className="px-2 sm:px-3 py-0.5 sm:py-1 text-sm sm:text-base font-bold bg-blue-50 text-blue-600 border border-blue-100 rounded">
-                            {matchAverages[matchReports.length - index - 1]?.teamAverage.toFixed(2)}
+                            {matchAverages[reportIndex]?.teamAverage.toFixed(2)}
                         </div>
                     </div>
                 </div>
@@ -177,19 +180,19 @@ export default function MatchCard({
                         : [];
                     
                     const matchdayAvg = isSinglesMatch ? 
-                        matchAverages[matchReports.length - index - 1]?.playerAverages.find(pa => pa.playerName === player)?.average : undefined;
+                        matchAverages[reportIndex]?.playerAverages.find(pa => pa.playerName === player)?.average : undefined;
                     
                     const opponentMatchdayAvg = isSinglesMatch ? 
-                        matchAverages[matchReports.length - index - 1]?.opponentPlayerAverages?.find(pa => pa.playerName === opponentName)?.average : undefined;
+                        matchAverages[reportIndex]?.opponentPlayerAverages?.find(pa => pa.playerName === opponentName)?.average : undefined;
                     
                     const runningAvg = sortedPlayers.find(p => p.playerName === player)?.adjustedAverage ?? 0;
                     const avgDiff = matchdayAvg ? matchdayAvg - runningAvg : 0;
                     
                     // Calculate opponent trend relative to their team average for this match
-                    const opponentTeamAvg = matchAverages[matchReports.length - index - 1]?.opponentAverage ?? 0;
+                    const opponentTeamAvg = matchAverages[reportIndex]?.opponentAverage ?? 0;
                     const opponentAvgDiff = (opponentMatchdayAvg && opponentTeamAvg) ? opponentMatchdayAvg - opponentTeamAvg : undefined;
                     
-                    const currentOriginalIndex = matchReports.length - index - 1;
+                    const currentOriginalIndex = reportIndex;
                     const isFirstAppearance = isSinglesMatch && !matchReports.slice(0, currentOriginalIndex).some((prevMatch) => {
                         const prevIsHomeTeam = prevMatch.isHomeMatch !== undefined 
                             ? prevMatch.isHomeMatch 

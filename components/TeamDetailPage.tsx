@@ -111,6 +111,9 @@ export default function TeamDetailPage({
     getBestCheckouts,
     getLowestThreeCheckouts
 }: TeamDetailPageProps) {
+    const inverseMatchReports = React.useMemo(() => [...matchReports].reverse(), [matchReports]);
+    const inverseMatchAverages = React.useMemo(() => [...matchAverages].reverse(), [matchAverages]);
+
     // Determine which navigation items to show based on team and season
     const showConditionalSections = !(selectedTeam === 'DC Patron' && selectedSeason !== '2025/26') && 
                                     selectedTeam !== 'Fortunas Wölfe' && 
@@ -187,7 +190,7 @@ export default function TeamDetailPage({
                         teamData={teamData}
                         runningAverages={runningAverages}
                         matchData={matchData}
-                        matchReports={matchReports}
+                        matchReports={inverseMatchReports}
                     />
                 )}
 
@@ -228,8 +231,8 @@ export default function TeamDetailPage({
                         sortedPlayers={sortedPlayers}
                         teamAverage={teamAverage}
                         teamWinRate={teamWinRate}
-                        matchAverages={matchAverages}
-                        matchReports={matchReports}
+                        matchAverages={inverseMatchAverages}
+                        matchReports={inverseMatchReports}
                         oneEightys={oneEightys}
                         highFinishes={highFinishes}
                         playerImages={playerImages}

@@ -15,6 +15,7 @@ interface MatchDataPoint {
     matchday: number | string;
     average: number;
     opponent: string;
+    reportIndex: number;
     originalMatchday?: number;
     numericMatchday?: number;
 }
@@ -53,7 +54,7 @@ export function processMatchData(
     matchAverages: MatchAverages[],
     selectedPlayer: string
 ): MatchDataPoint[] {
-    return matchAverages.map((match) => {
+    return matchAverages.map((match, index) => {
         // Create display matchday with season prefix if available
         const displayMatchday = match.seasonPrefix 
             ? `${match.seasonPrefix}-${match.originalMatchday}` 
@@ -64,6 +65,7 @@ export function processMatchData(
                 matchday: displayMatchday,
                 average: match.teamAverage,
                 opponent: match.opponent || '',
+                reportIndex: index,
                 originalMatchday: match.matchday,
                 numericMatchday: match.matchday
             };
@@ -74,6 +76,7 @@ export function processMatchData(
                     matchday: displayMatchday,
                     average: playerAvg,
                     opponent: match.opponent || '',
+                    reportIndex: index,
                     originalMatchday: match.matchday,
                     numericMatchday: match.matchday
                 };
@@ -121,16 +124,9 @@ export function renderMatchDot(
     // Find the match report for this matchday
     let matchReport;
     const matchday = payload.matchday as number | string;
-    if (typeof matchday === 'string' && matchday.includes('-')) {
-        // For "all seasons" mode with prefix like "1-5"
-        const matchDataEntry = matchData.find(m => m.matchday === matchday);
-        if (matchDataEntry && matchDataEntry.numericMatchday) {
-            matchReport = matchReports[matchDataEntry.numericMatchday - 1];
-        }
-    } else {
-        // For single season mode
-        const numericMatchday = typeof matchday === 'number' ? matchday : parseInt(matchday);
-        matchReport = matchReports[numericMatchday - 1];
+    const matchDataEntry = matchData.find(m => m.matchday === matchday);
+    if (matchDataEntry) {
+        matchReport = matchReports[matchDataEntry.reportIndex];
     }
     
     if (!matchReport) {

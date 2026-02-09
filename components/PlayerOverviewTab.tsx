@@ -14,6 +14,8 @@ interface Player {
 
 interface MatchAverages {
     matchday: number;
+    originalMatchday?: number;
+    seasonPrefix?: string;
     opponent: string;
     playerAverages: Array<{ playerName: string; average: number }>;
 }
@@ -21,6 +23,8 @@ interface MatchAverages {
 interface MatchReport {
     opponent: string;
     lineup: string[];
+    seasonPrefix?: string;
+    originalMatchday?: number;
     checkouts: Array<{ scores: string }>;
     details: {
         singles: Array<{
@@ -63,6 +67,11 @@ const getInitials = (name: string) => {
         name.substring(0, 2).toUpperCase();
 };
 
+const getMatchdayLabel = (match: MatchReport, fallbackIndex: number) =>
+    match.seasonPrefix
+        ? `${match.seasonPrefix}-${match.originalMatchday}`
+        : (match.originalMatchday ?? fallbackIndex + 1);
+
 export default function PlayerOverviewTab({
     selectedTeam,
     sortedPlayers,
@@ -80,16 +89,24 @@ export default function PlayerOverviewTab({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-visible">
             {sortedPlayers.map((player) => {
                 const playerAverages = matchAverages
-                    .flatMap(match => ({
-                        average: match.playerAverages.find(avg => avg.playerName === player.playerName)?.average || 0,
-                        matchday: match.matchday,
-                        opponent: match.opponent
-                    }))
+                    .flatMap((match, reportIndex) => {
+                        const average = match.playerAverages.find(avg => avg.playerName === player.playerName)?.average || 0;
+                        const displayMatchday = match.seasonPrefix
+                            ? `${match.seasonPrefix}-${match.originalMatchday}`
+                            : (match.originalMatchday ?? match.matchday);
+
+                        return {
+                            average,
+                            matchday: displayMatchday,
+                            opponent: match.opponent,
+                            reportIndex
+                        };
+                    })
                     .filter(data => data.average > 0);
                 
                 const bestPerformance = playerAverages.reduce((best, current) => 
                     current.average > best.average ? current : best,
-                    playerAverages[0] || { average: 0, matchday: 0, opponent: '-' }
+                    playerAverages[0] || { average: 0, matchday: '-', opponent: '-', reportIndex: -1 }
                 );
                 
                 const difference = bestPerformance.average - player.adjustedAverage;
@@ -155,7 +172,7 @@ export default function PlayerOverviewTab({
                                                                 {bestPerformance.opponent}
                                                                 <br />
                                                                 {(() => {
-                                                                    const matchWithPeak = matchReports[bestPerformance.matchday - 1];
+                                                                    const matchWithPeak = matchReports[bestPerformance.reportIndex];
                                                                     const playerGame = matchWithPeak?.details.singles.find(game => 
                                                                         game.homePlayer === player.playerName || game.awayPlayer === player.playerName
                                                                     );
@@ -365,7 +382,7 @@ export default function PlayerOverviewTab({
                                                                     return `vs ${opponentPlayer}`;
                                                                 })()}
                                                                 <div className="mt-1">
-                                                                    <span className="text-slate-400 italic">MD{matchReports.indexOf(matchWithCheckout) + 1}</span>
+                                                                    <span className="text-slate-400 italic">MD{getMatchdayLabel(matchWithCheckout, matchReports.indexOf(matchWithCheckout))}</span>
                                                                     {(() => {
                                                                         const playerGame = matchWithCheckout.details.singles.find(game => 
                                                                             game.homePlayer === player.playerName || game.awayPlayer === player.playerName
@@ -394,12 +411,12 @@ export default function PlayerOverviewTab({
                                     {/* Form Guide Circles */}
                                     <div className="flex items-center gap-2 overflow-visible flex-shrink-0">
                                         {(() => {
-                                            const filteredMatches = [...matchReports]
-                                                .reverse()
+                                            const filteredMatches = matchReports
                                                 .filter(match => match.details.singles.some(game => 
                                                     game.homePlayer === player.playerName || game.awayPlayer === player.playerName
                                                 ))
-                                                .slice(0, 5);
+                                                .slice(-5)
+                                                .reverse();
 
                                             return (
                                                 <>
@@ -440,7 +457,7 @@ export default function PlayerOverviewTab({
                                                                             <br />
                                                                             vs {opponentPlayer}
                                                                             <div className="mt-1 text-slate-400 italic">
-                                                                                MD{matchReports.indexOf(match) + 1}
+                                                                                MD{getMatchdayLabel(match, matchReports.indexOf(match))}
                                                                             </div>
                                                                         </div>
                                                                         <div className="border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-slate-800 w-0 h-0 mx-auto"></div>

@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Trophy, Search, Users, User,  MapPin, Martini, Phone, BarChart, ArrowUp,  Calendar, Navigation, Target, Zap, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
@@ -160,19 +160,77 @@ const DartsStatisticsDashboard: React.FC = () => {
 
     // Using utility functions from @/utils (imported at top)
 
+    const orderedMatchEntries = useMemo(() => {
+        const entries = matchReports.map((report, index) => ({
+            report,
+            average: matchAverages[index],
+            index
+        }));
+
+        return entries.sort((a, b) => {
+            const aSeason = Number(a.report.seasonPrefix || (a.average as any)?.seasonPrefix || 0);
+            const bSeason = Number(b.report.seasonPrefix || (b.average as any)?.seasonPrefix || 0);
+            if (aSeason !== bSeason) return bSeason - aSeason;
+
+            const aRound = a.report.originalMatchday ?? (a.average as any)?.originalMatchday ?? (a.average as any)?.matchday ?? -1;
+            const bRound = b.report.originalMatchday ?? (b.average as any)?.originalMatchday ?? (b.average as any)?.matchday ?? -1;
+            if (aRound !== bRound) return bRound - aRound;
+
+            if (a.report.matchDate && b.report.matchDate) {
+                return new Date(b.report.matchDate).getTime() - new Date(a.report.matchDate).getTime();
+            }
+
+            return b.index - a.index;
+        });
+    }, [matchReports, matchAverages]);
+
+    const orderedMatchReports = useMemo(
+        () => orderedMatchEntries.map((entry) => entry.report),
+        [orderedMatchEntries]
+    );
+
+    const orderedMatchAverages = useMemo(
+        () =>
+            orderedMatchEntries.map((entry, index) => {
+                const fallbackRound = entry.report.originalMatchday ?? index + 1;
+                return {
+                    ...(entry.average || {
+                        matchday: fallbackRound,
+                        opponent: entry.report.opponent,
+                        teamAverage: 0,
+                        playerAverages: []
+                    }),
+                    matchday: fallbackRound,
+                    originalMatchday: fallbackRound,
+                    opponent: entry.report.opponent
+                };
+            }),
+        [orderedMatchEntries]
+    );
+
+    const reverseOrderedMatchReports = useMemo(
+        () => [...orderedMatchReports].reverse(),
+        [orderedMatchReports]
+    );
+
+    const reverseOrderedMatchAverages = useMemo(
+        () => [...orderedMatchAverages].reverse(),
+        [orderedMatchAverages]
+    );
+
     // Wrapper for getBestCheckouts utility function
     const getBestCheckoutsForPlayer = (playerName: string, isTeam: boolean = false) => 
-        getBestCheckouts(matchReports, playerName, isTeam, 5);
+        getBestCheckouts(orderedMatchReports, playerName, isTeam, 5);
 
     // Use utility functions for match data processing
-    const matchData = processMatchData(matchAverages, selectedPlayer);
+    const matchData = processMatchData(reverseOrderedMatchAverages, selectedPlayer);
     const runningAverages = calculateRunningAverages(matchData);
 
     // Wrapper for getLowestThreeCheckouts utility function
-    const getLowestCheckouts = () => getLowestThreeCheckouts(matchReports);
+    const getLowestCheckouts = () => getLowestThreeCheckouts(orderedMatchReports);
 
     // Wrapper for renderMatchDot utility function
-    const renderDot = (props: DotProps) => renderMatchDot(props, selectedPlayer, matchReports, matchData);
+    const renderDot = (props: DotProps) => renderMatchDot(props, selectedPlayer, reverseOrderedMatchReports, matchData);
 
 
 
@@ -300,7 +358,7 @@ const DartsStatisticsDashboard: React.FC = () => {
 
 
     // Add this before the return statement
-    const pairStats = matchReports.reduce((stats: { 
+    const pairStats = reverseOrderedMatchReports.reduce((stats: { 
         [key: string]: { 
             wins: number, 
             losses: number, 
@@ -312,7 +370,9 @@ const DartsStatisticsDashboard: React.FC = () => {
             }>
         } 
     }, match, matchIndex) => {
-        const isHomeTeam = match.details.singles[0].homePlayer === match.lineup[0];
+        const isHomeTeam = match.isHomeMatch !== undefined
+            ? match.isHomeMatch
+            : match.details.singles[0]?.homePlayer === match.lineup[0];
         
         match.details.doubles.forEach((double) => {
             const ourPlayers = isHomeTeam ? double.homePlayers : double.awayPlayers;
@@ -336,7 +396,7 @@ const DartsStatisticsDashboard: React.FC = () => {
             // Use season prefix if available (for "all seasons" mode)
             const matchdayDisplay = match.seasonPrefix 
                 ? `${match.seasonPrefix}-${match.originalMatchday}` 
-                : matchIndex + 1;
+                : (match.originalMatchday ?? matchIndex + 1);
             
             stats[pairKey].matches.push({
                 matchday: matchdayDisplay,
@@ -440,8 +500,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                             highFinishes={highFinishes}
                             sortedPlayers={sortedPlayers}
                             teamWinRate={teamWinRate}
-                            matchReports={matchReports}
-                            matchAverages={matchAverages}
+                            matchReports={orderedMatchReports}
+                            matchAverages={orderedMatchAverages}
                             scheduleData={scheduleData}
                             teams={teams}
                             comparisonTeam={comparisonTeam}
