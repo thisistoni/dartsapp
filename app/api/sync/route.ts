@@ -86,8 +86,11 @@ export async function POST(request: NextRequest) {
         let recordsUpdated = 0;
         const teamMap = new Map<string, string>();
 
-        // 3. Matchdays are already filtered by the API if incremental
-        const matchdaysToSync = leagueData.results.matchdays;
+        // 3. Safety filter: only sync new rounds on incremental mode
+        const allMatchdays = leagueData?.results?.matchdays || [];
+        const matchdaysToSync = fullSync
+            ? allMatchdays
+            : allMatchdays.filter((md: any) => md.round > latestRoundInDb);
         console.log(`📦 Syncing ${matchdaysToSync.length} matchday(s)`);
         
         // 4. Save Teams
