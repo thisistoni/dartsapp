@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
             try {
                 const { data, error } = await supabase
                     .from('teams')
-                    .upsert({ name: teamName, division: '5', season: SEASON }, { onConflict: 'name,season' })
+                    .upsert({ name: teamName, division: '5', season: SEASON }, { onConflict: 'name' })
                     .select()
                     .single();
                 
