@@ -24,11 +24,12 @@ export default function TeamDetailHeader({
 
     const handleSync = async () => {
         setIsSyncing(true);
-        setSyncMessage('Syncing...');
+        setSyncMessage('Syncing latest data...');
         
         try {
             const response = await axios.post('/api/sync');
-            setSyncMessage(`✓ ${response.data.recordsUpdated} records updated`);
+            const { matchdaysSynced, recordsUpdated, syncMode } = response.data;
+            setSyncMessage(`✓ ${recordsUpdated} records updated (${matchdaysSynced} matchdays)`);
             
             // Call the callback if provided
             if (onSyncComplete) {
@@ -37,9 +38,14 @@ export default function TeamDetailHeader({
             
             // Clear message after 3 seconds
             setTimeout(() => setSyncMessage(''), 3000);
-        } catch (error) {
-            setSyncMessage('✗ Sync failed');
-            setTimeout(() => setSyncMessage(''), 3000);
+        } catch (error: any) {
+            const errorMsg = error.response?.data?.error || error.message || 'Sync failed';
+            console.error('Sync error:', errorMsg);
+            if (error.response?.data?.details) {
+                console.error('Error details:', error.response.data.details);
+            }
+            setSyncMessage(`✗ ${errorMsg}`);
+            setTimeout(() => setSyncMessage(''), 5000);
         } finally {
             setIsSyncing(false);
         }

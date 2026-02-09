@@ -55,6 +55,8 @@ interface TeamDetailPageProps {
     setSelectedPlayer: (player: string) => void;
     selectedPlayerFilter: string;
     setSelectedPlayerFilter: (filter: string) => void;
+    selectedOpponentFilter: string;
+    setSelectedOpponentFilter: (filter: string) => void;
     checkoutPlayerFilter: string;
     setCheckoutPlayerFilter: (filter: string) => void;
     
@@ -98,6 +100,8 @@ export default function TeamDetailPage({
     setSelectedPlayer,
     selectedPlayerFilter,
     setSelectedPlayerFilter,
+    selectedOpponentFilter,
+    setSelectedOpponentFilter,
     checkoutPlayerFilter,
     setCheckoutPlayerFilter,
     runningAverages,
@@ -171,6 +175,8 @@ export default function TeamDetailPage({
                         playerImages={playerImages}
                         selectedPlayerFilter={selectedPlayerFilter}
                         setSelectedPlayerFilter={setSelectedPlayerFilter}
+                        selectedOpponentFilter={selectedOpponentFilter}
+                        setSelectedOpponentFilter={setSelectedOpponentFilter}
                     />
                 )}
         

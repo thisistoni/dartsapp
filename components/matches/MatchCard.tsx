@@ -128,11 +128,12 @@ export default function MatchCard({
                             {matchday.isHomeMatch ? 'H' : 'A'}
                         </span>
                         <div className={`px-2 sm:px-3 py-0.5 sm:py-1 text-base sm:text-lg font-bold rounded border ${
-                            matchday.score.split('-')[0] > matchday.score.split('-')[1]
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : matchday.score.split('-')[0] === matchday.score.split('-')[1]
-                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                            (() => {
+                                const ourScore = parseInt(matchday.score.split(/[-:]/)[0]);
+                                if (ourScore > 4) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                                if (ourScore === 4) return 'bg-amber-50 text-amber-700 border-amber-200';
+                                return 'bg-rose-50 text-rose-700 border-rose-200';
+                            })()
                         }`}>
                             {matchday.score}
                         </div>

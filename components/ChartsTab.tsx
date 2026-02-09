@@ -139,14 +139,14 @@ export default function ChartsTab({
 
         // For team average, check the match score
         if (selectedPlayer === "team") {
-            const [homeScore, awayScore] = matchReport.score.split('-').map(Number);
+            const [homeScore, awayScore] = matchReport.score.split(/[-:]/).map(Number);
             let color;
-            if (homeScore > awayScore) {
-                color = "#22c55e";  // green for win
-            } else if (homeScore < awayScore) {
-                color = "#ef4444";  // red for loss
+            if (homeScore > 4) {
+                color = "#22c55e";  // green (won 5+)
+            } else if (homeScore === 4) {
+                color = "#f59e0b";  // amber (draw 4-4)
             } else {
-                color = "#f59e0b";  // amber for draw
+                color = "#ef4444";  // red (lost 0-3)
             }
 
             return (

@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
             .from('teams')
             .select('id')
             .eq('name', teamName)
+            .eq('season', season)
             .single();
 
         if (!team) {
@@ -87,6 +88,7 @@ export async function GET(request: NextRequest) {
                 .from('teams')
                 .select('id')
                 .eq('name', match.home_team)
+                .eq('season', season)
                 .single();
             
             if (venueTeam) {

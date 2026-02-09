@@ -69,6 +69,7 @@ const DartsStatisticsDashboard: React.FC = () => {
     const [activeSection, setActiveSection] = useState<Section>('matches');
     const [selectedPlayer, setSelectedPlayer] = useState<string>("team");
     const [selectedPlayerFilter, setSelectedPlayerFilter] = useState<string>("all");
+    const [selectedOpponentFilter, setSelectedOpponentFilter] = useState<string>("all");
     const [checkoutPlayerFilter, setCheckoutPlayerFilter] = useState<string>("all");
     const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -453,6 +454,8 @@ const DartsStatisticsDashboard: React.FC = () => {
                             setSelectedPlayer={setSelectedPlayer}
                             selectedPlayerFilter={selectedPlayerFilter}
                             setSelectedPlayerFilter={setSelectedPlayerFilter}
+                            selectedOpponentFilter={selectedOpponentFilter}
+                            setSelectedOpponentFilter={setSelectedOpponentFilter}
                             checkoutPlayerFilter={checkoutPlayerFilter}
                             setCheckoutPlayerFilter={setCheckoutPlayerFilter}
                             runningAverages={runningAverages}

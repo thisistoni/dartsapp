@@ -45,7 +45,7 @@ export default function MatchResults({ groupedFinishedGames }: MatchResultsProps
                                 </div>
                                 <div className="space-y-2">
                                     {(games as any[]).map((game: any, index: number) => {
-                                        const [homeScore, awayScore] = game.score.split('-');
+                                        const [homeScore, awayScore] = game.score.split(/[-:]/);
                                         const homeScoreNum = Number(homeScore);
                                         const awayScoreNum = Number(awayScore);
                                         const isDraw = homeScore === awayScore;

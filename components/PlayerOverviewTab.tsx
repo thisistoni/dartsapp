@@ -201,14 +201,20 @@ export default function PlayerOverviewTab({
                                             </div>
                                         </div>
                                     )}
-                                    {highFinishList.length > 0 && (
-                                        <div className="relative group/badge">
-                                            <div className="h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center group-hover/badge:bg-rose-100 transition-colors">
-                                                <span className="text-[10px] font-bold text-rose-600">HiFi</span>
-                                            </div>
-                                            <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-rose-600 text-[10px] flex items-center justify-center border border-rose-200 font-medium">
-                                                {highFinishList.length}
-                                            </div>
+                                    {highFinishList.length > 0 && (() => {
+                                        const highestFinish = Math.max(...highFinishList);
+                                        const highestFinishCount = highFinishList.filter(f => f === highestFinish).length;
+                                        
+                                        return (
+                                            <div className="relative group/badge">
+                                                <div className="h-7 w-auto min-w-[1.75rem] px-1.5 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center group-hover/badge:bg-rose-100 transition-colors">
+                                                    <span className="text-[10px] font-bold text-rose-600">{highestFinish}</span>
+                                                </div>
+                                                {highestFinishCount > 1 && (
+                                                    <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-white text-rose-600 text-[10px] flex items-center justify-center border border-rose-200 font-medium">
+                                                        +{highestFinishCount - 1}
+                                                    </div>
+                                                )}
 
                                             {/* Hover tooltip for high finishes */}
                                             <div className="absolute right-0 top-full mt-2 scale-0 group-hover/badge:scale-100 transition-transform origin-top-right z-[100]">
@@ -229,7 +235,8 @@ export default function PlayerOverviewTab({
                                                 <div className="absolute -top-1 right-3 w-2 h-2 bg-white border-t border-l border-gray-100 transform -rotate-45"></div>
                                             </div>
                                         </div>
-                                    )}
+                                        );
+                                    })()}
                                 </div>
                             </div>
                             

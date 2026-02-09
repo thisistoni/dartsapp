@@ -101,12 +101,22 @@ export async function GET(request: Request) {
             `)
             .eq('season', season)
             .or(`home_team_id.eq.${team.id},away_team_id.eq.${team.id}`)
-            .order('round', { foreignTable: 'matchdays' })
+            .order('date', { foreignTable: 'matchdays', ascending: false })
+            .order('round', { foreignTable: 'matchdays', ascending: false })
             .order('game_order', { foreignTable: 'singles_games', ascending: true })
             .order('game_order', { foreignTable: 'doubles_games', ascending: true });
 
         // 5. Transform matches into match reports
-        const matchReports = (matches || []).map((match: any) => {
+        const matchReports = (matches || [])
+            .filter((match: any) => {
+                // Skip matches with missing team data
+                if (!match.teams_away || !match.teams_home) {
+                    console.log(`Skipping match ${match.id} - missing team data`);
+                    return false;
+                }
+                return true;
+            })
+            .map((match: any) => {
             const isHome = match.home_team_id === team.id;
             const opponent = isHome ? match.teams_away.name : match.teams_home.name;
             const ourScore = isHome ? match.home_sets : match.away_sets;
@@ -378,6 +388,7 @@ export async function GET(request: Request) {
                 .from('teams')
                 .select('id')
                 .eq('name', match.home_team)
+                .eq('season', season)
                 .single();
             
             if (venueTeam) {

@@ -9,11 +9,27 @@ import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
 
 const SEASON = '2025/26';
+export const maxDuration = 300;
 
 // Create Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+function resolveApiBaseUrl(request: NextRequest): string {
+    const envBaseUrl = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+    if (envBaseUrl) {
+        return envBaseUrl.replace(/\/$/, '');
+    }
+
+    const forwardedProto = request.headers.get('x-forwarded-proto');
+    const forwardedHost = request.headers.get('x-forwarded-host');
+    if (forwardedProto && forwardedHost) {
+        return `${forwardedProto}://${forwardedHost}`;
+    }
+
+    return request.nextUrl.origin;
+}
 
 // Helper function to convert DD.MM.YYYY to YYYY-MM-DD
 function convertDate(dateStr: string): string {
@@ -23,18 +39,60 @@ function convertDate(dateStr: string): string {
 
 export async function POST(request: NextRequest) {
     try {
-        console.log('🔄 Starting data sync...');
+        if (!supabaseUrl || !supabaseKey) {
+            throw new Error('Missing Supabase credentials on server (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY)');
+        }
+
+        const { searchParams } = new URL(request.url);
+        const fullSync = searchParams.get('full') === 'true';
         
-        // 1. Scrape fresh data
-        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/leagueOverview`);
-        const leagueData = response.data;
+        console.log(`🔄 Starting data sync... ${fullSync ? '(FULL SYNC)' : '(INCREMENTAL)'}`);
+        
+        // 1. Check latest matchday in database
+        const { data: latestMatchday } = await supabase
+            .from('matchdays')
+            .select('round')
+            .eq('season', SEASON)
+            .order('round', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        
+        const latestRoundInDb = latestMatchday?.round || 0;
+        console.log(`📊 Latest matchday in DB: Round ${latestRoundInDb}`);
+        
+        if (!fullSync && latestRoundInDb > 0) {
+            console.log(`⚡ Will only scrape rounds after ${latestRoundInDb}`);
+        }
+        
+        // 2. Scrape fresh data (with optional minRound filter)
+        const apiBaseUrl = resolveApiBaseUrl(request);
+        const url = fullSync
+            ? `${apiBaseUrl}/api/leagueOverview`
+            : `${apiBaseUrl}/api/leagueOverview?minRound=${latestRoundInDb}`;
+        
+        let leagueData;
+        try {
+            console.log(`🌐 Fetching data from: ${url}`);
+            const response = await axios.get(url, { timeout: 240000 });
+            leagueData = response.data;
+            console.log(`✅ Data fetched successfully`);
+        } catch (err: any) {
+            const status = err?.response?.status;
+            const statusSuffix = status ? ` (status ${status})` : '';
+            console.error('❌ Error fetching league data:', err.message, statusSuffix);
+            throw new Error(`Failed to fetch league data from API: ${err.message}${statusSuffix}`);
+        }
         
         let recordsUpdated = 0;
         const teamMap = new Map<string, string>();
 
-        // 2. Save Teams
+        // 3. Matchdays are already filtered by the API if incremental
+        const matchdaysToSync = leagueData.results.matchdays;
+        console.log(`📦 Syncing ${matchdaysToSync.length} matchday(s)`);
+        
+        // 4. Save Teams
         const teamNames = new Set<string>();
-        leagueData.results.matchdays.forEach((md: any) => {
+        matchdaysToSync.forEach((md: any) => {
             md.matches.forEach((match: any) => {
                 teamNames.add(match.homeTeam);
                 teamNames.add(match.awayTeam);
@@ -42,18 +100,23 @@ export async function POST(request: NextRequest) {
         });
 
         for (const teamName of teamNames) {
-            const { data, error } = await supabase
-                .from('teams')
-                .upsert({ name: teamName, division: '5', season: SEASON }, { onConflict: 'name' })
-                .select()
-                .single();
-            
-            if (error) throw error;
-            teamMap.set(teamName, data.id);
-            recordsUpdated++;
+            try {
+                const { data, error } = await supabase
+                    .from('teams')
+                    .upsert({ name: teamName, division: '5', season: SEASON }, { onConflict: 'name,season' })
+                    .select()
+                    .single();
+                
+                if (error) throw error;
+                teamMap.set(teamName, data.id);
+                recordsUpdated++;
+            } catch (err: any) {
+                console.error(`❌ Error saving team "${teamName}":`, err.message);
+                throw new Error(`Failed to save team "${teamName}": ${err.message}`);
+            }
         }
 
-        // 3. Save Team Averages
+        // 5. Save Team Averages
         for (const [teamName, stats] of Object.entries(leagueData.teamAverages || {})) {
             const teamId = teamMap.get(teamName);
             if (!teamId) continue;
@@ -77,8 +140,8 @@ export async function POST(request: NextRequest) {
             recordsUpdated++;
         }
 
-        // 4. Save Matchdays and Matches
-        for (const matchday of leagueData.results.matchdays) {
+        // 6. Save Matchdays and Matches (filtered)
+        for (const matchday of matchdaysToSync) {
             const isoDate = convertDate(matchday.date);
             const { data: md } = await supabase
                 .from('matchdays')
@@ -110,7 +173,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 5. Save Player Statistics
+        // 7. Save Player Statistics
         for (const player of leagueData.playerStats || []) {
             const teamId = teamMap.get(player.team);
             if (!teamId) continue;
@@ -144,7 +207,7 @@ export async function POST(request: NextRequest) {
             recordsUpdated++;
         }
 
-        // 5.5. Scrape and Save 180s, High Finishes, and Club Venues for each team
+        // 7.5. Scrape and Save 180s, High Finishes, and Club Venues for each team
         console.log('🎯 Scraping 180s, High Finishes, and Club Venues for each team...');
         
         // Import scraper functions dynamically
@@ -229,7 +292,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 6. Save Future Schedule
+        // 8. Save Future Schedule
         if (leagueData.futureSchedule) {
             for (const game of leagueData.futureSchedule) {
                 const homeTeamId = teamMap.get(game.homeTeam);
@@ -251,12 +314,46 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 6.5. Save Detailed Match Data (Latest Matches with singles/doubles)
-        if (leagueData.latestMatches && leagueData.latestMatches.length > 0) {
-            for (const matchDetail of leagueData.latestMatches) {
-                const homeTeamId = teamMap.get(matchDetail.homeTeam);
-                const awayTeamId = teamMap.get(matchDetail.awayTeam);
-                if (!homeTeamId || !awayTeamId) continue;
+        // 8.2. Save Cup Matches
+        console.log(`🏆 Saving ${leagueData.cupMatches?.length || 0} cup matches...`);
+        if (leagueData.cupMatches && leagueData.cupMatches.length > 0) {
+            for (const cupMatch of leagueData.cupMatches) {
+                try {
+                    const isoDate = convertDate(cupMatch.date);
+                    await supabase
+                        .from('cup_matches')
+                        .upsert({
+                            round_name: cupMatch.round,
+                            date: isoDate,
+                            home_team: cupMatch.homeTeam,
+                            away_team: cupMatch.awayTeam,
+                            home_score: cupMatch.homeScore || null,
+                            away_score: cupMatch.awayScore || null,
+                            season: SEASON
+                        }, { onConflict: 'round_name,home_team,away_team,season' });
+                    
+                    recordsUpdated++;
+                } catch (error: any) {
+                    console.error(`⚠️ Error saving cup match ${cupMatch.homeTeam} vs ${cupMatch.awayTeam}:`, error.message);
+                }
+            }
+        }
+
+        // 8.5. Save Detailed Match Data (Latest Matches with singles/doubles)
+        // Latest matches are already filtered by the API based on minRound
+        const latestMatchesToSync = leagueData.latestMatches || [];
+        
+        console.log(`📋 Syncing ${latestMatchesToSync.length} detailed matches`);
+        
+        if (latestMatchesToSync && latestMatchesToSync.length > 0) {
+            for (const matchDetail of latestMatchesToSync) {
+                try {
+                    const homeTeamId = teamMap.get(matchDetail.homeTeam);
+                    const awayTeamId = teamMap.get(matchDetail.awayTeam);
+                    if (!homeTeamId || !awayTeamId) {
+                        console.log(`⚠️ Skipping match: ${matchDetail.homeTeam} vs ${matchDetail.awayTeam} - missing team IDs`);
+                        continue;
+                    }
 
                 // Find the matchday
                 const { data: matchdayData } = await supabase
@@ -395,10 +492,14 @@ export async function POST(request: NextRequest) {
                         recordsUpdated++;
                     }
                 }
+                } catch (matchErr: any) {
+                    console.error(`❌ Error processing match ${matchDetail.homeTeam} vs ${matchDetail.awayTeam}:`, matchErr.message);
+                    // Continue with next match instead of failing entire sync
+                }
             }
         }
 
-        // 7. Calculate and Save League Standings
+        // 9. Calculate and Save League Standings (always calculate from ALL matchdays for accuracy)
         const standings = calculateStandings(leagueData.results.matchdays, teamMap);
         for (const standing of standings) {
             await supabase
@@ -417,7 +518,7 @@ export async function POST(request: NextRequest) {
             recordsUpdated++;
         }
 
-        // 8. Log sync
+        // 10. Log sync
         await supabase.from('scrape_logs').insert({
             scrape_type: 'sync',
             season: SEASON,
@@ -425,27 +526,45 @@ export async function POST(request: NextRequest) {
             records_updated: recordsUpdated
         });
 
+        const syncMode = fullSync ? 'full' : 'incremental';
+        const message = fullSync 
+            ? `Successfully synced ${recordsUpdated} records (FULL SYNC)`
+            : `Successfully synced ${recordsUpdated} records (incremental - ${matchdaysToSync.length} matchdays)`;
+        
+        console.log(`✅ ${message}`);
+        
         return NextResponse.json({
             success: true,
-            message: `Successfully synced ${recordsUpdated} records`,
+            message,
+            syncMode,
+            matchdaysSynced: matchdaysToSync.length,
             recordsUpdated,
             timestamp: new Date().toISOString()
         });
 
     } catch (error: any) {
-        console.error('Sync error:', error);
+        console.error('❌ SYNC ERROR:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
+        
+        const errorMessage = error.response?.data?.error || error.message || 'Unknown error';
         
         await supabase.from('scrape_logs').insert({
             scrape_type: 'sync',
             season: SEASON,
             status: 'error',
             records_updated: 0,
-            error_message: error.message
+            error_message: errorMessage
         });
 
         return NextResponse.json({
             success: false,
-            error: error.message
+            error: errorMessage,
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         }, { status: 500 });
     }
 }

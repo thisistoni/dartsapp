@@ -132,11 +132,14 @@ CREATE TABLE cup_matches (
     date DATE NOT NULL,
     home_team TEXT NOT NULL,
     away_team TEXT NOT NULL,
+    home_score INTEGER,
+    away_score INTEGER,
     home_division TEXT,
     away_division TEXT,
     season TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(round_name, home_team, away_team, season)
 );
 
 -- =====================================================

@@ -48,7 +48,7 @@ export default function UpcomingSchedule({
                 </CardTitle>
             </CardHeader>
             <CardContent>
-                {futureSchedule.length === 0 ? (
+                {futureSchedule.length === 0 && cupMatches.length === 0 ? (
                     <div className="text-sm text-gray-500 p-4">No future games scheduled.</div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -63,12 +63,20 @@ export default function UpcomingSchedule({
                             // Insert Cup Round 2 after round 6 (if we have Cup matches)
                             const rounds = Object.keys(grouped).map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
                             const output: Array<[string, any[]]> = [];
+                            let cupMatchesAdded = false;
                             
                             for (let i = 0; i < rounds.length; ++i) {
                                 output.push([rounds[i].toString(), grouped[rounds[i]]]);
+                                // Insert cup matches after round 6, or if this is the last round and cup matches not yet added
                                 if (rounds[i] === 6 && cupMatches.length > 0) {
                                     output.push(['Cup Round 2', cupMatches]);
+                                    cupMatchesAdded = true;
                                 }
+                            }
+                            
+                            // If cup matches exist but weren't added (no round 6), add them at the end
+                            if (cupMatches.length > 0 && !cupMatchesAdded) {
+                                output.push(['Cup Round 2', cupMatches]);
                             }
                             
                             return output.map(([round, games]) => {

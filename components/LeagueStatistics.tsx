@@ -146,7 +146,7 @@ export default function LeagueStatistics({
                                     playerStats
                                         .filter(p => {
                                             const singlesGames = p.singlesWon + p.singlesLost;
-                                            return p.average > 0 && singlesGames >= 3;
+                                            return p.average > 0 && singlesGames >= 5;
                                         })
                                         .sort((a, b) => b.average - a.average)
                                         .slice(0, 5)
@@ -190,7 +190,7 @@ export default function LeagueStatistics({
                             </h3>
                             <div className="space-y-2">
                                 {playerStats
-                                    .filter(p => (p.singlesWon + p.singlesLost) >= 1)
+                                    .filter(p => (p.singlesWon + p.singlesLost) >= 5)
                                     .sort((a, b) => {
                                         if (b.singlesPercentage !== a.singlesPercentage) {
                                             return b.singlesPercentage - a.singlesPercentage;
@@ -232,7 +232,7 @@ export default function LeagueStatistics({
                             </h3>
                             <div className="space-y-2">
                                 {playerStats
-                                    .filter(p => (p.doublesWon + p.doublesLost) >= 1)
+                                    .filter(p => (p.doublesWon + p.doublesLost) >= 5)
                                     .sort((a, b) => {
                                         if (b.doublesPercentage !== a.doublesPercentage) {
                                             return b.doublesPercentage - a.doublesPercentage;
@@ -274,7 +274,7 @@ export default function LeagueStatistics({
                             </h3>
                             <div className="space-y-2">
                                 {playerStats
-                                    .filter(p => (p.singlesWon + p.singlesLost + p.doublesWon + p.doublesLost) >= 3)
+                                    .filter(p => (p.singlesWon + p.singlesLost + p.doublesWon + p.doublesLost) >= 5)
                                     .sort((a, b) => {
                                         if (b.combinedPercentage !== a.combinedPercentage) {
                                             return b.combinedPercentage - a.combinedPercentage;

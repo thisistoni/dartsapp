@@ -4,9 +4,14 @@ import { fetchLeagueResults, fetchAllMatchdaysDetails, fetchCupMatches } from '@
 import { fetchLeagueSchedule } from '@/lib/scheduleScraper';
 import { fetchTeamAverages } from '@/lib/teamAveragesScraper';
 
-export async function GET() {
+export const maxDuration = 300;
+
+export async function GET(request: Request) {
   try {
-    console.log('📊 Fetching league overview data...');
+    const { searchParams } = new URL(request.url);
+    const minRound = searchParams.get('minRound') ? parseInt(searchParams.get('minRound')!) : undefined;
+    
+    console.log(`📊 Fetching league overview data... ${minRound ? `(rounds after ${minRound})` : '(all rounds)'}`);
     
     // Fetch league results
     const leagueResults = await fetchLeagueResults();
@@ -14,9 +19,13 @@ export async function GET() {
     const leagueSchedule = await fetchLeagueSchedule();
     // Fetch team averages and player stats
     const scraperResult = await fetchTeamAverages();
-    // Fetch ALL matchday details with singles/doubles
-    console.log('🔄 Fetching detailed data for ALL matchdays (this may take a while)...');
-    const latestMatches = await fetchAllMatchdaysDetails();
+    // Fetch matchday details with singles/doubles
+    if (minRound) {
+      console.log(`🔄 Fetching detailed data for rounds after ${minRound}...`);
+    } else {
+      console.log('🔄 Fetching detailed data for ALL matchdays (this may take a while)...');
+    }
+    const latestMatches = await fetchAllMatchdaysDetails(minRound);
     
     // Get list of league teams from matchdays
     const leagueTeams = new Set<string>();

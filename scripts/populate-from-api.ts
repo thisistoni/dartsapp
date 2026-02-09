@@ -55,7 +55,7 @@ async function saveLeagueOverview() {
         for (const teamName of teamNames) {
             const { data, error } = await supabase
                 .from('teams')
-                .upsert({ name: teamName, division: '5', season: SEASON }, { onConflict: 'name' })
+                .upsert({ name: teamName, division: '5', season: SEASON }, { onConflict: 'name,season' })
                 .select()
                 .single();
             

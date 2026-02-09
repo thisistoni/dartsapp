@@ -54,7 +54,7 @@ export default function LatestResults({
                     <div className="space-y-2">
                         {/* Finished games */}
                         {latestMatchdayGames.map((game, index) => {
-                            const [homeScore, awayScore] = game.score.split('-');
+                            const [homeScore, awayScore] = game.score.split(/[-:]/);
                             const homeScoreNum = Number(homeScore);
                             const awayScoreNum = Number(awayScore);
                             const isDraw = homeScore === awayScore;

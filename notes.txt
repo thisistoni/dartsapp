@@ -1,24 +1,5 @@
-Am1iNl1zQxOYPzLW
+sync improven  --> auto sync im background (ergebnis da aber keine md cards)
 
-adding best teams players/ 180 HIFI (done)
+2024/25 fixen
 
-league avg in league ov (done)
-
-bug game details pending.(fixed - but test next thu)
-
-add singles this week with checkouts (done)
-
-3-0 matchday cards checkouts (done)
-
-adding historical data (DONE)
-
-adding tabs system to league overview (done)
-
-ADDING DB SUPABASE
-
-ADDING REAL DATA TO SAMPLE DATA LEAGUE overview
-
-latest bug testen wenn matchreport nicht da ist 
-
-
-leaderboard welcher spieler wie oft bestes weekly avg hatte
+custom teams (DC Patron II, Cup Opponents)

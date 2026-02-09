@@ -131,7 +131,7 @@ export interface LeagueStanding {
 export async function upsertTeam(name: string, division: string | null, season: string) {
     const { data, error } = await supabase
         .from('teams')
-        .upsert({ name, division, season }, { onConflict: 'name' })
+        .upsert({ name, division, season }, { onConflict: 'name,season' })
         .select()
         .single();
     

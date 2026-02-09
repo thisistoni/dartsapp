@@ -43,6 +43,8 @@ interface MatchesTabProps {
     playerImages: { [key: string]: string };
     selectedPlayerFilter: string;
     setSelectedPlayerFilter: (value: string) => void;
+    selectedOpponentFilter: string;
+    setSelectedOpponentFilter: (value: string) => void;
 }
 
 export default function MatchesTab({
@@ -51,42 +53,73 @@ export default function MatchesTab({
     sortedPlayers,
     playerImages,
     selectedPlayerFilter,
-    setSelectedPlayerFilter
+    setSelectedPlayerFilter,
+    selectedOpponentFilter,
+    setSelectedOpponentFilter
 }: MatchesTabProps) {
     return (
         <div>
-            {/* Player Filter Dropdown */}
-            <div className="mb-6 flex items-center gap-3">
-                <label className="text-sm font-medium text-gray-700">Filter by Player:</label>
-                <select
-                    value={selectedPlayerFilter}
-                    onChange={(e) => setSelectedPlayerFilter(e.target.value)}
-                    className="appearance-none text-sm font-medium bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer min-w-[200px]"
-                >
-                    <option value="all">All Matches</option>
-                    {(() => {
-                        const players = new Set<string>();
-                        matchReports.forEach(match => {
-                            const isHomeTeam = match.isHomeMatch !== undefined 
-                                ? match.isHomeMatch 
-                                : match.details.singles[0].homePlayer === match.lineup[0];
-                            
-                            match.details.singles.forEach(single => {
-                                const playerName = isHomeTeam ? single.homePlayer : single.awayPlayer;
-                                if (playerName) players.add(playerName);
+            {/* Filter Dropdowns */}
+            <div className="mb-6 flex flex-wrap items-center gap-4">
+                {/* Player Filter */}
+                <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium text-gray-700">Filter by Player:</label>
+                    <select
+                        value={selectedPlayerFilter}
+                        onChange={(e) => setSelectedPlayerFilter(e.target.value)}
+                        className="appearance-none text-sm font-medium bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer min-w-[200px]"
+                    >
+                        <option value="all">All Players</option>
+                        {(() => {
+                            const players = new Set<string>();
+                            matchReports.forEach(match => {
+                                const isHomeTeam = match.isHomeMatch !== undefined 
+                                    ? match.isHomeMatch 
+                                    : match.details.singles[0].homePlayer === match.lineup[0];
+                                
+                                match.details.singles.forEach(single => {
+                                    const playerName = isHomeTeam ? single.homePlayer : single.awayPlayer;
+                                    if (playerName) players.add(playerName);
+                                });
                             });
-                        });
-                        return Array.from(players).sort().map(player => (
-                            <option key={player} value={player}>{player}</option>
-                        ));
-                    })()}
-                </select>
-                {selectedPlayerFilter !== "all" && (
+                            return Array.from(players).sort().map(player => (
+                                <option key={player} value={player}>{player}</option>
+                            ));
+                        })()}
+                    </select>
+                </div>
+
+                {/* Opponent Filter */}
+                <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium text-gray-700">Filter by Opponent:</label>
+                    <select
+                        value={selectedOpponentFilter}
+                        onChange={(e) => setSelectedOpponentFilter(e.target.value)}
+                        className="appearance-none text-sm font-medium bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer min-w-[200px]"
+                    >
+                        <option value="all">All Opponents</option>
+                        {(() => {
+                            const opponents = new Set<string>();
+                            matchReports.forEach(match => {
+                                if (match.opponent) opponents.add(match.opponent);
+                            });
+                            return Array.from(opponents).sort().map(opponent => (
+                                <option key={opponent} value={opponent}>{opponent}</option>
+                            ));
+                        })()}
+                    </select>
+                </div>
+
+                {/* Clear Filters Button */}
+                {(selectedPlayerFilter !== "all" || selectedOpponentFilter !== "all") && (
                     <button
-                        onClick={() => setSelectedPlayerFilter("all")}
+                        onClick={() => {
+                            setSelectedPlayerFilter("all");
+                            setSelectedOpponentFilter("all");
+                        }}
                         className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                     >
-                        Clear Filter
+                        Clear All Filters
                     </button>
                 )}
             </div>
@@ -112,6 +145,11 @@ export default function MatchesTab({
                             ? matchday.isHomeMatch 
                             : matchday.details.singles[0].homePlayer === matchday.lineup[0];
                         
+                        // Check opponent filter at match level
+                        if (selectedOpponentFilter !== "all" && matchday.opponent !== selectedOpponentFilter) {
+                            return null;
+                        }
+
                         const playerSinglesGames = matchday.details.singles
                             .map((game, singlesIndex) => ({ game, singlesIndex }))
                             .filter(({ game }) => {
@@ -154,9 +192,13 @@ export default function MatchesTab({
                                                 {matchday.isHomeMatch ? 'H' : 'A'}
                                             </span>
                                             <div className={`px-2 sm:px-3 py-0.5 sm:py-1 text-base sm:text-lg font-bold rounded border ${
-                                                matchday.score.split('-')[0] > matchday.score.split('-')[1] ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                matchday.score.split('-')[0] === matchday.score.split('-')[1] ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                                'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                                                (() => {
+                                                    const ourScore = parseInt(matchday.score.split(/[-:]/)[0]);
+                                                    if (ourScore > 4) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                                                    if (ourScore === 4) return 'bg-amber-50 text-amber-700 border-amber-200';
+                                                    return 'bg-rose-50 text-rose-700 border-rose-200';
+                                                })()
+                                            }`}>
                                                 {matchday.score}
                                             </div>
                                             <div className="px-2 sm:px-3 py-0.5 sm:py-1 text-sm sm:text-base font-bold bg-blue-50 text-blue-600 border border-blue-100 rounded">
@@ -227,7 +269,11 @@ export default function MatchesTab({
             ) : (
                 /* Full Team Matches View */
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {[...matchReports].reverse().map((matchday, index) => (
+                    {[...matchReports].reverse().filter((matchday) => {
+                        // If opponent filter is active, only show matches with that opponent team
+                        if (selectedOpponentFilter === "all") return true;
+                        return matchday.opponent === selectedOpponentFilter;
+                    }).map((matchday, index) => (
                         <MatchCard
                             key={matchReports.length - index - 1}
                             matchday={matchday}

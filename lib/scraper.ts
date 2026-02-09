@@ -615,8 +615,34 @@ export async function fetch180sAndHighFinishes(team: string): Promise<{oneEighty
     const playerName = $(elem).find('td:nth-child(2)').text().trim();
     const finishesStr = $(elem).find('td:nth-child(5)').text().trim();
     if (playerName && finishesStr) {
-      const finishes = finishesStr.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
-      highFinishes.push({ playerName, finishes });
+      const finishes: number[] = [];
+      
+      // Split by comma and process each finish
+      finishesStr.split(',').forEach(finishStr => {
+        const trimmed = finishStr.trim();
+        
+        // Check for multiplier pattern like "170 (2x)" or "100 (3x)"
+        const match = trimmed.match(/^(\d+)\s*\((\d+)x\)$/);
+        
+        if (match) {
+          // Has multiplier: add the finish multiple times
+          const finish = parseInt(match[1]);
+          const count = parseInt(match[2]);
+          for (let i = 0; i < count; i++) {
+            finishes.push(finish);
+          }
+        } else {
+          // No multiplier: just parse the number
+          const finish = parseInt(trimmed);
+          if (!isNaN(finish)) {
+            finishes.push(finish);
+          }
+        }
+      });
+      
+      if (finishes.length > 0) {
+        highFinishes.push({ playerName, finishes });
+      }
     }
   });
 
@@ -722,16 +748,24 @@ async function getAllMatchReports() {
   }
 }
 
-// Fetch ALL Match Details for ALL matchdays (with singles/doubles data)
-export async function fetchAllMatchdaysDetails() {
+// Fetch Match Details for matchdays (with singles/doubles data)
+// minRound: Optional - if provided, only fetch matchdays AFTER this round (> minRound)
+export async function fetchAllMatchdaysDetails(minRound?: number) {
   try {
-    console.log('🔍 Fetching ALL matchday details...');
+    const roundInfo = minRound ? ` (rounds after ${minRound})` : ' (all rounds)';
+    console.log(`🔍 Fetching matchday details${roundInfo}...`);
     
     // Get league results to find all matchdays
     const leagueResults = await fetchLeagueResults();
-    console.log(`📊 League results fetched, matchdays: ${leagueResults.matchdays.length}`);
     
-    if (leagueResults.matchdays.length === 0) {
+    // Filter matchdays if minRound is provided (only rounds AFTER minRound)
+    const matchdaysToFetch = minRound 
+      ? leagueResults.matchdays.filter((md: any) => md.round > minRound)
+      : leagueResults.matchdays;
+    
+    console.log(`📊 League results fetched, processing ${matchdaysToFetch.length} matchdays`);
+    
+    if (matchdaysToFetch.length === 0) {
       console.log('⚠️ No matchdays found');
       return [];
     }
@@ -743,8 +777,8 @@ export async function fetchAllMatchdaysDetails() {
     
     const allMatches: any[] = [];
     
-    // Process ALL matchdays
-    for (const matchday of leagueResults.matchdays) {
+    // Process matchdays
+    for (const matchday of matchdaysToFetch) {
       console.log(`\n📅 Processing Matchday ${matchday.round} (${matchday.date})...`);
       console.log(`🏆 Matches in matchday: ${matchday.matches.length}`);
       

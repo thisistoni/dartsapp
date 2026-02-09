@@ -131,11 +131,13 @@ export async function GET() {
             awayTeam: fs.away_team?.name || ''
         }));
 
-        // 6. Get Cup Matches
+        // 6. Get Cup Matches (only future matches)
+        const today = new Date().toISOString().split('T')[0];
         const { data: cupMatchesData } = await supabase
             .from('cup_matches')
             .select('*')
             .eq('season', SEASON)
+            .gte('date', today)
             .order('date');
 
         const cupMatches = (cupMatchesData || []).map((cm: any) => ({
