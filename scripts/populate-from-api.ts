@@ -198,29 +198,6 @@ async function saveLeagueOverview() {
             console.log(`  ✅ Saved ${leagueData.futureSchedule.length} future matches`);
         }
 
-        // 6. Save Cup Matches
-        console.log('\n🏆 Saving cup matches...');
-        if (leagueData.cupMatches && leagueData.cupMatches.length > 0) {
-            for (const cup of leagueData.cupMatches) {
-                const isoDate = convertDate(cup.date);
-                const { error } = await supabase
-                    .from('cup_matches')
-                    .upsert({
-                        round_name: cup.round,
-                        date: isoDate,
-                        home_team: cup.homeTeam,
-                        away_team: cup.awayTeam,
-                        home_division: cup.homeDivision,
-                        away_division: cup.awayDivision,
-                        season: SEASON
-                    });
-                
-                if (error) throw error;
-                recordsUpdated++;
-            }
-            console.log(`  ✅ Saved ${leagueData.cupMatches.length} cup matches`);
-        }
-
         // 7. Save Detailed Match Data (Latest Matches with singles/doubles)
         console.log('\n🎯 Saving detailed match data...');
         let singlesGamesSaved = 0;

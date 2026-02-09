@@ -314,31 +314,6 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 8.2. Save Cup Matches
-        console.log(`🏆 Saving ${leagueData.cupMatches?.length || 0} cup matches...`);
-        if (leagueData.cupMatches && leagueData.cupMatches.length > 0) {
-            for (const cupMatch of leagueData.cupMatches) {
-                try {
-                    const isoDate = convertDate(cupMatch.date);
-                    await supabase
-                        .from('cup_matches')
-                        .upsert({
-                            round_name: cupMatch.round,
-                            date: isoDate,
-                            home_team: cupMatch.homeTeam,
-                            away_team: cupMatch.awayTeam,
-                            home_score: cupMatch.homeScore || null,
-                            away_score: cupMatch.awayScore || null,
-                            season: SEASON
-                        }, { onConflict: 'round_name,home_team,away_team,season' });
-                    
-                    recordsUpdated++;
-                } catch (error: any) {
-                    console.error(`⚠️ Error saving cup match ${cupMatch.homeTeam} vs ${cupMatch.awayTeam}:`, error.message);
-                }
-            }
-        }
-
         // 8.5. Save Detailed Match Data (Latest Matches with singles/doubles)
         // Latest matches are already filtered by the API based on minRound
         const latestMatchesToSync = leagueData.latestMatches || [];

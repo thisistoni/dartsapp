@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
-import { fetchLeagueResults, fetchAllMatchdaysDetails, fetchCupMatches } from '@/lib/scraper';
+import { fetchLeagueResults, fetchAllMatchdaysDetails } from '@/lib/scraper';
 import { fetchLeagueSchedule } from '@/lib/scheduleScraper';
 import { fetchTeamAverages } from '@/lib/teamAveragesScraper';
 
@@ -27,29 +27,18 @@ export async function GET(request: Request) {
     }
     const latestMatches = await fetchAllMatchdaysDetails(minRound);
     
-    // Get list of league teams from matchdays
-    const leagueTeams = new Set<string>();
-    leagueResults.matchdays.forEach((matchday: any) => {
-      matchday.matches.forEach((match: any) => {
-        leagueTeams.add(match.homeTeam);
-        leagueTeams.add(match.awayTeam);
-      });
-    });
-    // Fetch Cup Round 2 matches for our league teams
-    const cupMatches = await fetchCupMatches(Array.from(leagueTeams));
-    
     console.log('Scraper result:', {
       hasTeamStats: !!scraperResult.teamStats,
       hasPlayerStats: !!scraperResult.playerStats,
       playerStatsCount: scraperResult.playerStats?.length || 0,
       latestMatchesCount: latestMatches.length,
-      cupMatchesCount: cupMatches.length
+      cupMatchesCount: 0
     });
     
     const response = {
       results: leagueResults,
       futureSchedule: leagueSchedule,
-      cupMatches: cupMatches,
+      cupMatches: [],
       teamAverages: scraperResult.teamStats,
       playerStats: scraperResult.playerStats,
       latestMatches: latestMatches,
