@@ -37,6 +37,94 @@ function convertDate(dateStr: string): string {
     return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
+function isOnConflictConstraintError(error: any): boolean {
+    const message = error?.message || '';
+    const code = error?.code || '';
+    return code === '42P10' || /no unique or exclusion constraint matching the ON CONFLICT specification/i.test(message);
+}
+
+async function saveTeamWithFallback(teamName: string, division: string, season: string): Promise<{ id: string }> {
+    const payload = { name: teamName, division, season };
+
+    const upsertResult = await supabase
+        .from('teams')
+        .upsert(payload, { onConflict: 'name,season' })
+        .select('id')
+        .single();
+
+    if (!upsertResult.error && upsertResult.data) {
+        return upsertResult.data;
+    }
+
+    if (upsertResult.error && !isOnConflictConstraintError(upsertResult.error)) {
+        throw upsertResult.error;
+    }
+
+    // Fallback for databases where ON CONFLICT target is missing/mismatched.
+    const { data: existingForSeason, error: existingForSeasonError } = await supabase
+        .from('teams')
+        .select('id')
+        .eq('name', teamName)
+        .eq('season', season)
+        .maybeSingle();
+
+    if (existingForSeasonError) {
+        throw existingForSeasonError;
+    }
+
+    let existingTeamId = existingForSeason?.id;
+    if (!existingTeamId) {
+        const { data: existingAnySeason, error: existingAnySeasonError } = await supabase
+            .from('teams')
+            .select('id')
+            .eq('name', teamName)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (existingAnySeasonError) {
+            throw existingAnySeasonError;
+        }
+
+        existingTeamId = existingAnySeason?.id;
+    }
+
+    if (existingTeamId) {
+        const { data: updatedTeam, error: updateError } = await supabase
+            .from('teams')
+            .update({ division, season })
+            .eq('id', existingTeamId)
+            .select('id')
+            .single();
+
+        if (updateError) {
+            throw updateError;
+        }
+
+        if (!updatedTeam) {
+            throw new Error(`Failed to update existing team "${teamName}"`);
+        }
+
+        return updatedTeam;
+    }
+
+    const { data: insertedTeam, error: insertError } = await supabase
+        .from('teams')
+        .insert(payload)
+        .select('id')
+        .single();
+
+    if (insertError) {
+        throw insertError;
+    }
+
+    if (!insertedTeam) {
+        throw new Error(`Failed to insert team "${teamName}"`);
+    }
+
+    return insertedTeam;
+}
+
 export async function POST(request: NextRequest) {
     try {
         if (!supabaseUrl || !supabaseKey) {
@@ -104,14 +192,8 @@ export async function POST(request: NextRequest) {
 
         for (const teamName of teamNames) {
             try {
-                const { data, error } = await supabase
-                    .from('teams')
-                    .upsert({ name: teamName, division: '5', season: SEASON }, { onConflict: 'name' })
-                    .select()
-                    .single();
-                
-                if (error) throw error;
-                teamMap.set(teamName, data.id);
+                const savedTeam = await saveTeamWithFallback(teamName, '5', SEASON);
+                teamMap.set(teamName, savedTeam.id);
                 recordsUpdated++;
             } catch (err: any) {
                 console.error(`❌ Error saving team "${teamName}":`, err.message);
