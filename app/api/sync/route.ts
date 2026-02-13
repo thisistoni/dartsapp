@@ -37,63 +37,39 @@ function convertDate(dateStr: string): string {
     return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
-function isOnConflictConstraintError(error: any): boolean {
-    const message = error?.message || '';
-    const code = error?.code || '';
-    return code === '42P10' || /no unique or exclusion constraint matching the ON CONFLICT specification/i.test(message);
+function parseDdMmYyyyToUtcDate(dateStr: string): Date | null {
+    const [day, month, year] = (dateStr || '').split('.');
+    if (!day || !month || !year) return null;
+
+    const dayNum = Number(day);
+    const monthNum = Number(month);
+    const yearNum = Number(year);
+    if (!Number.isFinite(dayNum) || !Number.isFinite(monthNum) || !Number.isFinite(yearNum)) return null;
+
+    return new Date(Date.UTC(yearNum, monthNum - 1, dayNum));
 }
 
 async function saveTeamWithFallback(teamName: string, division: string, season: string): Promise<{ id: string }> {
     const payload = { name: teamName, division, season };
 
-    const upsertResult = await supabase
-        .from('teams')
-        .upsert(payload, { onConflict: 'name,season' })
-        .select('id')
-        .single();
-
-    if (!upsertResult.error && upsertResult.data) {
-        return upsertResult.data;
-    }
-
-    if (upsertResult.error && !isOnConflictConstraintError(upsertResult.error)) {
-        throw upsertResult.error;
-    }
-
-    // Fallback for databases where ON CONFLICT target is missing/mismatched.
-    const { data: existingForSeason, error: existingForSeasonError } = await supabase
+    // No ON CONFLICT here: some deployed DBs don't have matching unique constraints.
+    const { data: existingTeam, error: existingTeamError } = await supabase
         .from('teams')
         .select('id')
         .eq('name', teamName)
-        .eq('season', season)
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-    if (existingForSeasonError) {
-        throw existingForSeasonError;
+    if (existingTeamError) {
+        throw existingTeamError;
     }
 
-    let existingTeamId = existingForSeason?.id;
-    if (!existingTeamId) {
-        const { data: existingAnySeason, error: existingAnySeasonError } = await supabase
-            .from('teams')
-            .select('id')
-            .eq('name', teamName)
-            .order('updated_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-        if (existingAnySeasonError) {
-            throw existingAnySeasonError;
-        }
-
-        existingTeamId = existingAnySeason?.id;
-    }
-
-    if (existingTeamId) {
+    if (existingTeam?.id) {
         const { data: updatedTeam, error: updateError } = await supabase
             .from('teams')
-            .update({ division, season })
-            .eq('id', existingTeamId)
+            .update(payload)
+            .eq('id', existingTeam.id)
             .select('id')
             .single();
 
@@ -180,6 +156,21 @@ export async function POST(request: NextRequest) {
             ? allMatchdays
             : allMatchdays.filter((md: any) => md.round > latestRoundInDb);
         console.log(`📦 Syncing ${matchdaysToSync.length} matchday(s)`);
+
+        const todayUtc = new Date();
+        const todayStartUtc = new Date(Date.UTC(
+            todayUtc.getUTCFullYear(),
+            todayUtc.getUTCMonth(),
+            todayUtc.getUTCDate()
+        ));
+        const pastOrTodayRounds = new Set<number>(
+            matchdaysToSync
+                .filter((md: any) => {
+                    const parsedDate = parseDdMmYyyyToUtcDate(md.date);
+                    return parsedDate ? parsedDate <= todayStartUtc : true;
+                })
+                .map((md: any) => md.round)
+        );
         
         // 4. Save Teams
         const teamNames = new Set<string>();
@@ -400,10 +391,16 @@ export async function POST(request: NextRequest) {
         }
 
         // 8.5. Save Detailed Match Data (Latest Matches with singles/doubles)
-        // Latest matches are already filtered by the API based on minRound
-        const latestMatchesToSync = leagueData.latestMatches || [];
+        // Skip match reports from future-dated matchdays.
+        const latestMatchesToSync = (leagueData.latestMatches || []).filter(
+            (match: any) => pastOrTodayRounds.has(match.matchday)
+        );
+        const skippedFutureReports = (leagueData.latestMatches || []).length - latestMatchesToSync.length;
         
         console.log(`📋 Syncing ${latestMatchesToSync.length} detailed matches`);
+        if (skippedFutureReports > 0) {
+            console.log(`⏭️ Skipped ${skippedFutureReports} future match report(s)`);
+        }
         
         if (latestMatchesToSync && latestMatchesToSync.length > 0) {
             for (const matchDetail of latestMatchesToSync) {
